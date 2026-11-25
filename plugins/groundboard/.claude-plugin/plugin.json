@@ -9,10 +9,5 @@
   "homepage": "https://github.com/lamngockhuong/groundboard",
   "repository": "https://github.com/lamngockhuong/groundboard",
   "license": "MIT",
-  "keywords": [
-    "excalidraw",
-    "diagram",
-    "codebase",
-    "knowledge-board"
-  ]
+  "keywords": ["excalidraw", "diagram", "codebase", "knowledge-board"]
 }
