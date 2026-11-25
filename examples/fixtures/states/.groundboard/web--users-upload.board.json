@@ -1,0 +1,666 @@
+{
+  "schemaVersion": 1,
+  "title": "Bulk user upload screen",
+  "question": "What is on the bulk user upload screen, in each of its states, and what does each control do?",
+  "nodes": [
+    {
+      "id": "upload",
+      "kind": "screen",
+      "label": "① Upload",
+      "ref": "web:users-upload",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["route", "switch"],
+      "detail": "The breadcrumb and title belong to this step only; the later states render without them."
+    },
+    {
+      "id": "crumb",
+      "kind": "element",
+      "role": "link",
+      "label": "Users / Bulk upload",
+      "parentId": "upload",
+      "sourceIds": ["header"],
+      "ref": "web:users-upload/breadcrumb",
+      "action": "Opens the user list"
+    },
+    {
+      "id": "title",
+      "kind": "element",
+      "role": "text",
+      "label": "Bulk upload users",
+      "parentId": "upload",
+      "sourceIds": ["title"]
+    },
+    {
+      "id": "template",
+      "kind": "element",
+      "role": "link",
+      "label": "Download template",
+      "parentId": "upload",
+      "sourceIds": ["template"],
+      "ref": "web:users-upload/download-template",
+      "action": "Downloads the CSV template"
+    },
+    {
+      "id": "pick",
+      "kind": "element",
+      "role": "input",
+      "label": "Drop a CSV file or choose one",
+      "parentId": "upload",
+      "sourceIds": ["drop", "to-validating"],
+      "ref": "web:users-upload/choose-file",
+      "action": "Validates the chosen file"
+    },
+    {
+      "id": "validating",
+      "kind": "screen",
+      "label": "② Validating",
+      "stateOf": "upload",
+      "sourceIds": ["s-validating"]
+    },
+    {
+      "id": "checking",
+      "kind": "element",
+      "role": "text",
+      "label": "Checking the file…",
+      "parentId": "validating",
+      "sourceIds": ["checking"]
+    },
+    {
+      "id": "validating-cancel",
+      "kind": "element",
+      "role": "button",
+      "label": "Cancel",
+      "parentId": "validating",
+      "sourceIds": ["cancel-validation", "abort"],
+      "ref": "web:users-upload/cancel-validation",
+      "action": "Aborts the check and returns to upload"
+    },
+    {
+      "id": "confirm",
+      "kind": "screen",
+      "label": "③ Confirm",
+      "stateOf": "upload",
+      "sourceIds": ["s-confirm"]
+    },
+    {
+      "id": "ready",
+      "kind": "element",
+      "role": "text",
+      "label": "Ready to import",
+      "parentId": "confirm",
+      "sourceIds": ["ready"]
+    },
+    {
+      "id": "summary",
+      "kind": "element",
+      "role": "container",
+      "label": "Row summary (one line per change)",
+      "parentId": "confirm",
+      "sourceIds": ["summary"]
+    },
+    {
+      "id": "confirm-actions",
+      "kind": "element",
+      "role": "container",
+      "label": "Actions",
+      "parentId": "confirm",
+      "direction": "row",
+      "sourceIds": ["confirm-cancel"]
+    },
+    {
+      "id": "confirm-cancel",
+      "kind": "element",
+      "role": "button",
+      "label": "Cancel",
+      "parentId": "confirm-actions",
+      "sourceIds": ["confirm-cancel"],
+      "ref": "web:users-upload/confirm-cancel",
+      "action": "Returns to upload"
+    },
+    {
+      "id": "confirm-import",
+      "kind": "element",
+      "role": "button",
+      "label": "Import",
+      "parentId": "confirm-actions",
+      "sourceIds": ["confirm-import"],
+      "ref": "web:users-upload/import",
+      "action": "Opens the confirmation dialog"
+    },
+    {
+      "id": "dialog",
+      "kind": "screen",
+      "label": "④ Import dialog",
+      "stateOf": "upload",
+      "sourceIds": ["dialog"],
+      "detail": "Drawn over the Confirm step while dialogOpen is true."
+    },
+    {
+      "id": "dialog-text",
+      "kind": "element",
+      "role": "text",
+      "label": "Import these users now?",
+      "parentId": "dialog",
+      "sourceIds": ["dialog-text"]
+    },
+    {
+      "id": "dialog-actions",
+      "kind": "element",
+      "role": "container",
+      "label": "Dialog actions",
+      "parentId": "dialog",
+      "direction": "row",
+      "sourceIds": ["dialog-cancel"]
+    },
+    {
+      "id": "dialog-cancel",
+      "kind": "element",
+      "role": "button",
+      "label": "Cancel",
+      "parentId": "dialog-actions",
+      "sourceIds": ["dialog-cancel"],
+      "ref": "web:users-upload/dialog-cancel",
+      "action": "Closes the dialog"
+    },
+    {
+      "id": "dialog-import",
+      "kind": "element",
+      "role": "button",
+      "label": "Import",
+      "parentId": "dialog-actions",
+      "sourceIds": ["dialog-import"],
+      "ref": "web:users-upload/dialog-import",
+      "action": "Runs the import"
+    },
+    {
+      "id": "executing",
+      "kind": "screen",
+      "label": "⑤ Importing",
+      "stateOf": "upload",
+      "sourceIds": ["s-executing"]
+    },
+    {
+      "id": "importing",
+      "kind": "element",
+      "role": "text",
+      "label": "Importing users…",
+      "parentId": "executing",
+      "sourceIds": ["importing"]
+    },
+    {
+      "id": "complete",
+      "kind": "screen",
+      "label": "⑥ Complete",
+      "stateOf": "upload",
+      "sourceIds": ["s-complete"]
+    },
+    {
+      "id": "finished",
+      "kind": "element",
+      "role": "text",
+      "label": "Import finished",
+      "parentId": "complete",
+      "sourceIds": ["finished"]
+    },
+    {
+      "id": "result",
+      "kind": "element",
+      "role": "container",
+      "label": "Result summary",
+      "parentId": "complete",
+      "sourceIds": ["result"]
+    },
+    {
+      "id": "back-users",
+      "kind": "element",
+      "role": "button",
+      "label": "Back to users",
+      "parentId": "complete",
+      "sourceIds": ["back-users"],
+      "ref": "web:users-upload/back-to-users",
+      "action": "Opens the user list"
+    },
+    {
+      "id": "errors",
+      "kind": "screen",
+      "label": "⑦ Row errors",
+      "stateOf": "upload",
+      "sourceIds": ["s-errors"]
+    },
+    {
+      "id": "errors-title",
+      "kind": "element",
+      "role": "text",
+      "label": "Some rows have errors",
+      "parentId": "errors",
+      "sourceIds": ["errors-title"]
+    },
+    {
+      "id": "row-errors",
+      "kind": "element",
+      "role": "container",
+      "label": "Row errors (one line per row)",
+      "parentId": "errors",
+      "sourceIds": ["row-errors"]
+    },
+    {
+      "id": "errors-again",
+      "kind": "element",
+      "role": "button",
+      "label": "Upload again",
+      "parentId": "errors",
+      "sourceIds": ["errors-again"],
+      "ref": "web:users-upload/errors-upload-again",
+      "action": "Returns to upload"
+    },
+    {
+      "id": "mismatch",
+      "kind": "screen",
+      "label": "⑧ Template mismatch",
+      "stateOf": "upload",
+      "sourceIds": ["mismatch"],
+      "detail": "The upload step with the alert in place of the file drop."
+    },
+    {
+      "id": "mismatch-text",
+      "kind": "element",
+      "role": "text",
+      "label": "The file does not match the user template.",
+      "parentId": "mismatch",
+      "sourceIds": ["mismatch-text"]
+    },
+    {
+      "id": "mismatch-again",
+      "kind": "element",
+      "role": "button",
+      "label": "Upload again",
+      "parentId": "mismatch",
+      "sourceIds": ["mismatch-again"],
+      "ref": "web:users-upload/mismatch-upload-again",
+      "action": "Clears the alert and shows the file drop"
+    }
+  ],
+  "edges": [
+    {
+      "id": "nav-crumb",
+      "from": "crumb",
+      "toRef": "web:users",
+      "kind": "navigates",
+      "label": "click",
+      "sourceIds": ["header"]
+    },
+    {
+      "id": "nav-done",
+      "from": "back-users",
+      "toRef": "web:users",
+      "kind": "navigates",
+      "label": "click",
+      "sourceIds": ["back-users"]
+    },
+    {
+      "id": "t-upload",
+      "from": "pick",
+      "to": "validating",
+      "kind": "transition",
+      "label": "file chosen",
+      "sourceIds": ["to-validating", "validate-call"]
+    },
+    {
+      "id": "t-ok",
+      "from": "validating",
+      "to": "confirm",
+      "kind": "transition",
+      "label": "no errors",
+      "sourceIds": ["to-confirm"]
+    },
+    {
+      "id": "t-errors",
+      "from": "validating",
+      "to": "errors",
+      "kind": "transition",
+      "label": "row errors",
+      "sourceIds": ["to-errors"]
+    },
+    {
+      "id": "t-mismatch",
+      "from": "validating",
+      "to": "mismatch",
+      "kind": "transition",
+      "label": "template mismatch",
+      "sourceIds": ["to-mismatch", "set-mismatch"]
+    },
+    {
+      "id": "t-other",
+      "from": "validating",
+      "to": "upload",
+      "kind": "transition",
+      "label": "other API error",
+      "sourceIds": ["to-upload-other"]
+    },
+    {
+      "id": "t-cancel-check",
+      "from": "validating-cancel",
+      "to": "upload",
+      "kind": "transition",
+      "label": "cancel",
+      "sourceIds": ["abort"]
+    },
+    {
+      "id": "t-confirm-cancel",
+      "from": "confirm-cancel",
+      "to": "upload",
+      "kind": "transition",
+      "label": "cancel",
+      "sourceIds": ["confirm-cancel"]
+    },
+    {
+      "id": "t-open-dialog",
+      "from": "confirm-import",
+      "to": "dialog",
+      "kind": "transition",
+      "label": "Import",
+      "sourceIds": ["confirm-import"]
+    },
+    {
+      "id": "t-dialog-cancel",
+      "from": "dialog-cancel",
+      "to": "confirm",
+      "kind": "transition",
+      "label": "cancel",
+      "sourceIds": ["dialog-cancel"]
+    },
+    {
+      "id": "t-run",
+      "from": "dialog-import",
+      "to": "executing",
+      "kind": "transition",
+      "label": "Import",
+      "sourceIds": ["dialog-import", "to-executing"]
+    },
+    {
+      "id": "t-done",
+      "from": "executing",
+      "to": "complete",
+      "kind": "transition",
+      "label": "import finished",
+      "sourceIds": ["to-complete"]
+    },
+    {
+      "id": "t-errors-again",
+      "from": "errors-again",
+      "to": "upload",
+      "kind": "transition",
+      "label": "upload again",
+      "sourceIds": ["errors-again"]
+    },
+    {
+      "id": "t-mismatch-again",
+      "from": "mismatch-again",
+      "to": "upload",
+      "kind": "transition",
+      "label": "upload again",
+      "sourceIds": ["mismatch-again"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "route",
+      "path": "src/main.tsx",
+      "line": 8,
+      "quote": "path: \"/admin/users/upload\""
+    },
+    {
+      "id": "route-users",
+      "path": "src/main.tsx",
+      "line": 7,
+      "quote": "path: \"/admin/users\""
+    },
+    {
+      "id": "list-link",
+      "path": "src/screens/UserList.tsx",
+      "line": 8,
+      "quote": "<Link to=\"/admin/users/upload\">Upload users</Link>"
+    },
+    {
+      "id": "switch",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 47,
+      "quote": "switch (step) {"
+    },
+    {
+      "id": "header",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 43,
+      "quote": "<Link to=\"/admin/users\">Users</Link> / Bulk upload"
+    },
+    {
+      "id": "title",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 52,
+      "quote": "<h1>Bulk upload users</h1>"
+    },
+    {
+      "id": "template",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 53,
+      "quote": "<a href=\"/templates/users.csv\" download>"
+    },
+    {
+      "id": "drop",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 64,
+      "quote": "<FileDrop onFile={onFileChosen} label=\"Drop a CSV file or choose one\" />"
+    },
+    {
+      "id": "to-validating",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 19,
+      "quote": "setStep(\"validating\");"
+    },
+    {
+      "id": "validate-call",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 20,
+      "quote": "const response = await validateFile(file, abort.signal);"
+    },
+    {
+      "id": "s-validating",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 68,
+      "quote": "case \"validating\":"
+    },
+    {
+      "id": "checking",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 71,
+      "quote": "<p>Checking the file…</p>"
+    },
+    {
+      "id": "cancel-validation",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 72,
+      "quote": "onClick={onCancelValidation}"
+    },
+    {
+      "id": "abort",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 30,
+      "quote": "controller?.abort();"
+    },
+    {
+      "id": "to-confirm",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 21,
+      "quote": "if (response.kind === \"ok\") setStep(\"confirm\");"
+    },
+    {
+      "id": "to-errors",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 22,
+      "quote": "else if (response.kind === \"row-errors\") setStep(\"errors\");"
+    },
+    {
+      "id": "to-mismatch",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 23,
+      "quote": "else if (response.kind === \"template-mismatch\") {"
+    },
+    {
+      "id": "set-mismatch",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 24,
+      "quote": "setMismatch(true);"
+    },
+    {
+      "id": "to-upload-other",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 26,
+      "quote": "} else setStep(\"upload\");"
+    },
+    {
+      "id": "s-confirm",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 77,
+      "quote": "case \"confirm\":"
+    },
+    {
+      "id": "ready",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 80,
+      "quote": "<h2>Ready to import</h2>"
+    },
+    {
+      "id": "summary",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 81,
+      "quote": "<RowSummary />"
+    },
+    {
+      "id": "confirm-cancel",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 82,
+      "quote": "onClick={() => setStep(\"upload\")}"
+    },
+    {
+      "id": "confirm-import",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 85,
+      "quote": "onClick={() => setDialogOpen(true)}"
+    },
+    {
+      "id": "dialog",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 88,
+      "quote": "{dialogOpen && ("
+    },
+    {
+      "id": "dialog-text",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 90,
+      "quote": "<p>Import these users now?</p>"
+    },
+    {
+      "id": "dialog-cancel",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 91,
+      "quote": "onClick={() => setDialogOpen(false)}"
+    },
+    {
+      "id": "dialog-import",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 94,
+      "quote": "onClick={onExecute}"
+    },
+    {
+      "id": "to-executing",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 36,
+      "quote": "setStep(\"executing\");"
+    },
+    {
+      "id": "s-executing",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 111,
+      "quote": "case \"executing\":"
+    },
+    {
+      "id": "importing",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 114,
+      "quote": "<p>Importing users…</p>"
+    },
+    {
+      "id": "to-complete",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 38,
+      "quote": "setStep(\"complete\");"
+    },
+    {
+      "id": "s-complete",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 117,
+      "quote": "case \"complete\":"
+    },
+    {
+      "id": "finished",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 120,
+      "quote": "<h2>Import finished</h2>"
+    },
+    {
+      "id": "result",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 121,
+      "quote": "<ResultSummary result={result} />"
+    },
+    {
+      "id": "back-users",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 122,
+      "quote": "onClick={() => navigate(\"/admin/users\")}"
+    },
+    {
+      "id": "s-errors",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 101,
+      "quote": "case \"errors\":"
+    },
+    {
+      "id": "errors-title",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 104,
+      "quote": "<h2>Some rows have errors</h2>"
+    },
+    {
+      "id": "row-errors",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 105,
+      "quote": "<RowErrors />"
+    },
+    {
+      "id": "errors-again",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 106,
+      "quote": "onClick={() => setStep(\"upload\")}"
+    },
+    {
+      "id": "mismatch",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 57,
+      "quote": "<section role=\"alert\">"
+    },
+    {
+      "id": "mismatch-text",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 58,
+      "quote": "<p>The file does not match the user template.</p>"
+    },
+    {
+      "id": "mismatch-again",
+      "path": "src/screens/UserUpload.tsx",
+      "line": 59,
+      "quote": "onClick={() => setMismatch(false)}"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "title": "Shop database",
+  "question": "Which tables does the shop keep, and how do they relate?",
+  "nodes": [
+    {
+      "id": "orders",
+      "kind": "table",
+      "label": "orders",
+      "ref": "db:orders",
+      "sourceIds": ["orders-table"],
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "email", "type": "text", "sourceIds": ["orders-email"] },
+        { "name": "status", "type": "text", "default": "'placed'" },
+        { "name": "created_at", "type": "timestamptz", "default": "now()" }
+      ]
+    },
+    {
+      "id": "order-items",
+      "kind": "table",
+      "label": "order_items",
+      "ref": "db:order-items",
+      "sourceIds": ["items-table"],
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "order_id", "type": "uuid", "sourceIds": ["items-fk"] },
+        { "name": "product_id", "type": "text" },
+        { "name": "quantity", "type": "integer" }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "items-order",
+      "from": "order-items",
+      "to": "orders",
+      "kind": "references",
+      "fromColumn": "order_id",
+      "toColumn": "id",
+      "cardinality": "many-to-one",
+      "sourceIds": ["items-fk"]
+    }
+  ],
+  "sources": [
+    { "id": "orders-table", "path": "db/schema.sql", "line": 2, "quote": "CREATE TABLE orders (" },
+    { "id": "orders-email", "path": "db/schema.sql", "line": 4, "quote": "email text NOT NULL," },
+    {
+      "id": "items-table",
+      "path": "db/schema.sql",
+      "line": 9,
+      "quote": "CREATE TABLE order_items ("
+    },
+    {
+      "id": "items-fk",
+      "path": "db/schema.sql",
+      "line": 11,
+      "quote": "order_id uuid NOT NULL REFERENCES orders (id),"
+    }
+  ]
+}

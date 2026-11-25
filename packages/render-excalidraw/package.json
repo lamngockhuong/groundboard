@@ -1,0 +1,26 @@
+{
+  "name": "@groundboard/render-excalidraw",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles": "./src/styles.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@groundboard/layout": "workspace:*",
+    "@groundboard/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@excalidraw/element": "0.18.0-9fbeaed",
+    "@excalidraw/excalidraw": "0.18.1",
+    "excalidraw-next": "npm:@excalidraw/excalidraw@0.18.0-9fbeaed",
+    "jsdom": "31.0.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  }
+}

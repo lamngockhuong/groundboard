@@ -1,0 +1,649 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lamngockhuong/groundboard/blob/main/packages/schema/board.schema.json",
+  "title": "groundboard board",
+  "description": "A source-grounded knowledge board. Ids are unique per collection; edges connect node ids; a node's groupId and a group's parentId name group ids; group nesting is acyclic and at most 4 levels deep. An element has no groupId; a screen has one only when it has no elements and no states. Sources are code (the default kind), or specification: doc (a document in the repository, with line and quote), figma, mockup (a label, and a path when the file is in the repository) and link (an https document outside the repository). Nodes of kind step, state, decision, cause, rejected, fact and screen must cite at least one source, and every code source they cite must carry a non-empty quote copied from the cited lines. A screen needs ref, platform and layoutFrom (figma, screenshot, mockup, doc or code); layoutFrom code needs a cited code source, and a screen with layoutFrom doc has no elements. A screen with stateOf (the id of another screen on the board, which is not itself a state) draws one state of that screen: it has no ref, its platform and layoutFrom are the root's, and its elements' refs extend the root's ref. An element's parentId names its screen or containing element (acyclic, at most 8 levels deep), and its ref extends its screen's ref. An interactive element (button, link, input, checkbox, or the start of a navigates edge) needs an action citing a source that can back behaviour (a quoted code source, a doc, a figma node, a mockup with a path, or a link with a quote), or unresolved. An edge has exactly one of to and toRef; toRef is only for navigates edges, which must cite a source that can back behaviour. A transition edge that ends at a screen starts at that screen, one of its states or one of their elements, and must cite a source that can back behaviour. A claim is grounded in code when it cites a quoted code source, in the specification when it cites only specification sources.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "repo": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{7,40}$"
+        }
+      }
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "tags": {
+      "maxItems": 10,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 40,
+        "pattern": "^\\S(?:[^\\u0000-\\u001f\\u007f]*\\S)?$"
+      }
+    },
+    "groups": {
+      "default": [],
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "parentId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      }
+    },
+    "nodes": {
+      "minItems": 1,
+      "maxItems": 500,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "step",
+              "state",
+              "decision",
+              "cause",
+              "rejected",
+              "fact",
+              "question",
+              "note",
+              "screen",
+              "element",
+              "resource",
+              "endpoint",
+              "table",
+              "job"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "groupId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "sourceIds": {
+            "default": [],
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          "ref": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "container",
+              "text",
+              "button",
+              "link",
+              "input",
+              "checkbox",
+              "image",
+              "icon",
+              "bar"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "row",
+              "column"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "unresolved": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "layoutFrom": {
+            "type": "string",
+            "enum": [
+              "figma",
+              "screenshot",
+              "mockup",
+              "doc",
+              "code"
+            ]
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "mobile"
+            ]
+          },
+          "stateOf": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "width": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 4000
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD",
+              "OPTIONS"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "pathPrefix": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "columns": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_$ .-]*$"
+                },
+                "type": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 60
+                },
+                "pk": {
+                  "type": "boolean"
+                },
+                "nullable": {
+                  "type": "boolean"
+                },
+                "unique": {
+                  "type": "boolean"
+                },
+                "default": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "sourceIds": {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9_.:-]+$"
+                  }
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          },
+          "trigger": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "cron",
+                  "queue",
+                  "event",
+                  "manual"
+                ]
+              },
+              "schedule": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "queue": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "event": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "retry": {
+            "type": "object",
+            "properties": {
+              "attempts": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              "backoff": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              }
+            },
+            "required": [
+              "attempts"
+            ]
+          },
+          "timeout": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "manual": {
+            "type": "boolean",
+            "const": true
+          },
+          "priorSourceIds": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label"
+        ]
+      }
+    },
+    "edges": {
+      "default": [],
+      "maxItems": 1000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "from": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "to": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "toRef": {
+            "type": "string"
+          },
+          "kind": {
+            "default": "flow",
+            "type": "string",
+            "enum": [
+              "flow",
+              "transition",
+              "causes",
+              "blocks",
+              "relates",
+              "navigates",
+              "calls",
+              "references",
+              "reads",
+              "writes",
+              "enqueues"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "sourceIds": {
+            "default": [],
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          "fromColumn": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "toColumn": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "cardinality": {
+            "type": "string",
+            "enum": [
+              "one-to-one",
+              "one-to-many",
+              "many-to-one",
+              "many-to-many"
+            ]
+          },
+          "manual": {
+            "type": "boolean",
+            "const": true
+          },
+          "priorSourceIds": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "from"
+        ]
+      }
+    },
+    "sources": {
+      "default": [],
+      "maxItems": 1000,
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "kind": {
+                "default": "code",
+                "type": "string",
+                "const": "code"
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "endLine": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "quote": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "id",
+              "path",
+              "line"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "kind": {
+                "type": "string",
+                "const": "figma"
+              },
+              "fileKey": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9]{10,64}$"
+              },
+              "nodeId": {
+                "type": "string",
+                "pattern": "^(?:\\d+:\\d+|I\\d+:\\d+(?:;\\d+:\\d+)+)$"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "fileKey",
+              "nodeId"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "kind": {
+                "type": "string",
+                "const": "doc"
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "endLine": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "quote": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "path",
+              "line",
+              "quote"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "kind": {
+                "type": "string",
+                "const": "link"
+              },
+              "url": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "quote": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "retrievedAt": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "url",
+              "title"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "kind": {
+                "type": "string",
+                "const": "mockup"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "label"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "title",
+    "question",
+    "nodes"
+  ]
+}

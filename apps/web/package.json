@@ -1,0 +1,38 @@
+{
+  "name": "@groundboard/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@excalidraw/excalidraw": "0.18.1",
+    "@fontsource-variable/figtree": "5.3.0",
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "@fontsource-variable/ibm-plex-sans": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@groundboard/layout": "workspace:*",
+    "@groundboard/render-excalidraw": "workspace:*",
+    "@groundboard/schema": "workspace:*",
+    "fflate": "0.8.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "jsdom": "31.0.1",
+    "typescript": "catalog:",
+    "vite": "8.3.8",
+    "vitest": "catalog:"
+  }
+}

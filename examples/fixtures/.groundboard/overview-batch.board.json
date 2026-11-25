@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "title": "Shop background jobs",
+  "question": "Which jobs run in the background, what starts them and what do they touch?",
+  "groups": [
+    { "id": "on-queue", "label": "Queue workers" },
+    { "id": "on-schedule", "label": "Scheduled" }
+  ],
+  "nodes": [
+    {
+      "id": "send-receipt",
+      "kind": "job",
+      "label": "Send the receipt",
+      "ref": "batch:send-receipt",
+      "groupId": "on-queue",
+      "trigger": { "type": "queue", "queue": "send-receipt" },
+      "retry": { "attempts": 3, "backoff": "exponential" },
+      "sourceIds": ["receipt-worker", "receipt-retry"]
+    },
+    {
+      "id": "close-stale-orders",
+      "kind": "job",
+      "label": "Close stale orders",
+      "ref": "batch:close-stale-orders",
+      "groupId": "on-schedule",
+      "trigger": { "type": "cron", "schedule": "0 2 * * *" },
+      "sourceIds": ["close-schedule"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "receipt-reads",
+      "from": "send-receipt",
+      "toRef": "db:orders",
+      "kind": "reads",
+      "sourceIds": ["receipt-query"]
+    },
+    {
+      "id": "close-writes",
+      "from": "close-stale-orders",
+      "toRef": "db:orders",
+      "kind": "writes",
+      "sourceIds": ["close-update"]
+    }
+  ],
+  "sources": [
+    { "id": "receipt-worker", "path": "server/jobs.ts", "line": 7, "quote": "\"send-receipt\"," },
+    {
+      "id": "receipt-retry",
+      "path": "server/jobs.ts",
+      "line": 12,
+      "quote": "{ attempts: 3, backoff: \"exponential\" },"
+    },
+    {
+      "id": "receipt-query",
+      "path": "server/jobs.ts",
+      "line": 9,
+      "quote": "const order = await db.findOne(\"orders\", { id: job.data.orderId });"
+    },
+    {
+      "id": "close-schedule",
+      "path": "server/jobs.ts",
+      "line": 15,
+      "quote": "schedule(\"0 2 * * *\", \"close-stale-orders\", async () => {"
+    },
+    {
+      "id": "close-update",
+      "path": "server/jobs.ts",
+      "line": 16,
+      "quote": "await db.update(\"orders\", { status: \"placed\" }, { status: \"closed\" });"
+    }
+  ]
+}

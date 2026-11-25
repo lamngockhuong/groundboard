@@ -1,0 +1,19 @@
+packages:
+  - packages/*
+  - apps/*
+
+catalog:
+  "@biomejs/biome": 2.6.8
+  "@types/node": ^24.0.0
+  tsdown: 0.23.7
+  typescript: 7.0.2
+  vitest: 5.1.0
+  zod: ^4.6.7
+
+minimumReleaseAgeExclude:
+  - "@excalidraw/common@0.18.0-9fbeaed"
+  - "@excalidraw/element@0.18.0-9fbeaed"
+  - "@excalidraw/fractional-indexing@0.18.0-9fbeaed"
+  - "@excalidraw/math@0.18.0-9fbeaed"
+  - "@excalidraw/excalidraw@0.18.0-9fbeaed"
+  - "@hono/node-server@2.1.9"

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Blocks a push that adds a term from the untracked client-term denylist.
+# Enable once per clone: git config core.hooksPath .githooks
+exec node "$(git rev-parse --show-toplevel)/scripts/check-denylist.mjs" --pre-push

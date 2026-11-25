@@ -1,0 +1,170 @@
+{
+  "$schema": "../packages/schema/board.schema.json",
+  "schemaVersion": 1,
+  "title": "Order state machine",
+  "question": "Why can a packed order not be refunded directly?",
+  "repo": { "url": "https://github.com/lamngockhuong/groundboard" },
+  "groups": [
+    { "id": "g-lifecycle", "label": "Order lifecycle" },
+    { "id": "g-open", "label": "Before payment", "parentId": "g-lifecycle" },
+    { "id": "g-fulfilment", "label": "Fulfilment", "parentId": "g-lifecycle" },
+    { "id": "g-terminal", "label": "Terminal states", "parentId": "g-lifecycle" },
+    { "id": "g-design", "label": "Design notes" }
+  ],
+  "nodes": [
+    {
+      "id": "pending",
+      "kind": "state",
+      "label": "pending",
+      "groupId": "g-open",
+      "sourceIds": ["s-type", "s-pending"]
+    },
+    {
+      "id": "paid",
+      "kind": "state",
+      "label": "paid",
+      "groupId": "g-fulfilment",
+      "sourceIds": ["s-paid"]
+    },
+    {
+      "id": "packed",
+      "kind": "state",
+      "label": "packed",
+      "groupId": "g-fulfilment",
+      "sourceIds": ["s-packed"]
+    },
+    {
+      "id": "shipped",
+      "kind": "state",
+      "label": "shipped",
+      "groupId": "g-fulfilment",
+      "sourceIds": ["s-shipped"]
+    },
+    {
+      "id": "delivered",
+      "kind": "state",
+      "label": "delivered",
+      "groupId": "g-fulfilment",
+      "sourceIds": ["s-delivered"]
+    },
+    {
+      "id": "cancelled",
+      "kind": "state",
+      "label": "cancelled",
+      "groupId": "g-terminal",
+      "sourceIds": ["s-terminal"]
+    },
+    {
+      "id": "refunded",
+      "kind": "state",
+      "label": "refunded",
+      "groupId": "g-terminal",
+      "sourceIds": ["s-terminal"]
+    },
+    {
+      "id": "guard",
+      "kind": "fact",
+      "label": "Any transition not in the table throws",
+      "groupId": "g-design",
+      "sourceIds": ["s-guard"]
+    },
+    {
+      "id": "why-packed",
+      "kind": "cause",
+      "label": "A refund must never race a parcel that is already labelled",
+      "groupId": "g-design",
+      "sourceIds": ["s-why-packed"]
+    },
+    {
+      "id": "rejected-closed",
+      "kind": "rejected",
+      "label": "One `closed` status for cancelled and refunded",
+      "detail": "Finance reports need to tell the two apart.",
+      "groupId": "g-design",
+      "sourceIds": ["s-closed"]
+    },
+    {
+      "id": "note-restock",
+      "kind": "note",
+      "label": "Restocking a packed order is not modelled in this table",
+      "groupId": "g-design"
+    }
+  ],
+  "edges": [
+    { "id": "t1", "from": "pending", "to": "paid", "kind": "transition", "label": "pay" },
+    { "id": "t2", "from": "pending", "to": "cancelled", "kind": "transition", "label": "cancel" },
+    { "id": "t3", "from": "paid", "to": "packed", "kind": "transition", "label": "pack" },
+    { "id": "t4", "from": "paid", "to": "refunded", "kind": "transition", "label": "refund" },
+    { "id": "t5", "from": "packed", "to": "shipped", "kind": "transition", "label": "ship" },
+    { "id": "t6", "from": "shipped", "to": "delivered", "kind": "transition", "label": "deliver" },
+    { "id": "t7", "from": "delivered", "to": "refunded", "kind": "transition", "label": "refund" },
+    { "id": "c1", "from": "why-packed", "to": "packed", "kind": "blocks" },
+    { "id": "c2", "from": "guard", "to": "why-packed", "kind": "relates" }
+  ],
+  "sources": [
+    {
+      "id": "s-type",
+      "path": "examples/fixtures/orders/order-status.ts",
+      "line": 3,
+      "quote": "export type OrderStatus ="
+    },
+    {
+      "id": "s-pending",
+      "path": "examples/fixtures/orders/order-status.ts",
+      "line": 13,
+      "quote": "pending: [\"paid\", \"cancelled\"],"
+    },
+    {
+      "id": "s-paid",
+      "path": "examples/fixtures/orders/order-status.ts",
+      "line": 14,
+      "quote": "paid: [\"packed\", \"refunded\"],"
+    },
+    {
+      "id": "s-packed",
+      "path": "examples/fixtures/orders/order-status.ts",
+      "line": 15,
+      "quote": "packed: [\"shipped\"],"
+    },
+    {
+      "id": "s-shipped",
+      "path": "examples/fixtures/orders/order-status.ts",
+      "line": 16,
+      "quote": "shipped: [\"delivered\"],"
+    },
+    {
+      "id": "s-delivered",
+      "path": "examples/fixtures/orders/order-status.ts",
+      "line": 17,
+      "quote": "delivered: [\"refunded\"],"
+    },
+    {
+      "id": "s-terminal",
+      "path": "examples/fixtures/orders/order-status.ts",
+      "line": 18,
+      "endLine": 19,
+      "quote": "cancelled: [], refunded: [],"
+    },
+    {
+      "id": "s-guard",
+      "path": "examples/fixtures/orders/order-status.ts",
+      "line": 27,
+      "endLine": 28,
+      "quote": "if (!canTransition(from, to)) { throw new Error(`illegal transition ${from} -> ${to}`);"
+    },
+    {
+      "id": "s-why-packed",
+      "path": "examples/fixtures/orders/README.md",
+      "line": 6,
+      "endLine": 7,
+      "quote": "Packed orders cannot be refunded directly: the warehouse must ship or restock them first, so a refund never races a parcel that is already labelled."
+    },
+    {
+      "id": "s-closed",
+      "path": "examples/fixtures/orders/README.md",
+      "line": 9,
+      "endLine": 10,
+      "quote": "We considered a single `closed` status for cancelled and refunded orders and rejected it"
+    }
+  ]
+}

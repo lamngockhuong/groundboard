@@ -1,0 +1,228 @@
+{
+  "schemaVersion": 1,
+  "title": "Cart screen (mobile)",
+  "question": "What is on the mobile cart screen and what does each control do?",
+  "nodes": [
+    {
+      "id": "cart",
+      "kind": "screen",
+      "label": "Cart",
+      "ref": "mobile:cart",
+      "platform": "mobile",
+      "layoutFrom": "screenshot",
+      "sourceIds": ["route"]
+    },
+    {
+      "id": "header",
+      "kind": "element",
+      "role": "bar",
+      "label": "Cart",
+      "parentId": "cart",
+      "sourceIds": ["heading"]
+    },
+    {
+      "id": "account",
+      "kind": "element",
+      "role": "text",
+      "label": "Signed-in account",
+      "parentId": "cart",
+      "detail": "Seen on the screenshot; no line of CartScreen renders it"
+    },
+    {
+      "id": "lines",
+      "kind": "element",
+      "role": "container",
+      "label": "Cart lines (one row per line)",
+      "parentId": "cart",
+      "sourceIds": ["list"]
+    },
+    {
+      "id": "line",
+      "kind": "element",
+      "role": "container",
+      "label": "Cart line",
+      "parentId": "lines",
+      "direction": "row",
+      "sourceIds": ["row"]
+    },
+    {
+      "id": "thumb",
+      "kind": "element",
+      "role": "image",
+      "label": "Product image",
+      "parentId": "line",
+      "sourceIds": ["image"]
+    },
+    {
+      "id": "product",
+      "kind": "element",
+      "role": "text",
+      "label": "Product name",
+      "parentId": "line",
+      "sourceIds": ["name"]
+    },
+    {
+      "id": "line-total",
+      "kind": "element",
+      "role": "text",
+      "label": "Line total",
+      "parentId": "line",
+      "sourceIds": ["line-total"]
+    },
+    {
+      "id": "total",
+      "kind": "element",
+      "role": "text",
+      "label": "Order total",
+      "parentId": "cart",
+      "sourceIds": ["total"]
+    },
+    {
+      "id": "place-order",
+      "kind": "element",
+      "role": "button",
+      "label": "Place order",
+      "parentId": "cart",
+      "ref": "mobile:cart/place-order",
+      "action": "Submits the cart lines as an order, then opens its detail",
+      "sourceIds": ["on-place", "submit"]
+    },
+    {
+      "id": "keep-shopping",
+      "kind": "element",
+      "role": "link",
+      "label": "Keep shopping",
+      "parentId": "cart",
+      "action": "Opens the catalog",
+      "sourceIds": ["nav-catalog"]
+    },
+    {
+      "id": "tabs",
+      "kind": "element",
+      "role": "bar",
+      "label": "Tab bar",
+      "parentId": "cart",
+      "direction": "row",
+      "sourceIds": ["tab-catalog"]
+    },
+    {
+      "id": "tab-catalog",
+      "kind": "element",
+      "role": "icon",
+      "label": "Catalog",
+      "parentId": "tabs",
+      "sourceIds": ["tab-catalog"]
+    },
+    {
+      "id": "tab-cart",
+      "kind": "element",
+      "role": "icon",
+      "label": "Cart",
+      "parentId": "tabs",
+      "sourceIds": ["tab-cart"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "to-order",
+      "from": "place-order",
+      "toRef": "mobile:order-detail",
+      "kind": "navigates",
+      "sourceIds": ["nav-order"]
+    },
+    {
+      "id": "to-catalog",
+      "from": "keep-shopping",
+      "toRef": "mobile:catalog",
+      "kind": "navigates",
+      "sourceIds": ["nav-catalog"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "route",
+      "path": "shop-mobile/src/App.tsx",
+      "line": 16,
+      "quote": "<Tab.Screen name=\"Cart\" component={CartScreen} />"
+    },
+    {
+      "id": "tab-catalog",
+      "path": "shop-mobile/src/App.tsx",
+      "line": 15,
+      "quote": "<Tab.Screen name=\"Catalog\" component={CatalogScreen} />"
+    },
+    {
+      "id": "tab-cart",
+      "path": "shop-mobile/src/App.tsx",
+      "line": 16,
+      "quote": "<Tab.Screen name=\"Cart\""
+    },
+    {
+      "id": "heading",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 17,
+      "quote": "<Text>Cart</Text>"
+    },
+    {
+      "id": "list",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 18,
+      "endLine": 19,
+      "quote": "<FlatList data={lines}"
+    },
+    {
+      "id": "row",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 22,
+      "quote": "flexDirection: \"row\""
+    },
+    {
+      "id": "image",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 23,
+      "quote": "<Image"
+    },
+    {
+      "id": "name",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 24,
+      "quote": "<Text>{item.name}</Text>"
+    },
+    {
+      "id": "line-total",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 25,
+      "quote": "lineTotalCents(item)"
+    },
+    {
+      "id": "total",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 29,
+      "quote": "<Text>Total {total}</Text>"
+    },
+    {
+      "id": "on-place",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 30,
+      "quote": "onPress={onPlaceOrder}"
+    },
+    {
+      "id": "submit",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 12,
+      "quote": "await submitOrder(lines)"
+    },
+    {
+      "id": "nav-order",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 13,
+      "quote": "navigation.navigate(\"OrderDetail\", { orderId })"
+    },
+    {
+      "id": "nav-catalog",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 31,
+      "quote": "navigation.navigate(\"Catalog\")"
+    }
+  ]
+}

@@ -1,0 +1,1014 @@
+import type { Overlay } from "@groundboard/schema";
+import {
+  type CSSProperties,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { type Issue, type ReferenceCount, saveBoardTags, saveToken } from "./api.ts";
+import { atlasTags, boardDefiningRef, groupTitle, neighbours } from "./atlas-nav.ts";
+import { AtlasHome } from "./components/AtlasHome.tsx";
+import { CommandPalette } from "./components/CommandPalette.tsx";
+import type { BoardContext, BoardEditing } from "./components/Editor.tsx";
+import { Icon } from "./components/Icon.tsx";
+import { type InputItem, InputPanel } from "./components/InputPanel.tsx";
+import { IssueList } from "./components/IssueList.tsx";
+import { Modal } from "./components/Modal.tsx";
+import { SettingsMenu } from "./components/SettingsMenu.tsx";
+import { SIDEBAR_WIDTH, Sidebar } from "./components/Sidebar.tsx";
+import { SourcePanel } from "./components/SourcePanel.tsx";
+import { TokenForm } from "./components/TokenForm.tsx";
+import { ZipDialog } from "./components/ZipDialog.tsx";
+import type { ZipSource } from "./download.ts";
+import { type Locale, setLocale, t, useLocale } from "./i18n.ts";
+import { parseInput, type Scene } from "./input.ts";
+import type { LibraryEntry } from "./library.ts";
+import { isStaticMode } from "./mode.ts";
+import type { PaletteItem } from "./palette.ts";
+import {
+  MOTION_ALL_KEY,
+  readFlag,
+  readNumber,
+  SIDEBAR_COLLAPSED_KEY,
+  SIDEBAR_WIDTH_KEY,
+  SOURCES_OPEN_KEY,
+  saveFlag,
+  saveValue,
+} from "./prefs.ts";
+import { renderBoard } from "./render-client.ts";
+import { formatRoute, parseRoute } from "./route.ts";
+import { isPageKey, isPaletteKey, isViewerKey } from "./shortcuts.ts";
+import type { BoardNode, NodeCitations } from "./sources.ts";
+import { describeStamp } from "./stamp.ts";
+import {
+  applyStyle,
+  applyTheme,
+  readStylePreference,
+  readThemePreference,
+  resolveTheme,
+  saveStylePreference,
+  saveThemePreference,
+  type ThemePreference,
+  type ThemeStyle,
+} from "./theme.ts";
+import { type BoardCheck, type NodeFocus, useAtlas } from "./use-atlas.ts";
+
+// The editor pulls in several MB of Excalidraw; it is fetched only after the page is up.
+const loadEditor = () => import("./components/Editor.tsx");
+const Editor = lazy(() =>
+  loadEditor().catch((error: unknown) => ({
+    default: () => (
+      <p className="error" role="alert">
+        {t("app.editorLoadFailed", {
+          error: error instanceof Error ? error.message : String(error),
+        })}
+      </p>
+    ),
+  })),
+);
+
+const NO_CHECK: BoardCheck = {
+  stale: false,
+  staleSourceIds: [],
+  references: { frames: 0, cached: 0 },
+};
+
+interface LoadedScene {
+  scene: Scene;
+  key: number;
+  fileName: string;
+  title: string;
+  /** The atlas board shown, or null for a pasted board or scene. */
+  slug: string | null;
+  /** Whether the board check found the code changed; false for a pasted board. */
+  stale: boolean;
+  /** Sources the board check found changed; empty for a pasted board. */
+  staleSourceIds: string[];
+  /** Figma frames the board cites and how many have a cached image; none for a pasted board. */
+  references: ReferenceCount;
+  /** Rendered in this browser from a draft kept there. */
+  draft: boolean;
+}
+
+/** Requests that hit a 401, kept so the token form can send them again once, in order. */
+interface TokenPrompt {
+  rejected: boolean;
+  retry: () => Promise<void>;
+}
+
+const titleOf = (board: Record<string, unknown> | null): string =>
+  typeof board?.title === "string" ? board.title : "";
+
+function fileNameFor(board: Record<string, unknown> | null): string {
+  const title = titleOf(board);
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return slug || "groundboard";
+}
+
+/** Below this width the sidebar becomes a drawer. Same breakpoint as the CSS. */
+const NARROW = "(max-width: 760px)";
+const matches = (query: string) =>
+  typeof window.matchMedia === "function" && window.matchMedia(query).matches;
+
+/** Tracks a media query. */
+function useMedia(query: string): boolean {
+  const [value, setValue] = useState(() => matches(query));
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const list = window.matchMedia(query);
+    const onChange = () => setValue(list.matches);
+    list.addEventListener("change", onChange);
+    return () => list.removeEventListener("change", onChange);
+  }, [query]);
+  return value;
+}
+
+export function App() {
+  // Read once: an exported page stays exported.
+  const staticMode = isStaticMode();
+  // Every component below renders again in the new language when the reader switches it.
+  const locale = useLocale();
+  const [loaded, setLoaded] = useState<LoadedScene | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [tokenPrompt, setTokenPrompt] = useState<TokenPrompt | null>(null);
+  const [citations, setCitations] = useState<NodeCitations[]>([]);
+  const [nodes, setNodes] = useState<BoardNode[]>([]);
+  /** Focus asked for on a pasted board, which has no deep link. */
+  const [localFocus, setLocalFocus] = useState<NodeFocus | null>(null);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(readThemePreference);
+  const systemDark = useMedia("(prefers-color-scheme: dark)");
+  const theme = resolveTheme(themePreference, systemDark);
+  const [themeStyle, setThemeStyle] = useState<ThemeStyle>(readStylePreference);
+  const narrow = useMedia(NARROW);
+  const [collapsed, setCollapsed] = useState(() => readFlag(SIDEBAR_COLLAPSED_KEY, false));
+  const [sidebarWidth, setSidebarWidth] = useState(() =>
+    readNumber(SIDEBAR_WIDTH_KEY, SIDEBAR_WIDTH.initial, SIDEBAR_WIDTH.min, SIDEBAR_WIDTH.max),
+  );
+  const [sourcesOpen, setSourcesOpen] = useState(() => readFlag(SOURCES_OPEN_KEY, true));
+  const [motionAll, setMotionAll] = useState(() => readFlag(MOTION_ALL_KEY, false));
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [fileOpen, setFileOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [zipOpen, setZipOpen] = useState(false);
+  /** The board being edited, as last saved; one object per save, which the editor keys on. */
+  const [editSession, setEditSession] = useState<{
+    slug: string;
+    board: Record<string, unknown>;
+    overlay: Overlay;
+  } | null>(null);
+  /** Asks the editor whether the board has unsaved changes. */
+  const dirtyCheck = useRef<(() => boolean) | null>(null);
+  const filterRef = useRef<HTMLInputElement>(null);
+  const [focusFilter, setFocusFilter] = useState(0);
+
+  useEffect(() => {
+    // Warm the editor chunk once the page is on screen; a failure surfaces on use.
+    loadEditor().catch(() => undefined);
+  }, []);
+
+  useEffect(() => applyTheme(theme), [theme]);
+  useEffect(() => applyStyle(themeStyle), [themeStyle]);
+
+  const appearance = {
+    preference: themePreference,
+    theme,
+    style: themeStyle,
+    onPreference: (next: ThemePreference) => {
+      setThemePreference(next);
+      saveThemePreference(next);
+    },
+    onStyle: (next: ThemeStyle) => {
+      setThemeStyle(next);
+      saveStylePreference(next);
+    },
+    onLocale: (next: Locale) => setLocale(next),
+    motionAll,
+    onMotionAll: (next: boolean) => {
+      setMotionAll(next);
+      saveFlag(MOTION_ALL_KEY, next);
+    },
+  };
+
+  const clearMessages = useCallback(() => {
+    setError(null);
+    setIssues([]);
+    setWarnings([]);
+  }, []);
+
+  // The server lays out one request per client at a time, so retries run one after another.
+  const askToken = useCallback((rejected: boolean, retry: () => Promise<void>) => {
+    setTokenPrompt((previous) => ({
+      rejected,
+      retry: previous
+        ? async () => {
+            await previous.retry();
+            await retry();
+          }
+        : retry,
+    }));
+  }, []);
+
+  const showScene = useCallback(
+    (
+      scene: Scene,
+      fileName: string,
+      title: string,
+      slug: string | null,
+      check: BoardCheck = NO_CHECK,
+    ) => {
+      setCitations([]);
+      setNodes([]);
+      setLocalFocus(null);
+      setLoaded((previous) => ({
+        scene,
+        fileName,
+        title,
+        slug,
+        stale: check.stale,
+        staleSourceIds: check.staleSourceIds,
+        references: check.references,
+        draft: check.draft === true,
+        key: (previous?.key ?? 0) + 1,
+      }));
+    },
+    [],
+  );
+
+  const closeScene = useCallback(() => {
+    setLoaded(null);
+    setCitations([]);
+    setNodes([]);
+  }, []);
+
+  const {
+    checked,
+    atlasEnabled,
+    atlas,
+    route,
+    focus,
+    loadAtlas,
+    openPlace,
+    forgetBoard,
+    library,
+    addToLibrary,
+    removeFromLibrary,
+    clearLibrary,
+    libraryEntries,
+    startEditing,
+    saveEdits,
+    reloadBoard,
+    leaveGuard,
+    draftsVolatile,
+  } = useAtlas({
+    setBusy,
+    clearMessages,
+    setError,
+    setIssues,
+    setWarnings,
+    askToken,
+    showBoard: (scene, slug, title, check) => showScene(scene, slug, title, slug, check),
+    closeScene,
+    closeAtlasBoard: () => {
+      setLoaded((current) => (current?.slug != null ? null : current));
+      setCitations([]);
+      setNodes([]);
+    },
+  });
+
+  /**
+   * A pasted board or scene takes the place of an atlas board: forget that board and leave its
+   * deep link, so the address names what is on screen and following the link again reopens it.
+   */
+  const showPasted = useCallback(
+    (scene: Scene, fileName: string, title: string) => {
+      forgetBoard();
+      if (parseRoute(window.location.hash).view === "board") {
+        window.location.hash = formatRoute({ view: "home" });
+      }
+      setFileOpen(false);
+      showScene(scene, fileName, title, null);
+    },
+    [forgetBoard, showScene],
+  );
+
+  const submitBoard = useCallback(
+    async (board: Record<string, unknown>): Promise<void> => {
+      setBusy(true);
+      clearMessages();
+      const result = await renderBoard(board);
+      setBusy(false);
+      switch (result.status) {
+        case "ok":
+          setWarnings(result.warnings);
+          showPasted(result.scene, fileNameFor(board), titleOf(board) || t("app.untitledBoard"));
+          break;
+        case "invalid":
+          setIssues(result.issues);
+          setWarnings(result.warnings);
+          break;
+        case "error":
+          setError(result.message);
+          break;
+      }
+    },
+    [clearMessages, showPasted],
+  );
+
+  /**
+   * Without an atlas, opened boards join the list kept in this browser and the first one opens;
+   * under an atlas, one board is shown in place of the atlas board and not kept.
+   */
+  const handleInput = useCallback(
+    (items: readonly InputItem[]) => {
+      if (library) {
+        void (async () => {
+          const { slugFor } = await import("./library-index.ts");
+          const entries: LibraryEntry[] = [];
+          const errors: string[] = [];
+          // What zips held besides the boards loaded: the summary, files left out, files refused.
+          const summaries: string[] = [];
+          const skipped: string[] = [];
+          const rejected: Issue[] = [];
+          let fromZip = false;
+          // Two files of one name in the same pick: the last one wins, as it would one by one.
+          const put = (entry: LibraryEntry) => {
+            const at = entries.findIndex((e) => e.slug === entry.slug);
+            if (at >= 0) entries.splice(at, 1);
+            entries.push(entry);
+          };
+          for (const item of items) {
+            if ("zip" in item) {
+              fromZip = true;
+              const zip = await import("./zip-client.ts");
+              setBusy(true);
+              const read = await zip.readZip(item.zip).catch((error: unknown) => ({
+                ok: false as const,
+                message: error instanceof Error ? error.message : String(error),
+              }));
+              setBusy(false);
+              if (!read.ok) {
+                const message =
+                  "problem" in read ? zip.describeZipProblem(read.problem) : read.message;
+                errors.push(`${item.fileName}: ${message}`);
+                continue;
+              }
+              const overlays = new Map(read.overlays.map((o) => [o.slug, o.overlay]));
+              for (const board of read.boards) {
+                const overlay = overlays.get(board.slug);
+                put({
+                  slug: board.slug,
+                  input: { type: "board", board: board.board },
+                  openedAt: Date.now(),
+                  ...(overlay ? { overlay } : {}),
+                });
+              }
+              for (const scene of read.scenes) {
+                put({
+                  slug: scene.slug,
+                  input: { type: "scene", scene: scene.scene, title: `${scene.slug}.excalidraw` },
+                  openedAt: Date.now(),
+                });
+              }
+              for (const note of read.rejected) {
+                rejected.push({
+                  path: `${item.fileName}: ${note.name}`,
+                  message: zip.describeZipNote(note),
+                });
+              }
+              for (const note of read.skipped)
+                skipped.push(`${note.name}: ${zip.describeZipNote(note)}`);
+              summaries.push(
+                t("zip.summary", {
+                  file: item.fileName,
+                  boards: read.boards.length,
+                  scenes: read.scenes.length,
+                  rejected: read.rejected.length,
+                  skipped: read.skipped.length,
+                }),
+              );
+              continue;
+            }
+            const parsed = parseInput(item.text);
+            if (parsed.kind === "error") {
+              errors.push(item.fileName ? `${item.fileName}: ${parsed.message}` : parsed.message);
+              continue;
+            }
+            const sceneTitle = item.fileName ?? t("app.excalidrawScene");
+            const input =
+              parsed.kind === "scene"
+                ? { type: "scene" as const, scene: parsed.scene, title: sceneTitle }
+                : { type: "board" as const, board: parsed.board };
+            const slug = slugFor(
+              item.fileName,
+              titleOf(parsed.kind === "board" ? parsed.board : null) || sceneTitle,
+            );
+            put({ slug, input, openedAt: Date.now() });
+          }
+          // A zip can hold many boards: say which of the list it replaces before it does.
+          if (fromZip && !library.sample) {
+            const kept = new Set(libraryEntries().map((e) => e.slug));
+            const replaced = entries.filter((e) => kept.has(e.slug)).map((e) => e.slug);
+            const shown = replaced.slice(0, 20).join(", ") + (replaced.length > 20 ? ", …" : "");
+            if (
+              replaced.length > 0 &&
+              !window.confirm(t("zip.replaceConfirm", { count: replaced.length, slugs: shown }))
+            ) {
+              return;
+            }
+          }
+          clearMessages();
+          if (errors.length > 0) setError(errors.join(" · "));
+          if (entries.length === 0) {
+            setIssues(rejected);
+            setWarnings([...summaries, ...skipped]);
+            return;
+          }
+          setFileOpen(false);
+          await addToLibrary(entries, fromZip ? { open: false } : {});
+          if (fromZip) {
+            setWarnings([...summaries, ...skipped]);
+            setIssues(rejected);
+          }
+        })();
+        return;
+      }
+      const first = items[0];
+      if (!first) return;
+      if ("zip" in first) {
+        setError(t("zip.libraryOnly"));
+        return;
+      }
+      const parsed = parseInput(first.text);
+      if (parsed.kind === "error") {
+        setError(parsed.message);
+        setIssues([]);
+        return;
+      }
+      if (parsed.kind === "scene") {
+        clearMessages();
+        showPasted(parsed.scene, fileNameFor(null), t("app.excalidrawScene"));
+        return;
+      }
+      void submitBoard(parsed.board);
+    },
+    [library, addToLibrary, libraryEntries, clearMessages, showPasted, submitBoard],
+  );
+
+  const handleToken = (token: string) => {
+    if (!tokenPrompt) return;
+    if (!saveToken(token)) {
+      setError(t("app.tokenInvalid"));
+      return;
+    }
+    const { retry } = tokenPrompt;
+    setTokenPrompt(null);
+    void retry();
+  };
+
+  const reset = () => {
+    forgetBoard();
+    setTokenPrompt(null);
+    closeScene();
+    clearMessages();
+    if (window.location.hash !== "" && window.location.hash !== "#/") {
+      window.location.hash = formatRoute({ view: "home" });
+    }
+    if (atlasEnabled) void loadAtlas();
+  };
+
+  /** Focuses a node of the board on screen, through its deep link when it has one. */
+  const focusNode = (nodeId: string) => {
+    if (loaded?.slug) {
+      openPlace({ slug: loaded.slug, nodeId });
+      return;
+    }
+    setLocalFocus((previous) => ({ nodeId, seq: (previous?.seq ?? 0) + 1 }));
+  };
+
+  /** Opens the board that defines a ref; false when there is no atlas or no such board. */
+  const openRef = (ref: string): boolean => {
+    const place = atlas ? boardDefiningRef(atlas, ref) : null;
+    if (place) openPlace(place);
+    return place !== null;
+  };
+
+  const pick = (item: PaletteItem) => {
+    switch (item.type) {
+      case "board":
+        window.location.hash = formatRoute({ view: "board", slug: item.board.slug });
+        break;
+      case "node":
+        focusNode(item.node.nodeId);
+        break;
+      case "ref": {
+        const place = atlas ? boardDefiningRef(atlas, item.ref.ref) : null;
+        const target = place ?? item.ref.usedIn[0];
+        if (target) openPlace(target);
+        break;
+      }
+    }
+  };
+
+  // Where the board on screen sits in the atlas: the toolbar's breadcrumb and steps.
+  const atlasBoard =
+    atlas && loaded?.slug ? atlas.boards.find((b) => b.slug === loaded.slug) : undefined;
+  const steps = atlas && atlasBoard ? neighbours(atlas, atlasBoard.slug) : null;
+  /** Writes the tags of the board on screen, then reloads the index so the sidebar regroups. */
+  const saveTags = useCallback(
+    async (slug: string, tags: string[]): Promise<string | null> => {
+      const result = await saveBoardTags(slug, tags);
+      switch (result.status) {
+        case "ok":
+          await loadAtlas();
+          return null;
+        case "unauthorized":
+          askToken(result.rejected, async () => {
+            await saveTags(slug, tags);
+          });
+          return t("app.tagsNeedToken");
+        case "error":
+          return result.message;
+      }
+    },
+    [askToken, loadAtlas],
+  );
+  const stepTo = (board: { slug: string; title: string } | null) =>
+    board ? { title: board.title, href: formatRoute({ view: "board", slug: board.slug }) } : null;
+  const context: BoardContext | null =
+    atlasBoard && loaded && steps
+      ? {
+          group: groupTitle(atlasBoard.kind),
+          status: loaded.stale ? "stale" : "ok",
+          staleCount: loaded.staleSourceIds.length,
+          layoutFrom: atlasBoard.layoutFrom,
+          references: loaded.references,
+          ...(atlas?.exported ? { snapshot: describeStamp(atlas.exported) } : {}),
+          ...(library ? { unchecked: true } : {}),
+          ...(loaded.draft ? { draft: true } : {}),
+          prev: stepTo(steps.prev),
+          next: stepTo(steps.next),
+          tags: atlasBoard.tags,
+          allTags: atlas ? atlasTags(atlas).map((t) => t.tag) : [],
+          ...(atlas?.tagsEditable && !staticMode
+            ? { onSaveTags: (tags: string[]) => saveTags(atlasBoard.slug, tags) }
+            : {}),
+        }
+      : null;
+
+  // Shortcuts: Ctrl K (Cmd K) opens the palette, even from the canvas, where Excalidraw would
+  // otherwise take it for "add a link"; "/" filters the boards; "[" and "]" step between boards.
+  const keys = useRef({ context, atlas, narrow, collapsed });
+  keys.current = { context, atlas, narrow, collapsed };
+  useEffect(() => {
+    const onCapture = (event: KeyboardEvent) => {
+      // Not over another dialog: the drawer or the file dialog would stay open behind it.
+      if (!isPaletteKey(event) || document.querySelector("dialog[open]")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPaletteOpen(true);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (document.querySelector("dialog[open]")) return;
+      const current = keys.current;
+      if (current.atlas && isPageKey(event, "/")) {
+        event.preventDefault();
+        if (current.narrow) setDrawerOpen(true);
+        else if (current.collapsed) {
+          setCollapsed(false);
+          saveFlag(SIDEBAR_COLLAPSED_KEY, false);
+        }
+        setFocusFilter((n) => n + 1);
+        return;
+      }
+      const step = isViewerKey(event, "[")
+        ? current.context?.prev
+        : isViewerKey(event, "]")
+          ? current.context?.next
+          : undefined;
+      if (step) {
+        event.preventDefault();
+        window.location.hash = step.href;
+      }
+    };
+    window.addEventListener("keydown", onCapture, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onCapture, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (focusFilter > 0) filterRef.current?.focus();
+  }, [focusFilter]);
+
+  // Leaving the narrow layout closes the drawer; the sidebar is back in place.
+  useEffect(() => {
+    if (!narrow) setDrawerOpen(false);
+  }, [narrow]);
+
+  const toggleCollapsed = () => {
+    setCollapsed((value) => {
+      saveFlag(SIDEBAR_COLLAPSED_KEY, !value);
+      return !value;
+    });
+  };
+
+  const resizeSidebar = (width: number, done: boolean) => {
+    setSidebarWidth(width);
+    if (done) saveValue(SIDEBAR_WIDTH_KEY, width);
+  };
+
+  const toggleSources = () => {
+    setSourcesOpen((value) => {
+      saveFlag(SOURCES_OPEN_KEY, !value);
+      return !value;
+    });
+  };
+
+  // Over the board, not above it: a line in the flow would push the page down and back up.
+  const loadingBoard =
+    busy && atlas ? (
+      <p className="loading-line" role="status">
+        <span className="spinner" aria-hidden="true" />
+        {t("app.loadingBoard")}
+      </p>
+    ) : null;
+
+  const messages = (
+    <>
+      {draftsVolatile ? (
+        <p className="warnings" role="status">
+          {t("edit.draftsVolatile")}
+        </p>
+      ) : null}
+      {warnings.length > 0 ? (
+        <p className="warnings" role="status">
+          {warnings.join(" · ")}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {tokenPrompt && !staticMode ? (
+        <TokenForm
+          rejected={tokenPrompt.rejected}
+          onSubmit={handleToken}
+          onCancel={() => setTokenPrompt(null)}
+        />
+      ) : null}
+    </>
+  );
+
+  // Leaving the board with unsaved edits asks first, whichever way the address changes.
+  useEffect(() => {
+    leaveGuard.current = () => !dirtyCheck.current?.() || window.confirm(t("edit.leaveConfirm"));
+    const onUnload = (event: BeforeUnloadEvent) => {
+      if (dirtyCheck.current?.()) event.preventDefault();
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [leaveGuard]);
+
+  // Another board on screen ends editing of the last one.
+  const editedSlug = loaded?.slug ?? null;
+  useEffect(() => {
+    setEditSession((current) => (current && current.slug !== editedSlug ? null : current));
+  }, [editedSlug]);
+
+  /** Editing of the board on screen: atlas and library boards, not the samples. */
+  const boardEditing: BoardEditing | undefined =
+    atlas && loaded?.slug && !library?.sample
+      ? {
+          session: editSession && editSession.slug === loaded.slug ? editSession : null,
+          onStart: () => {
+            const slug = loaded.slug as string;
+            void (async () => {
+              const started = await startEditing(slug);
+              if ("error" in started) {
+                setError(started.error);
+                return;
+              }
+              setEditSession({ slug, board: started.board, overlay: started.overlay });
+            })();
+          },
+          render: async (board, overlay) => {
+            const result = await renderBoard(board, overlay);
+            if (result.status === "ok") return { scene: result.scene, warnings: result.warnings };
+            if (result.status === "error") return { error: result.message };
+            // Each message names its node; the path into the board file means nothing here.
+            return { error: result.issues.map((i) => i.message).join(" · ") };
+          },
+          onSave: async (board, overlay) => {
+            const slug = loaded.slug as string;
+            const error = await saveEdits(board, overlay);
+            if (error !== null) return error;
+            // The saved state first, then the board rendered again: the editor that shows it
+            // starts from what was saved.
+            setEditSession({ slug, board, overlay });
+            await reloadBoard(slug);
+            return null;
+          },
+          onDone: (discard) => {
+            const slug = loaded.slug as string;
+            setEditSession(null);
+            // Unsaved edits are thrown away: render the board as it was saved.
+            if (discard) void reloadBoard(slug);
+          },
+          registerDirtyCheck: (check) => {
+            dirtyCheck.current = check;
+          },
+        }
+      : undefined;
+  const workspace = loaded ? (
+    <main className="workspace">
+      <Suspense
+        fallback={
+          <div className="loading" role="status">
+            <span className="spinner" aria-hidden="true" />
+            {t("app.loadingEditor")}
+          </div>
+        }
+      >
+        <Editor
+          key={loaded.key}
+          scene={loaded.scene}
+          title={loaded.title}
+          context={context}
+          sourcesOpen={sourcesOpen}
+          onToggleSources={toggleSources}
+          theme={theme}
+          locale={locale}
+          motionAll={motionAll}
+          fileName={loaded.fileName}
+          focus={loaded.slug !== null ? focus : localFocus}
+          onSelectionChange={setCitations}
+          onNodes={setNodes}
+          onOpenRef={openRef}
+          {...(atlas && loaded.slug !== null ? { onDownloadZip: () => setZipOpen(true) } : {})}
+          {...(boardEditing ? { edit: boardEditing } : {})}
+          onError={setError}
+        />
+      </Suspense>
+      {sourcesOpen ? (
+        <SourcePanel
+          nodes={citations}
+          atlas={atlas}
+          currentSlug={loaded.slug}
+          staleSourceIds={loaded.staleSourceIds}
+          onOpen={openPlace}
+        />
+      ) : null}
+    </main>
+  ) : null;
+
+  /** Where a zip of every board comes from: the library, the exported page, or the server. */
+  const zipSource = async (): Promise<ZipSource> => {
+    if (library) return { kind: "library", entries: libraryEntries() };
+    // Drafts kept in this browser are what the person sees, so they go into the zip.
+    const drafts =
+      atlas?.atlasId && !atlas.tagsEditable
+        ? await (await import("./drafts.ts")).listDrafts(atlas.atlasId)
+        : [];
+    return staticMode
+      ? { kind: "static", slugs: atlas?.boards.map((b) => b.slug) ?? [], drafts }
+      : { kind: "server", drafts };
+  };
+  const zipDialog = zipOpen ? (
+    <ZipDialog
+      source={zipSource}
+      fileName={library ? "groundboard-boards" : "groundboard-atlas"}
+      onUnauthorized={(rejected) => askToken(rejected, async () => setZipOpen(true))}
+      onClose={() => setZipOpen(false)}
+    />
+  ) : null;
+
+  const palette = paletteOpen ? (
+    <CommandPalette
+      atlas={atlas}
+      nodes={loaded ? nodes : []}
+      onPick={pick}
+      onClose={() => setPaletteOpen(false)}
+    />
+  ) : null;
+
+  // Until the server says whether it serves an atlas, either layout could be the wrong one:
+  // show neither, so a reload does not flash the board picker before the atlas.
+  if (!checked && !loaded) {
+    return (
+      <div className="app app-booting">
+        <div className="loading" role="status">
+          <span className="spinner" aria-hidden="true" />
+          {t("common.loading")}
+        </div>
+      </div>
+    );
+  }
+
+  if (atlas) {
+    const sidebarProps = {
+      atlas,
+      currentSlug: loaded?.slug ?? null,
+      atHome: !loaded && route.view === "home",
+      appearance,
+      onHome: reset,
+      // An exported page has no server to render a local board with.
+      ...(staticMode
+        ? {}
+        : {
+            onOpenFile: () => {
+              setDrawerOpen(false);
+              setFileOpen(true);
+            },
+          }),
+      onOpenPalette: () => {
+        setDrawerOpen(false);
+        setPaletteOpen(true);
+      },
+      // The samples are not stored, so there is nothing to remove until a board is opened.
+      ...(library && !library.sample
+        ? { onRemove: (slug: string) => void removeFromLibrary(slug) }
+        : {}),
+    };
+    const openFile = () => {
+      setDrawerOpen(false);
+      setFileOpen(true);
+    };
+    return (
+      <div
+        className={collapsed ? "app app-atlas sidebar-collapsed" : "app app-atlas"}
+        style={{ "--sidebar-w": `${sidebarWidth}px` } as CSSProperties}
+      >
+        {narrow ? null : (
+          <Sidebar
+            {...sidebarProps}
+            collapsed={collapsed}
+            filterRef={filterRef}
+            onToggleCollapsed={toggleCollapsed}
+            width={sidebarWidth}
+            onResize={resizeSidebar}
+          />
+        )}
+        <div className="main-column">
+          {fileOpen ? null : loadingBoard}
+          {narrow ? (
+            <header className="header mobile-header">
+              <div className="brand">
+                <button
+                  type="button"
+                  className="ghost icon-button"
+                  onClick={() => setDrawerOpen(true)}
+                  aria-label={t("app.openAtlasMenu")}
+                  aria-haspopup="dialog"
+                  aria-expanded={drawerOpen}
+                >
+                  <Icon name="menu" size={18} />
+                </button>
+                <span className="logo" aria-hidden="true">
+                  <Icon name="logo" size={18} />
+                </span>
+                <h1>groundboard</h1>
+              </div>
+              <button
+                type="button"
+                className="ghost icon-button"
+                onClick={() => setPaletteOpen(true)}
+                aria-label={t("common.searchAll")}
+              >
+                <Icon name="search" size={18} />
+              </button>
+            </header>
+          ) : null}
+          {fileOpen ? null : messages}
+          {workspace ?? (
+            <main className="start">
+              <AtlasHome
+                atlas={atlas}
+                {...(library
+                  ? {
+                      library: {
+                        ...library,
+                        onOpenFile: openFile,
+                        onClear: () => {
+                          if (window.confirm(t("library.clearConfirm"))) void clearLibrary();
+                        },
+                      },
+                    }
+                  : {})}
+              />
+              <IssueList issues={issues} />
+            </main>
+          )}
+        </div>
+        {drawerOpen ? (
+          <Modal className="drawer" label={t("common.atlas")} onClose={() => setDrawerOpen(false)}>
+            <Sidebar
+              {...sidebarProps}
+              drawer
+              filterRef={filterRef}
+              onClose={() => setDrawerOpen(false)}
+              onNavigate={() => setDrawerOpen(false)}
+            />
+          </Modal>
+        ) : null}
+        {fileOpen && !staticMode ? (
+          <Modal
+            className="file-dialog"
+            label={t("app.openLocalBoard")}
+            onClose={() => setFileOpen(false)}
+          >
+            <div className="file-dialog-head">
+              <button
+                type="button"
+                className="ghost icon-button"
+                onClick={() => setFileOpen(false)}
+                aria-label={t("common.close")}
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+            {loadingBoard}
+            {messages}
+            <InputPanel
+              busy={busy}
+              compact
+              multiple={library !== null}
+              zip={library !== null}
+              onInput={handleInput}
+              onError={setError}
+            />
+            <IssueList issues={issues} />
+          </Modal>
+        ) : null}
+        {palette}
+        {zipDialog}
+      </div>
+    );
+  }
+
+  return (
+    <div className="app">
+      <header className="header">
+        <div className="brand">
+          {loaded ? (
+            <button
+              type="button"
+              className="ghost icon-button"
+              onClick={reset}
+              aria-label={t("app.openAnotherBoard")}
+              title={t("app.openAnotherBoard")}
+            >
+              <Icon name="back" size={18} />
+            </button>
+          ) : null}
+          <span className="logo" aria-hidden="true">
+            <Icon name="logo" size={18} />
+          </span>
+          <h1>groundboard</h1>
+          <span className="tagline">{t("app.tagline")}</span>
+        </div>
+        <div className="header-actions">
+          <SettingsMenu {...appearance} />
+          {loaded ? (
+            <button type="button" className="secondary" onClick={reset}>
+              <Icon name="upload" />
+              {t("app.newBoard")}
+            </button>
+          ) : null}
+        </div>
+      </header>
+      {messages}
+      {workspace ??
+        (staticMode ? (
+          <main className="start">
+            <section className="hero">
+              <h2>{t("app.noAtlasTitle")}</h2>
+              <p className="muted">{t("app.noAtlasBody")}</p>
+            </section>
+          </main>
+        ) : (
+          <main className="start">
+            <section className="hero">
+              <h2>{t("app.openBoardTitle")}</h2>
+              <p className="muted">{t("app.openBoardBody")}</p>
+            </section>
+            <InputPanel busy={busy} onInput={handleInput} onError={setError} />
+            <IssueList issues={issues} />
+          </main>
+        ))}
+      {palette}
+    </div>
+  );
+}

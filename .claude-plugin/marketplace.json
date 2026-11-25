@@ -1,0 +1,15 @@
+{
+  "name": "groundboard",
+  "owner": {
+    "name": "Lam Ngoc Khuong",
+    "url": "https://github.com/lamngockhuong"
+  },
+  "description": "Turn a question about a codebase into an editable, source-grounded Excalidraw board.",
+  "plugins": [
+    {
+      "name": "groundboard",
+      "source": "./plugins/groundboard",
+      "description": "Ask a question about the current repository and get an editable Excalidraw board whose every claim cites the file and lines it rests on."
+    }
+  ]
+}

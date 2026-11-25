@@ -1,0 +1,27 @@
+{
+  "name": "@groundboard/layout",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./layout": "./src/layout.ts",
+    "./measure": "./src/measure.ts",
+    "./overlay": "./src/overlay.ts",
+    "./text": "./src/text.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "font-metrics": "node scripts/build-font-metrics.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@groundboard/schema": "workspace:*",
+    "elkjs": "0.12.1"
+  },
+  "devDependencies": {
+    "@excalidraw/excalidraw": "0.18.1",
+    "fontkit": "2.0.4"
+  }
+}

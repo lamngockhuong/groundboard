@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "title": "Shop web screens",
+  "question": "Which screens does the web app have and how do they connect?",
+  "nodes": [
+    {
+      "id": "home",
+      "kind": "screen",
+      "label": "Product list",
+      "ref": "web:home",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["route-home"]
+    },
+    {
+      "id": "products",
+      "kind": "screen",
+      "label": "Product detail",
+      "ref": "web:products",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["route-products"]
+    },
+    {
+      "id": "cart",
+      "kind": "screen",
+      "label": "Cart",
+      "ref": "web:cart",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["route-cart"]
+    },
+    {
+      "id": "checkout",
+      "kind": "screen",
+      "label": "Checkout",
+      "ref": "web:checkout",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["route-checkout"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "home-products",
+      "from": "home",
+      "to": "products",
+      "kind": "navigates",
+      "label": "product link",
+      "sourceIds": ["nav-home-products"]
+    },
+    {
+      "id": "home-cart",
+      "from": "home",
+      "to": "cart",
+      "kind": "navigates",
+      "label": "Cart link",
+      "sourceIds": ["nav-home-cart"]
+    },
+    {
+      "id": "products-cart",
+      "from": "products",
+      "to": "cart",
+      "kind": "navigates",
+      "label": "Add to cart",
+      "sourceIds": ["nav-products-cart"]
+    },
+    {
+      "id": "cart-checkout",
+      "from": "cart",
+      "to": "checkout",
+      "kind": "navigates",
+      "label": "Checkout",
+      "sourceIds": ["nav-cart-checkout"]
+    },
+    {
+      "id": "cart-home",
+      "from": "cart",
+      "to": "home",
+      "kind": "navigates",
+      "label": "Continue shopping",
+      "sourceIds": ["nav-cart-home"]
+    },
+    {
+      "id": "checkout-home",
+      "from": "checkout",
+      "to": "home",
+      "kind": "navigates",
+      "label": "after paying",
+      "sourceIds": ["nav-checkout-home"]
+    },
+    {
+      "id": "checkout-cart",
+      "from": "checkout",
+      "to": "cart",
+      "kind": "navigates",
+      "label": "Back to cart",
+      "sourceIds": ["nav-checkout-cart"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "route-home",
+      "path": "shop-web/src/main.tsx",
+      "line": 9,
+      "quote": "{ path: \"/\", element: <ProductList /> }"
+    },
+    {
+      "id": "route-products",
+      "path": "shop-web/src/main.tsx",
+      "line": 10,
+      "quote": "{ path: \"/products/:id\", element: <ProductDetail /> }"
+    },
+    {
+      "id": "route-cart",
+      "path": "shop-web/src/main.tsx",
+      "line": 11,
+      "quote": "{ path: \"/cart\", element: <Cart /> }"
+    },
+    {
+      "id": "route-checkout",
+      "path": "shop-web/src/main.tsx",
+      "line": 12,
+      "quote": "{ path: \"/checkout\", element: <Checkout /> }"
+    },
+    {
+      "id": "nav-home-products",
+      "path": "shop-web/src/screens/ProductList.tsx",
+      "line": 20,
+      "quote": "<Link to={`/products/${product.id}`}>"
+    },
+    {
+      "id": "nav-home-cart",
+      "path": "shop-web/src/screens/ProductList.tsx",
+      "line": 15,
+      "quote": "<Link to=\"/cart\">Cart</Link>"
+    },
+    {
+      "id": "nav-products-cart",
+      "path": "shop-web/src/screens/ProductDetail.tsx",
+      "line": 10,
+      "quote": "navigate(\"/cart\")"
+    },
+    {
+      "id": "nav-cart-checkout",
+      "path": "shop-web/src/screens/Cart.tsx",
+      "line": 10,
+      "quote": "navigate(\"/checkout\")"
+    },
+    {
+      "id": "nav-cart-home",
+      "path": "shop-web/src/screens/Cart.tsx",
+      "line": 13,
+      "quote": "<Link to=\"/\">Continue shopping</Link>"
+    },
+    {
+      "id": "nav-checkout-home",
+      "path": "shop-web/src/screens/Checkout.tsx",
+      "line": 13,
+      "quote": "navigate(\"/\")"
+    },
+    {
+      "id": "nav-checkout-cart",
+      "path": "shop-web/src/screens/Checkout.tsx",
+      "line": 46,
+      "quote": "<Link to=\"/cart\">Back to cart</Link>"
+    }
+  ]
+}

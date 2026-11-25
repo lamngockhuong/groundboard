@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "title": "Sign up screen",
+  "question": "What is on the sign up screen and what does each control do?",
+  "tags": ["onboarding"],
+  "nodes": [
+    {
+      "id": "signup",
+      "kind": "screen",
+      "label": "Sign up",
+      "ref": "web:signup",
+      "platform": "web",
+      "layoutFrom": "mockup",
+      "sourceIds": ["mockup-signup", "req-layout"]
+    },
+    {
+      "id": "title",
+      "kind": "element",
+      "role": "text",
+      "label": "Create your account",
+      "parentId": "signup"
+    },
+    {
+      "id": "form",
+      "kind": "element",
+      "role": "container",
+      "label": "Signup form",
+      "parentId": "signup"
+    },
+    {
+      "id": "display-name",
+      "kind": "element",
+      "role": "input",
+      "label": "Display name",
+      "parentId": "form",
+      "ref": "web:signup/display-name",
+      "action": "Stores the name shown on the account",
+      "sourceIds": ["req-display-name"]
+    },
+    {
+      "id": "email",
+      "kind": "element",
+      "role": "input",
+      "label": "Email",
+      "parentId": "form",
+      "ref": "web:signup/email",
+      "action": "Stores the address the code is sent to",
+      "sourceIds": ["req-email"]
+    },
+    {
+      "id": "password",
+      "kind": "element",
+      "role": "input",
+      "label": "Password",
+      "parentId": "form",
+      "ref": "web:signup/password",
+      "action": "Stores a password of at least 12 characters",
+      "sourceIds": ["req-password"]
+    },
+    {
+      "id": "create-account",
+      "kind": "element",
+      "role": "button",
+      "label": "Create account",
+      "parentId": "signup",
+      "ref": "web:signup/create-account",
+      "action": "Submits the form and opens the Verify email screen",
+      "sourceIds": ["req-create-account"]
+    },
+    {
+      "id": "sign-in",
+      "kind": "element",
+      "role": "link",
+      "label": "Sign in",
+      "parentId": "signup",
+      "ref": "web:signup/sign-in",
+      "unresolved": "Drawn on the mockup but not described in the requirements (client)",
+      "sourceIds": ["mockup-signup"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "create-account-to-verify",
+      "from": "create-account",
+      "toRef": "web:verify-email",
+      "kind": "navigates",
+      "sourceIds": ["req-create-account"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "req-layout",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 13,
+      "quote": "The Sign up screen follows the client mockup"
+    },
+    {
+      "id": "req-display-name",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 15,
+      "quote": "The Display name field stores the name shown on the account."
+    },
+    {
+      "id": "req-email",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 16,
+      "quote": "The Email field stores the address the code is sent to."
+    },
+    {
+      "id": "req-password",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 17,
+      "quote": "The Password field stores a password of at least 12 characters."
+    },
+    {
+      "id": "req-create-account",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 18,
+      "quote": "The Create account button submits the form and opens the Verify email screen."
+    },
+    {
+      "id": "mockup-signup",
+      "kind": "mockup",
+      "label": "Sign up mockup",
+      "path": "design/signup-mockup.png"
+    }
+  ]
+}

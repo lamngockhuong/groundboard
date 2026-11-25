@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "title": "Users screen",
+  "question": "What is on the users screen and what does each control do?",
+  "nodes": [
+    {
+      "id": "users",
+      "kind": "screen",
+      "label": "① Users",
+      "ref": "web:users",
+      "platform": "web",
+      "layoutFrom": "figma",
+      "sourceIds": ["fig-frame"]
+    },
+    {
+      "id": "header",
+      "kind": "element",
+      "role": "bar",
+      "label": "Header",
+      "parentId": "users",
+      "direction": "row",
+      "sourceIds": ["fig-header"]
+    },
+    {
+      "id": "logo",
+      "kind": "element",
+      "role": "image",
+      "label": "Logo",
+      "parentId": "header",
+      "width": 48,
+      "sourceIds": ["fig-logo"],
+      "detail": "A layer inside the Header instance."
+    },
+    {
+      "id": "help",
+      "kind": "element",
+      "role": "link",
+      "label": "Help",
+      "parentId": "header",
+      "sourceIds": ["fig-help"],
+      "ref": "web:users/help",
+      "action": "Opens the help page"
+    },
+    {
+      "id": "heading",
+      "kind": "element",
+      "role": "text",
+      "label": "Users",
+      "parentId": "users",
+      "sourceIds": ["fig-heading"]
+    },
+    {
+      "id": "toolbar",
+      "kind": "element",
+      "role": "container",
+      "label": "Toolbar",
+      "parentId": "users",
+      "direction": "row",
+      "sourceIds": []
+    },
+    {
+      "id": "search",
+      "kind": "element",
+      "role": "input",
+      "label": "Search users",
+      "parentId": "toolbar",
+      "sourceIds": ["fig-search"],
+      "unresolved": "Not in the prototype (Design)"
+    },
+    {
+      "id": "add",
+      "kind": "element",
+      "role": "button",
+      "label": "Add user",
+      "parentId": "toolbar",
+      "sourceIds": ["fig-add"],
+      "ref": "web:users/add",
+      "action": "Opens the new user form"
+    },
+    {
+      "id": "delete",
+      "kind": "element",
+      "role": "button",
+      "label": "Delete",
+      "parentId": "toolbar",
+      "sourceIds": ["fig-delete"],
+      "action": "Asks to confirm the deletion"
+    },
+    {
+      "id": "empty",
+      "kind": "element",
+      "role": "text",
+      "label": "No users yet",
+      "parentId": "users",
+      "sourceIds": [],
+      "detail": "Only the code renders it; the design has no empty state."
+    },
+    {
+      "id": "confirm",
+      "kind": "screen",
+      "label": "② Confirm deletion",
+      "stateOf": "users",
+      "sourceIds": ["fig-dialog"]
+    },
+    {
+      "id": "confirm-text",
+      "kind": "element",
+      "role": "text",
+      "label": "Delete the selected users?",
+      "parentId": "confirm",
+      "sourceIds": ["fig-dialog-text"]
+    },
+    {
+      "id": "confirm-ok",
+      "kind": "element",
+      "role": "button",
+      "label": "Delete",
+      "parentId": "confirm",
+      "sourceIds": ["fig-dialog-ok"],
+      "action": "Deletes the selected users"
+    }
+  ],
+  "edges": [
+    {
+      "id": "to-help",
+      "from": "help",
+      "toRef": "web:help",
+      "kind": "navigates",
+      "label": "help",
+      "sourceIds": ["fig-help"]
+    },
+    {
+      "id": "to-new",
+      "from": "add",
+      "toRef": "web:user-new",
+      "kind": "navigates",
+      "sourceIds": ["fig-add"]
+    },
+    {
+      "id": "to-confirm",
+      "from": "delete",
+      "to": "confirm",
+      "kind": "transition",
+      "label": "delete",
+      "sourceIds": ["fig-delete"]
+    },
+    {
+      "id": "back",
+      "from": "confirm-ok",
+      "to": "users",
+      "kind": "transition",
+      "label": "deleted",
+      "sourceIds": ["fig-dialog-ok"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "fig-frame",
+      "kind": "figma",
+      "fileKey": "AbCdEf0123456789",
+      "nodeId": "10:1"
+    },
+    {
+      "id": "fig-header",
+      "kind": "figma",
+      "fileKey": "AbCdEf0123456789",
+      "nodeId": "10:2"
+    },
+    {
+      "id": "fig-logo",
+      "kind": "figma",
+      "fileKey": "AbCdEf0123456789",
+      "nodeId": "I10:3;5:1"
+    },
+    {
+      "id": "fig-help",
+      "kind": "figma",
+      "fileKey": "AbCdEf0123456789",
+      "nodeId": "10:9"
+    },
+    {
+      "id": "fig-heading",
+      "kind": "figma",
+      "fileKey": "AbCdEf0123456789",
+      "nodeId": "10:4"
+    },
+    {
+      "id": "fig-search",
+      "kind": "figma",
+      "fileKey": "AbCdEf0123456789",
+      "nodeId": "10:6"
+    },
+    {
+      "id": "fig-add",
+      "kind": "figma",
+      "fileKey": "AbCdEf0123456789",
+      "nodeId": "10:5"
+    },
+    {
+      "id": "fig-delete",
+      "kind": "figma",
+      "fileKey": "AbCdEf0123456789",
+      "nodeId": "10:8"
+    },
+    {
+      "id": "fig-dialog",
+      "kind": "figma",
+      "fileKey": "AbCdEf0123456789",
+      "nodeId": "20:1"
+    },
+    {
+      "id": "fig-dialog-text",
+      "kind": "figma",
+      "fileKey": "AbCdEf0123456789",
+      "nodeId": "20:2"
+    },
+    {
+      "id": "fig-dialog-ok",
+      "kind": "figma",
+      "fileKey": "AbCdEf0123456789",
+      "nodeId": "20:3"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "title": "Admin screens (web)",
+  "question": "Which admin screens does the web app have and how do they connect?",
+  "nodes": [
+    {
+      "id": "users",
+      "kind": "screen",
+      "label": "Users",
+      "ref": "web:users",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["route-users"]
+    },
+    {
+      "id": "users-upload",
+      "kind": "screen",
+      "label": "Bulk upload users",
+      "ref": "web:users-upload",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["route"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "nav-upload",
+      "from": "users",
+      "to": "users-upload",
+      "kind": "navigates",
+      "sourceIds": ["list-link"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "route",
+      "path": "src/main.tsx",
+      "line": 8,
+      "quote": "path: \"/admin/users/upload\""
+    },
+    {
+      "id": "route-users",
+      "path": "src/main.tsx",
+      "line": 7,
+      "quote": "path: \"/admin/users\""
+    },
+    {
+      "id": "list-link",
+      "path": "src/screens/UserList.tsx",
+      "line": 8,
+      "quote": "<Link to=\"/admin/users/upload\">Upload users</Link>"
+    }
+  ]
+}

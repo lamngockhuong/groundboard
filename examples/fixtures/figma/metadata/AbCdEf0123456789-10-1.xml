@@ -1,0 +1,13 @@
+<frame id="10:1" name="Users" x="120" y="-40" width="960" height="408">
+  <frame id="10:2" name="Header" x="0" y="0" width="960" height="56">
+    <instance id="10:3" name="Logo" x="16" y="12" width="32" height="32" />
+    <text id="10:9" name="Help" x="900" y="18" width="40" height="20" />
+  </frame>
+  <text id="10:4" name="Users" x="16" y="72" width="200" height="32" />
+  <frame id="10:7" name="Toolbar" x="16" y="120" width="928" height="36">
+    <instance id="10:6" name="mms_Input" x="0" y="0" width="320" height="36" />
+    <instance id="10:5" name="mms_Button" x="684" y="0" width="120" height="36" />
+    <instance id="10:8" name="mms_Button" x="820" y="0" width="108" height="36" />
+  </frame>
+  <rectangle id="10:10" name="Divider" x="0" y="407" width="960" height="1" hidden="true" />
+</frame>

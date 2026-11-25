@@ -1,0 +1,58 @@
+[
+  {
+    "family": "Excalifont",
+    "license": "OFL-1.1",
+    "copyright": "Copyright (c) 2024 by Excalidraw.",
+    "source": "https://plus.excalidraw.com/excalifont",
+    "licenseFile": "OFL-1.1.txt"
+  },
+  {
+    "family": "Virgil",
+    "license": "OFL-1.1",
+    "copyright": "Copyright (c) 2011 by Your Own Font Foundry. Virgil YOFF is a trademark of Your Own Font Foundry.",
+    "source": "https://github.com/excalidraw/virgil",
+    "licenseFile": "OFL-1.1.txt"
+  },
+  {
+    "family": "Assistant",
+    "license": "OFL-1.1",
+    "copyright": "Copyright 2020 The Assistant Project Authors (https://github.com/hafontia/Assistant). Copyright 2010 The Source Sans Pro Authors (https://github.com/adobe-fonts/source-sans-pro), with Reserved Font Name 'Source'.",
+    "source": "https://github.com/hafontia/Assistant",
+    "licenseFile": "OFL-1.1.txt"
+  },
+  {
+    "family": "Cascadia",
+    "license": "OFL-1.1",
+    "copyright": "Copyright (c) 2020 Microsoft Corporation.",
+    "source": "https://github.com/microsoft/cascadia-code",
+    "licenseFile": "OFL-1.1.txt"
+  },
+  {
+    "family": "ComicShanns",
+    "license": "MIT",
+    "copyright": "Copyright (c) 2018 Shannon Miwa and contributors",
+    "source": "https://github.com/shannpersand/comic-shanns",
+    "licenseFile": "ComicShanns-MIT.txt"
+  },
+  {
+    "family": "Lilita",
+    "license": "OFL-1.1",
+    "copyright": "Copyright (c) 2011 Juan Montoreano (juan@remolacha.biz), with Reserved Font Names \"Lilita One\".",
+    "source": "https://fonts.google.com/specimen/Lilita+One",
+    "licenseFile": "OFL-1.1.txt"
+  },
+  {
+    "family": "Nunito",
+    "license": "OFL-1.1",
+    "copyright": "Copyright 2014 The Nunito Project Authors (https://github.com/googlefonts/nunito).",
+    "source": "https://github.com/googlefonts/nunito",
+    "licenseFile": "OFL-1.1.txt"
+  },
+  {
+    "family": "Xiaolai",
+    "license": "OFL-1.1",
+    "copyright": "Copyright (c) 2020 LXGW.",
+    "source": "https://github.com/lxgw/kose-font",
+    "licenseFile": "OFL-1.1.txt"
+  }
+]

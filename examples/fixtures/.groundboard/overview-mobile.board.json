@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "title": "Shop mobile screens",
+  "question": "Which screens does the mobile app have and how do they connect?",
+  "nodes": [
+    {
+      "id": "catalog",
+      "kind": "screen",
+      "label": "Catalog",
+      "ref": "mobile:catalog",
+      "platform": "mobile",
+      "layoutFrom": "code",
+      "sourceIds": ["route-catalog"]
+    },
+    {
+      "id": "cart",
+      "kind": "screen",
+      "label": "Cart",
+      "ref": "mobile:cart",
+      "platform": "mobile",
+      "layoutFrom": "code",
+      "sourceIds": ["route-cart"]
+    },
+    {
+      "id": "order-detail",
+      "kind": "screen",
+      "label": "Order detail",
+      "ref": "mobile:order-detail",
+      "platform": "mobile",
+      "layoutFrom": "code",
+      "sourceIds": ["route-order-detail"]
+    },
+    {
+      "id": "tabs",
+      "kind": "note",
+      "label": "Catalog and Cart are tabs: the tab bar switches between them without a navigate call"
+    }
+  ],
+  "edges": [
+    {
+      "id": "catalog-cart",
+      "from": "catalog",
+      "to": "cart",
+      "kind": "navigates",
+      "label": "View cart",
+      "sourceIds": ["nav-catalog-cart"]
+    },
+    {
+      "id": "cart-order",
+      "from": "cart",
+      "to": "order-detail",
+      "kind": "navigates",
+      "label": "Place order",
+      "sourceIds": ["nav-cart-order"]
+    },
+    {
+      "id": "cart-catalog",
+      "from": "cart",
+      "to": "catalog",
+      "kind": "navigates",
+      "label": "Keep shopping",
+      "sourceIds": ["nav-cart-catalog"]
+    },
+    {
+      "id": "order-catalog",
+      "from": "order-detail",
+      "to": "catalog",
+      "kind": "navigates",
+      "label": "Back to catalog",
+      "sourceIds": ["nav-order-catalog"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "route-catalog",
+      "path": "shop-mobile/src/App.tsx",
+      "line": 15,
+      "quote": "<Tab.Screen name=\"Catalog\" component={CatalogScreen} />"
+    },
+    {
+      "id": "route-cart",
+      "path": "shop-mobile/src/App.tsx",
+      "line": 16,
+      "quote": "<Tab.Screen name=\"Cart\" component={CartScreen} />"
+    },
+    {
+      "id": "route-order-detail",
+      "path": "shop-mobile/src/App.tsx",
+      "line": 26,
+      "quote": "<Stack.Screen name=\"OrderDetail\" component={OrderDetailScreen} />"
+    },
+    {
+      "id": "nav-catalog-cart",
+      "path": "shop-mobile/src/screens/CatalogScreen.tsx",
+      "line": 10,
+      "quote": "navigation.navigate(\"Cart\")"
+    },
+    {
+      "id": "nav-cart-order",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 13,
+      "quote": "navigation.navigate(\"OrderDetail\", { orderId })"
+    },
+    {
+      "id": "nav-cart-catalog",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 31,
+      "quote": "navigation.navigate(\"Catalog\")"
+    },
+    {
+      "id": "nav-order-catalog",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 11,
+      "quote": "navigation.navigate(\"Catalog\")"
+    }
+  ]
+}

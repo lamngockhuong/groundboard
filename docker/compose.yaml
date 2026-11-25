@@ -1,0 +1,34 @@
+# Example deployment. Copy it next to a `groundboard.env` file that is not committed:
+#
+#   GROUNDBOARD_TOKEN=<a long random string>
+#
+# Without GROUNDBOARD_TOKEN the server is anonymous: it stores nothing, calls no paid service
+# and reads no files unless started with --atlas (this file does not pass it), so that is safe,
+# but anyone who can reach it can use its CPU.
+
+services:
+  groundboard:
+    image: ghcr.io/lamngockhuong/groundboard:latest
+    ports:
+      - "8787:8787"
+    environment:
+      # Hostnames browsers and clients use to reach the server (Host and Origin headers).
+      GROUNDBOARD_ALLOWED_HOSTS: board.example.com
+    env_file:
+      - path: ./groundboard.env
+        required: false
+    # Behind a reverse proxy, believe its X-Forwarded-For for rate limiting:
+    # command: ["serve", "--host", "0.0.0.0", "--port", "8787", "--trust-proxy", "172.16.0.0/12"]
+    read_only: true
+    restart: unless-stopped
+
+  # Debug variant with a shell (the main image is distroless). Start it with
+  #   docker compose --profile debug up groundboard-debug
+  groundboard-debug:
+    profiles: ["debug"]
+    image: node:26-slim
+    command: ["npx", "-y", "groundboard@latest", "serve", "--host", "0.0.0.0", "--port", "8787"]
+    ports:
+      - "8788:8787"
+    environment:
+      GROUNDBOARD_ALLOWED_HOSTS: localhost

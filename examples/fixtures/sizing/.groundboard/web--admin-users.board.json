@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "title": "Admin users screen",
+  "question": "How is the admin users screen laid out next to its fixed-width sidebar?",
+  "nodes": [
+    {
+      "id": "users",
+      "kind": "screen",
+      "label": "Users",
+      "ref": "web:admin-users",
+      "platform": "web",
+      "layoutFrom": "mockup",
+      "width": 1280,
+      "sourceIds": ["mock"]
+    },
+    {
+      "id": "header",
+      "kind": "element",
+      "role": "bar",
+      "label": "Service admin",
+      "parentId": "users"
+    },
+    {
+      "id": "body",
+      "kind": "element",
+      "role": "container",
+      "label": "Layout",
+      "parentId": "users",
+      "direction": "row"
+    },
+    {
+      "id": "nav",
+      "kind": "element",
+      "role": "container",
+      "label": "Sidebar",
+      "parentId": "body",
+      "width": 225
+    },
+    {
+      "id": "nav-users",
+      "kind": "element",
+      "role": "link",
+      "label": "Users",
+      "parentId": "nav",
+      "ref": "web:admin-users/nav-users",
+      "unresolved": "Frontend: which route the sidebar link opens"
+    },
+    {
+      "id": "nav-settings",
+      "kind": "element",
+      "role": "link",
+      "label": "Settings",
+      "parentId": "nav",
+      "ref": "web:admin-users/nav-settings",
+      "unresolved": "Frontend: which route the sidebar link opens"
+    },
+    {
+      "id": "content",
+      "kind": "element",
+      "role": "container",
+      "label": "Content",
+      "parentId": "body"
+    },
+    {
+      "id": "title",
+      "kind": "element",
+      "role": "text",
+      "label": "Bulk upload users from a CSV file",
+      "parentId": "content"
+    },
+    {
+      "id": "drop",
+      "kind": "element",
+      "role": "input",
+      "label": "Drop a CSV file here or choose one from your computer",
+      "parentId": "content",
+      "ref": "web:admin-users/drop",
+      "unresolved": "Frontend: what happens after a file is chosen"
+    },
+    {
+      "id": "footer",
+      "kind": "element",
+      "role": "bar",
+      "label": "© Service admin",
+      "parentId": "users"
+    }
+  ],
+  "sources": [{ "id": "mock", "kind": "mockup", "label": "Admin layout mockup" }]
+}

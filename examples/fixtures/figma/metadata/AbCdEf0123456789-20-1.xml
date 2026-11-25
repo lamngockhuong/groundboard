@@ -1,0 +1,4 @@
+<frame id="20:1" name="Confirm deletion" x="1200" y="-40" width="400" height="200">
+  <text id="20:2" name="Delete the selected users?" x="24" y="24" width="300" height="24" />
+  <instance id="20:3" name="mms_Button" x="260" y="140" width="116" height="36" />
+</frame>

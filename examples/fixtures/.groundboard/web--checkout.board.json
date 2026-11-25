@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "title": "Checkout screen",
+  "question": "What is on the checkout screen and what does each control do?",
+  "nodes": [
+    {
+      "id": "checkout",
+      "kind": "screen",
+      "label": "Checkout",
+      "ref": "web:checkout",
+      "platform": "web",
+      "layoutFrom": "figma",
+      "sourceIds": ["route", "fig-screen"]
+    },
+    {
+      "id": "header",
+      "kind": "element",
+      "role": "bar",
+      "label": "Shop header",
+      "parentId": "checkout",
+      "direction": "row",
+      "sourceIds": ["fig-header"]
+    },
+    { "id": "logo", "kind": "element", "role": "icon", "label": "Shop logo", "parentId": "header" },
+    { "id": "shop-name", "kind": "element", "role": "text", "label": "Shop", "parentId": "header" },
+    {
+      "id": "title",
+      "kind": "element",
+      "role": "text",
+      "label": "Checkout",
+      "parentId": "checkout",
+      "sourceIds": ["heading"]
+    },
+    {
+      "id": "body",
+      "kind": "element",
+      "role": "container",
+      "label": "Payment and summary",
+      "parentId": "checkout",
+      "direction": "row",
+      "sourceIds": ["fig-body"]
+    },
+    {
+      "id": "form",
+      "kind": "element",
+      "role": "container",
+      "label": "Payment form",
+      "parentId": "body",
+      "sourceIds": ["form"]
+    },
+    {
+      "id": "name",
+      "kind": "element",
+      "role": "input",
+      "label": "Name",
+      "parentId": "form",
+      "action": "Stores the customer name in the order form",
+      "sourceIds": ["on-name"]
+    },
+    {
+      "id": "email",
+      "kind": "element",
+      "role": "input",
+      "label": "Email",
+      "parentId": "form",
+      "action": "Stores the email in the order form",
+      "sourceIds": ["on-email"]
+    },
+    {
+      "id": "card",
+      "kind": "element",
+      "role": "input",
+      "label": "Card number",
+      "parentId": "form",
+      "action": "Stores the card number in the order form",
+      "sourceIds": ["on-card"]
+    },
+    {
+      "id": "terms",
+      "kind": "element",
+      "role": "checkbox",
+      "label": "I accept the terms",
+      "parentId": "form",
+      "ref": "web:checkout/terms",
+      "action": "Records that the terms were accepted; placeOrder refuses the order without it",
+      "sourceIds": ["on-terms", "terms-guard"]
+    },
+    {
+      "id": "pay",
+      "kind": "element",
+      "role": "button",
+      "label": "Pay",
+      "parentId": "form",
+      "ref": "web:checkout/pay-button",
+      "action": "Places the order, then opens the product list",
+      "sourceIds": ["on-pay", "place-order", "fig-pay"]
+    },
+    {
+      "id": "summary",
+      "kind": "element",
+      "role": "container",
+      "label": "Order summary",
+      "parentId": "body",
+      "sourceIds": ["fig-summary"]
+    },
+    {
+      "id": "item-count",
+      "kind": "element",
+      "role": "text",
+      "label": "Items in the cart",
+      "parentId": "summary"
+    },
+    {
+      "id": "total",
+      "kind": "element",
+      "role": "text",
+      "label": "Order total",
+      "parentId": "summary"
+    },
+    {
+      "id": "back",
+      "kind": "element",
+      "role": "link",
+      "label": "Back to cart",
+      "parentId": "checkout",
+      "action": "Opens the cart",
+      "sourceIds": ["back-link"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "pay-home",
+      "from": "pay",
+      "toRef": "web:home",
+      "kind": "navigates",
+      "label": "after paying",
+      "sourceIds": ["nav-home"]
+    },
+    {
+      "id": "back-cart",
+      "from": "back",
+      "toRef": "web:cart",
+      "kind": "navigates",
+      "sourceIds": ["back-link"]
+    },
+    {
+      "id": "pay-orders",
+      "from": "pay",
+      "toRef": "api:orders/post",
+      "kind": "calls",
+      "sourceIds": ["call-orders"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "route",
+      "path": "shop-web/src/main.tsx",
+      "line": 12,
+      "quote": "{ path: \"/checkout\", element: <Checkout /> }"
+    },
+    {
+      "id": "heading",
+      "path": "shop-web/src/screens/Checkout.tsx",
+      "line": 17,
+      "quote": "<h1>Checkout</h1>"
+    },
+    { "id": "form", "path": "shop-web/src/screens/Checkout.tsx", "line": 18, "quote": "<form>" },
+    {
+      "id": "on-name",
+      "path": "shop-web/src/screens/Checkout.tsx",
+      "line": 22,
+      "quote": "setForm({ ...form, name: e.target.value })"
+    },
+    {
+      "id": "on-email",
+      "path": "shop-web/src/screens/Checkout.tsx",
+      "line": 27,
+      "quote": "setForm({ ...form, email: e.target.value })"
+    },
+    {
+      "id": "on-card",
+      "path": "shop-web/src/screens/Checkout.tsx",
+      "line": 32,
+      "quote": "setForm({ ...form, card: e.target.value })"
+    },
+    {
+      "id": "on-terms",
+      "path": "shop-web/src/screens/Checkout.tsx",
+      "line": 38,
+      "quote": "acceptedTerms: e.target.checked"
+    },
+    {
+      "id": "terms-guard",
+      "path": "shop-web/src/api.ts",
+      "line": 26,
+      "quote": "if (!form.acceptedTerms) throw new Error(\"the terms must be accepted\");"
+    },
+    {
+      "id": "on-pay",
+      "path": "shop-web/src/screens/Checkout.tsx",
+      "line": 42,
+      "quote": "onClick={onPay}"
+    },
+    {
+      "id": "place-order",
+      "path": "shop-web/src/screens/Checkout.tsx",
+      "line": 12,
+      "quote": "await placeOrder(form);"
+    },
+    {
+      "id": "nav-home",
+      "path": "shop-web/src/screens/Checkout.tsx",
+      "line": 13,
+      "quote": "navigate(\"/\")"
+    },
+    {
+      "id": "back-link",
+      "path": "shop-web/src/screens/Checkout.tsx",
+      "line": 46,
+      "quote": "<Link to=\"/cart\">Back to cart</Link>"
+    },
+    {
+      "id": "call-orders",
+      "path": "shop-web/src/api.ts",
+      "line": 27,
+      "quote": "const response = await fetch(\"/api/orders\", { method: \"POST\", body: JSON.stringify(form) });"
+    },
+    { "id": "fig-screen", "kind": "figma", "fileKey": "ShopFixtureDesign0001", "nodeId": "10:1" },
+    { "id": "fig-header", "kind": "figma", "fileKey": "ShopFixtureDesign0001", "nodeId": "10:2" },
+    { "id": "fig-body", "kind": "figma", "fileKey": "ShopFixtureDesign0001", "nodeId": "10:8" },
+    { "id": "fig-pay", "kind": "figma", "fileKey": "ShopFixtureDesign0001", "nodeId": "10:21" },
+    { "id": "fig-summary", "kind": "figma", "fileKey": "ShopFixtureDesign0001", "nodeId": "10:30" }
+  ]
+}

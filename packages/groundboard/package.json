@@ -1,0 +1,61 @@
+{
+  "name": "groundboard",
+  "version": "0.1.0-rc.0",
+  "description": "Turn a question about a codebase into an editable, source-grounded Excalidraw board.",
+  "license": "MIT",
+  "author": "Lam Ngoc Khuong",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lamngockhuong/groundboard.git",
+    "directory": "packages/groundboard"
+  },
+  "homepage": "https://github.com/lamngockhuong/groundboard#readme",
+  "keywords": [
+    "excalidraw",
+    "diagram",
+    "codebase",
+    "mcp",
+    "claude-code",
+    "knowledge-board"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "groundboard": "dist/cli.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown && node scripts/copy-web.mjs && node scripts/generate-notices.mjs",
+    "test": "vitest run",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.9",
+    "@modelcontextprotocol/hono": "~2.0.2",
+    "@modelcontextprotocol/server": "~2.4.0",
+    "elkjs": "0.12.1",
+    "fflate": "0.8.3",
+    "hono": "^4.13.19",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@groundboard/layout": "workspace:*",
+    "@groundboard/render-excalidraw": "workspace:*",
+    "@groundboard/schema": "workspace:*",
+    "@groundboard/web": "workspace:*",
+    "@modelcontextprotocol/client": "~2.4.0",
+    "playwright": "1.65.1",
+    "tsdown": "catalog:"
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "title": "Web screens",
+  "question": "Which screens does the signup flow have, and how does a visitor move between them?",
+  "nodes": [
+    {
+      "id": "signup",
+      "kind": "screen",
+      "label": "Sign up",
+      "ref": "web:signup",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["req-screen-signup", "mockup-signup", "route-signup"]
+    },
+    {
+      "id": "verify-email",
+      "kind": "screen",
+      "label": "Verify email",
+      "ref": "web:verify-email",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["req-screen-verify", "fig-verify", "route-verify-email"]
+    },
+    {
+      "id": "welcome",
+      "kind": "screen",
+      "label": "Welcome",
+      "ref": "web:welcome",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["req-screen-welcome", "route-welcome"]
+    },
+    {
+      "id": "signin",
+      "kind": "screen",
+      "label": "Sign in",
+      "ref": "web:signin",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["route-signin"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "signup-to-verify",
+      "from": "signup",
+      "to": "verify-email",
+      "kind": "navigates",
+      "label": "Create account",
+      "sourceIds": ["req-create-account", "nav-verify-email"]
+    },
+    {
+      "id": "verify-to-welcome",
+      "from": "verify-email",
+      "to": "welcome",
+      "kind": "navigates",
+      "label": "Verify",
+      "sourceIds": ["req-verify", "fig-verify-button", "nav-welcome"]
+    },
+    {
+      "id": "signup-to-signin",
+      "from": "signup",
+      "to": "signin",
+      "kind": "navigates",
+      "label": "Sign in",
+      "sourceIds": ["nav-signin"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "req-screen-signup",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 7,
+      "quote": "Sign up: the visitor creates an account."
+    },
+    {
+      "id": "req-screen-verify",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 8,
+      "quote": "Verify email: the visitor enters the six-digit code"
+    },
+    {
+      "id": "req-screen-welcome",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 9,
+      "quote": "Welcome: the new customer is greeted"
+    },
+    {
+      "id": "req-create-account",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 18,
+      "quote": "The Create account button submits the form and opens the Verify email screen."
+    },
+    {
+      "id": "req-verify",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 23,
+      "quote": "opens the Welcome screen when it matches"
+    },
+    {
+      "id": "mockup-signup",
+      "kind": "mockup",
+      "label": "Sign up mockup",
+      "path": "design/signup-mockup.png"
+    },
+    {
+      "id": "fig-verify",
+      "kind": "figma",
+      "fileKey": "SignupFlowFile01",
+      "nodeId": "12:40"
+    },
+    {
+      "id": "fig-verify-button",
+      "kind": "figma",
+      "fileKey": "SignupFlowFile01",
+      "nodeId": "12:52"
+    },
+    {
+      "id": "route-signup",
+      "path": "src/main.tsx",
+      "line": 10,
+      "quote": "path: \"/signup\""
+    },
+    {
+      "id": "route-verify-email",
+      "path": "src/main.tsx",
+      "line": 11,
+      "quote": "path: \"/verify-email\""
+    },
+    {
+      "id": "route-welcome",
+      "path": "src/main.tsx",
+      "line": 12,
+      "quote": "path: \"/welcome\""
+    },
+    {
+      "id": "route-signin",
+      "path": "src/main.tsx",
+      "line": 13,
+      "quote": "path: \"/signin\""
+    },
+    {
+      "id": "nav-verify-email",
+      "path": "src/screens/SignUp.tsx",
+      "line": 14,
+      "quote": "navigate(\"/verify-email\")"
+    },
+    {
+      "id": "nav-welcome",
+      "path": "src/screens/VerifyEmail.tsx",
+      "line": 10,
+      "quote": "navigate(\"/welcome\")"
+    },
+    {
+      "id": "nav-signin",
+      "path": "src/screens/SignUp.tsx",
+      "line": 33,
+      "quote": "<Link to=\"/signin\">"
+    }
+  ]
+}

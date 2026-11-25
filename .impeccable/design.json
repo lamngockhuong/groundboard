@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-19T09:10:00Z",
+  "title": "Design System: groundboard",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Blueprint Indigo",
+        "canonical": "#4f46e5",
+        "tonalRamp": [
+          "#1e1b4b",
+          "#312e81",
+          "#3730a3",
+          "#4338ca",
+          "#4f46e5",
+          "#818cf8",
+          "#c7d2fe",
+          "#eef2ff"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Drafting Ink",
+        "canonical": "#0f172a",
+        "tonalRamp": [
+          "#0f172a",
+          "#1e293b",
+          "#334155",
+          "#475569",
+          "#64748b",
+          "#94a3b8",
+          "#cbd5e1",
+          "#f1f5f9"
+        ]
+      },
+      "muted": { "role": "neutral", "displayName": "Pencil Grey", "canonical": "#64748b" },
+      "surface": { "role": "neutral", "displayName": "Paper", "canonical": "#f8fafc" },
+      "panel": { "role": "neutral", "displayName": "Sheet", "canonical": "#ffffff" },
+      "surface-2": { "role": "neutral", "displayName": "Tracing Grey", "canonical": "#f1f5f9" },
+      "line": { "role": "neutral", "displayName": "Hairline", "canonical": "#e2e8f0" },
+      "line-strong": { "role": "neutral", "displayName": "Rule", "canonical": "#cbd5e1" },
+      "ok": { "role": "semantic", "displayName": "Verified Green", "canonical": "#067647" },
+      "warn": { "role": "semantic", "displayName": "Amber Caution", "canonical": "#b54708" },
+      "danger": { "role": "semantic", "displayName": "Signal Red", "canonical": "#b42318" },
+      "spec": { "role": "semantic", "displayName": "Spec Blue", "canonical": "#1d4ed8" }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles: Screen atlas, Open a board."
+      },
+      "title": { "displayName": "Title", "purpose": "App name, board title, panel headings." },
+      "body": { "displayName": "Body", "purpose": "Descriptions and panel text." },
+      "label": { "displayName": "Label", "purpose": "Uppercase atlas group headings only." },
+      "mono": { "displayName": "Mono", "purpose": "Paths, node ids, refs, quoted source lines." }
+    },
+    "shadows": [
+      {
+        "name": "shadow-sm",
+        "value": "0 1px 2px rgb(15 23 42 / 0.06)",
+        "purpose": "Resting cards, panels and secondary buttons."
+      },
+      {
+        "name": "shadow-md",
+        "value": "0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06)",
+        "purpose": "Board card on hover only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "180ms cubic-bezier(0.2, 0, 0, 1)",
+        "purpose": "Colour, border and shadow transitions; 0ms under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [{ "name": "narrow", "value": "760px" }]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main action, such as Render or Continue.",
+      "html": "<button class=\"ds-btn-primary\">Render</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.25rem; padding: 0.4rem 0.9rem; border: 1px solid var(--accent, #4f46e5); border-radius: 6px; background: var(--accent, #4f46e5); color: var(--on-accent, #fff); font: inherit; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background-color 180ms cubic-bezier(0.2,0,0,1), border-color 180ms cubic-bezier(0.2,0,0,1); } .ds-btn-primary:hover { background: var(--accent-hover, #4338ca); border-color: var(--accent-hover, #4338ca); } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent, #4f46e5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Alternative action, such as Choose a file or Cancel.",
+      "html": "<button class=\"ds-btn-secondary\">Choose a file</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; min-height: 2.25rem; padding: 0.4rem 0.9rem; border: 1px solid var(--line-strong, #cbd5e1); border-radius: 6px; background: var(--panel, #fff); color: var(--ink-soft, #334155); box-shadow: 0 1px 2px rgb(15 23 42 / 0.06); font: inherit; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 180ms cubic-bezier(0.2,0,0,1); } .ds-btn-secondary:hover { border-color: var(--accent, #4f46e5); background: var(--accent-soft, #eef2ff); color: var(--accent, #4f46e5); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--accent, #4f46e5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Header and export actions.",
+      "html": "<button class=\"ds-btn-ghost\">PNG</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; min-height: 2rem; padding: 0.3rem 0.65rem; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--ink-soft, #334155); font: inherit; font-size: 0.875rem; font-weight: 500; cursor: pointer; } .ds-btn-ghost:hover { background: var(--surface-2, #f1f5f9); color: var(--ink, #0f172a); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--accent, #4f46e5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Filter field on the atlas.",
+      "html": "<input class=\"ds-input\" type=\"search\" placeholder=\"Filter boards by title\">",
+      "css": ".ds-input { width: 100%; min-height: 2.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--line-strong, #cbd5e1); border-radius: 6px; background: var(--panel, #fff); color: var(--ink, #0f172a); font: inherit; } .ds-input:focus-visible { border-color: var(--accent, #4f46e5); outline: none; box-shadow: 0 0 0 3px var(--focus-ring, rgb(79 70 229 / 0.2)); }"
+    },
+    {
+      "name": "Status Chips",
+      "kind": "chip",
+      "refersTo": "status-ok",
+      "description": "Board status, always with a text label.",
+      "html": "<span class=\"ds-status ds-ok\">Up to date</span> <span class=\"ds-status ds-stale\">Stale</span> <span class=\"ds-status ds-invalid\">Invalid</span>",
+      "css": ".ds-status { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500; white-space: nowrap; } .ds-status::before { content: ''; width: 0.4rem; height: 0.4rem; border-radius: 50%; background: currentColor; } .ds-ok { background: var(--ok-soft, #ecfdf3); color: var(--ok, #067647); } .ds-stale { background: var(--warn-soft, #fffaeb); color: var(--warn, #b54708); } .ds-invalid { background: var(--danger-soft, #fef3f2); color: var(--danger, #b42318); }"
+    },
+    {
+      "name": "Board Card",
+      "kind": "card",
+      "refersTo": "board-card",
+      "description": "Atlas entry linking to a board, with status and grounding coverage.",
+      "html": "<a class=\"ds-card\" href=\"#\"><span class=\"ds-card-icon\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"14\" rx=\"2\"/><path d=\"M8 21h8\"/></svg></span><span class=\"ds-card-body\"><span class=\"ds-card-title\">Checkout</span><span class=\"ds-card-meta\">from code</span><span class=\"ds-bar\"><span style=\"width:70%;background:#067647\"></span><span style=\"width:20%;background:#1d4ed8\"></span><span style=\"width:10%;background:#b54708\"></span></span></span></a>",
+      "css": ".ds-card { display: flex; gap: 0.75rem; padding: 0.9rem 1rem; border: 1px solid var(--line, #e2e8f0); border-radius: 10px; background: var(--panel, #fff); color: var(--ink, #0f172a); text-decoration: none; box-shadow: 0 1px 2px rgb(15 23 42 / 0.06); transition: border-color 180ms, box-shadow 180ms; max-width: 20rem; } .ds-card:hover { border-color: var(--accent, #4f46e5); box-shadow: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06); } .ds-card:hover .ds-card-title { color: var(--accent, #4f46e5); } .ds-card:focus-visible { outline: 2px solid var(--accent, #4f46e5); outline-offset: 2px; } .ds-card-icon { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; flex: none; border-radius: 8px; background: var(--accent-soft, #eef2ff); color: var(--accent, #4f46e5); } .ds-card-body { display: grid; gap: 0.4rem; flex: 1; } .ds-card-title { font-weight: 600; } .ds-card-meta { font-size: 0.75rem; color: var(--muted, #64748b); } .ds-bar { display: flex; height: 0.3rem; overflow: hidden; border-radius: 999px; background: var(--surface-2, #f1f5f9); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Annotated Blueprint",
+    "overview": "The viewer is the paper a blueprint is printed on: cool, neutral, and quiet, so the board and its annotations carry the page. The chrome around the canvas (header, toolbar, source panel) stays thin and slate-grey; colour is spent on meaning, never on decoration. Every place a claim is shown, its grounding is shown with it: backed by code, spec only, or unresolved, and whether the code has changed since.\n\nDensity is that of a working tool, not a marketing page: 15px body text, compact 36px controls, hairline borders. Light and dark themes are both first-class, switched by `data-theme` on `<html>` with a system-following default.\n\nThe indigo accent and the indigo-to-violet logo gradient are provisional. A rebrand is planned; until then they stay as they are, but nothing new should be built on them as identity.",
+    "keyCharacteristics": [
+      "Cool slate neutrals with one accent hue.",
+      "Semantic colour reserved for status and grounding.",
+      "Near-flat surfaces; depth appears on interaction.",
+      "Monospace for anything that is a path, id, ref or quote from code.",
+      "Every token defined once on `:root` and redefined under `[data-theme=\"dark\"]`."
+    ],
+    "rules": [
+      {
+        "name": "The Meaning-Only Colour Rule",
+        "body": "Green, amber, red and spec blue mean grounding or status and nothing else. Never use them for decoration, and never show a status by colour alone: a text label always goes with it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Paired Token Rule",
+        "body": "Every colour token used in CSS exists in both themes. A literal colour in a rule is a bug.",
+        "section": "colors"
+      },
+      {
+        "name": "The Earned Lift Rule",
+        "body": "A surface gets `shadow-md` only while it is being hovered or otherwise interacted with. Nothing is lifted at rest.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do define every colour as a token on `:root` and again under `[data-theme=\"dark\"]`.",
+      "Do pair every status or grounding colour with a text label.",
+      "Do use monospace for paths, ids, refs and quotes, and sentence case elsewhere.",
+      "Do keep controls at least 36px tall and keep the 2px accent focus outline visible on every focusable element, including visually hidden inputs behind a styled label.",
+      "Do keep all fonts and assets local; the page makes no third-party request."
+    ],
+    "donts": [
+      "Don't use semantic colours (green, amber, red, spec blue) for decoration.",
+      "Don't write literal colours in rules; use the tokens.",
+      "Don't lift surfaces at rest; shadows respond to interaction.",
+      "Don't extend the indigo accent or the logo gradient into new identity work before the rebrand.",
+      "Don't put `muted` text on `surface-2`; use `ink-soft` there."
+    ]
+  }
+}

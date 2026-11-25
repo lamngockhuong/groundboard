@@ -1,0 +1,13 @@
+{
+  "name": "groundboard",
+  "version": "0.1.0-rc.0",
+  "description": "Ask a question about the current repository and get an editable Excalidraw board whose every claim cites the file and lines it rests on.",
+  "author": {
+    "name": "Lam Ngoc Khuong",
+    "url": "https://github.com/lamngockhuong"
+  },
+  "homepage": "https://github.com/lamngockhuong/groundboard",
+  "repository": "https://github.com/lamngockhuong/groundboard",
+  "license": "MIT",
+  "keywords": ["excalidraw", "diagram", "codebase", "knowledge-board"]
+}

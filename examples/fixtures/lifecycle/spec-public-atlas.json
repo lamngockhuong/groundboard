@@ -1,0 +1,143 @@
+{
+  "boards": [
+    {
+      "slug": "overview-web",
+      "title": "Web screens",
+      "kind": "overview",
+      "status": "ok",
+      "staleSourceIds": [],
+      "warnings": [],
+      "uncheckedSources": 2,
+      "layoutFrom": ["mockup", "figma", "doc"],
+      "tags": [],
+      "grounding": {
+        "code": 0,
+        "spec": 5,
+        "none": 0
+      },
+      "specOnly": ["nodes[0]", "nodes[1]", "nodes[2]", "edges[0]", "edges[1]"],
+      "specOnlyTruncated": false
+    },
+    {
+      "slug": "web--signup",
+      "title": "Sign up screen",
+      "kind": "screen",
+      "status": "ok",
+      "staleSourceIds": [],
+      "warnings": [],
+      "uncheckedSources": 0,
+      "layoutFrom": ["mockup"],
+      "tags": ["onboarding"],
+      "grounding": {
+        "code": 0,
+        "spec": 6,
+        "none": 1
+      },
+      "specOnly": ["nodes[0]", "nodes[3]", "nodes[4]", "nodes[5]", "nodes[6]", "edges[0]"],
+      "specOnlyTruncated": false
+    }
+  ],
+  "refs": [
+    {
+      "ref": "web:signup",
+      "definedIn": [
+        {
+          "slug": "overview-web",
+          "nodeId": "signup",
+          "kind": "screen"
+        },
+        {
+          "slug": "web--signup",
+          "nodeId": "signup",
+          "kind": "screen"
+        }
+      ],
+      "usedIn": []
+    },
+    {
+      "ref": "web:signup/create-account",
+      "definedIn": [
+        {
+          "slug": "web--signup",
+          "nodeId": "create-account",
+          "kind": "element"
+        }
+      ],
+      "usedIn": []
+    },
+    {
+      "ref": "web:signup/display-name",
+      "definedIn": [
+        {
+          "slug": "web--signup",
+          "nodeId": "display-name",
+          "kind": "element"
+        }
+      ],
+      "usedIn": []
+    },
+    {
+      "ref": "web:signup/email",
+      "definedIn": [
+        {
+          "slug": "web--signup",
+          "nodeId": "email",
+          "kind": "element"
+        }
+      ],
+      "usedIn": []
+    },
+    {
+      "ref": "web:signup/password",
+      "definedIn": [
+        {
+          "slug": "web--signup",
+          "nodeId": "password",
+          "kind": "element"
+        }
+      ],
+      "usedIn": []
+    },
+    {
+      "ref": "web:signup/sign-in",
+      "definedIn": [
+        {
+          "slug": "web--signup",
+          "nodeId": "sign-in",
+          "kind": "element"
+        }
+      ],
+      "usedIn": []
+    },
+    {
+      "ref": "web:verify-email",
+      "definedIn": [
+        {
+          "slug": "overview-web",
+          "nodeId": "verify-email",
+          "kind": "screen"
+        }
+      ],
+      "usedIn": [
+        {
+          "slug": "web--signup",
+          "nodeId": "create-account",
+          "edgeId": "create-account-to-verify"
+        }
+      ]
+    },
+    {
+      "ref": "web:welcome",
+      "definedIn": [
+        {
+          "slug": "overview-web",
+          "nodeId": "welcome",
+          "kind": "screen"
+        }
+      ],
+      "usedIn": []
+    }
+  ],
+  "problems": [],
+  "tagsEditable": true
+}

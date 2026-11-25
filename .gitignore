@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.tgz
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+*.env
+/.groundboard/
+# The copy a groundboard skill takes before updating an atlas, deleted after the check.
+.groundboard-baseline/
+# Plans, research and reports stay on the owner's machine.
+plans/

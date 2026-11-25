@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "title": "Sign up screen",
+  "question": "What is on the sign up screen and what does each control do?",
+  "tags": ["onboarding"],
+  "nodes": [
+    {
+      "id": "signup",
+      "kind": "screen",
+      "label": "Sign up",
+      "ref": "web:signup",
+      "platform": "web",
+      "layoutFrom": "mockup",
+      "sourceIds": ["mockup-signup", "req-layout", "route-signup"]
+    },
+    {
+      "id": "title",
+      "kind": "element",
+      "role": "text",
+      "label": "Create your account",
+      "parentId": "signup"
+    },
+    {
+      "id": "form",
+      "kind": "element",
+      "role": "container",
+      "label": "Signup form",
+      "parentId": "signup"
+    },
+    {
+      "id": "display-name",
+      "kind": "element",
+      "role": "input",
+      "label": "Display name",
+      "parentId": "form",
+      "ref": "web:signup/display-name",
+      "action": "Stores the name shown on the account",
+      "sourceIds": ["req-display-name", "on-display-name"]
+    },
+    {
+      "id": "email",
+      "kind": "element",
+      "role": "input",
+      "label": "Email",
+      "parentId": "form",
+      "ref": "web:signup/email",
+      "action": "Stores the address the code is sent to",
+      "sourceIds": ["req-email", "on-email"]
+    },
+    {
+      "id": "password",
+      "kind": "element",
+      "role": "input",
+      "label": "Password",
+      "parentId": "form",
+      "ref": "web:signup/password",
+      "action": "Stores the password; the form is not sent when it is shorter than 10 characters",
+      "sourceIds": ["req-password", "on-password", "min-password"]
+    },
+    {
+      "id": "create-account",
+      "kind": "element",
+      "role": "button",
+      "label": "Create account",
+      "parentId": "signup",
+      "ref": "web:signup/create-account",
+      "action": "Submits the form and opens the Verify email screen",
+      "sourceIds": ["req-create-account", "on-submit", "nav-verify-email"]
+    },
+    {
+      "id": "sign-in",
+      "kind": "element",
+      "role": "link",
+      "label": "Sign in",
+      "parentId": "signup",
+      "ref": "web:signup/sign-in",
+      "sourceIds": ["mockup-signup", "link-signin"],
+      "action": "Opens the Sign in screen"
+    },
+    {
+      "id": "password-length",
+      "kind": "question",
+      "label": "Password minimum: the code accepts 10 characters, the requirements say 12. Which one? (Product)"
+    }
+  ],
+  "edges": [
+    {
+      "id": "create-account-to-verify",
+      "from": "create-account",
+      "toRef": "web:verify-email",
+      "kind": "navigates",
+      "sourceIds": ["req-create-account", "nav-verify-email"]
+    },
+    {
+      "id": "sign-in-to-signin",
+      "from": "sign-in",
+      "toRef": "web:signin",
+      "kind": "navigates",
+      "sourceIds": ["link-signin"]
+    },
+    {
+      "id": "password-length-about",
+      "from": "password-length",
+      "to": "password",
+      "kind": "relates"
+    }
+  ],
+  "sources": [
+    {
+      "id": "req-layout",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 13,
+      "quote": "The Sign up screen follows the client mockup"
+    },
+    {
+      "id": "req-display-name",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 15,
+      "quote": "The Display name field stores the name shown on the account."
+    },
+    {
+      "id": "req-email",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 16,
+      "quote": "The Email field stores the address the code is sent to."
+    },
+    {
+      "id": "req-password",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 17,
+      "quote": "The Password field stores a password of at least 12 characters."
+    },
+    {
+      "id": "req-create-account",
+      "kind": "doc",
+      "path": "docs/requirements.md",
+      "line": 18,
+      "quote": "The Create account button submits the form and opens the Verify email screen."
+    },
+    {
+      "id": "mockup-signup",
+      "kind": "mockup",
+      "label": "Sign up mockup",
+      "path": "design/signup-mockup.png"
+    },
+    {
+      "id": "route-signup",
+      "path": "src/main.tsx",
+      "line": 10,
+      "quote": "path: \"/signup\""
+    },
+    {
+      "id": "on-display-name",
+      "path": "src/screens/SignUp.tsx",
+      "line": 23,
+      "quote": "setForm({ ...form, displayName: e.target.value })"
+    },
+    {
+      "id": "on-email",
+      "path": "src/screens/SignUp.tsx",
+      "line": 25,
+      "quote": "setForm({ ...form, email: e.target.value })"
+    },
+    {
+      "id": "on-password",
+      "path": "src/screens/SignUp.tsx",
+      "line": 29,
+      "quote": "setForm({ ...form, password: e.target.value })"
+    },
+    {
+      "id": "min-password",
+      "path": "src/screens/SignUp.tsx",
+      "line": 5,
+      "quote": "const MIN_PASSWORD_LENGTH = 10;"
+    },
+    {
+      "id": "on-submit",
+      "path": "src/screens/SignUp.tsx",
+      "line": 20,
+      "quote": "<form onSubmit={onSubmit}>"
+    },
+    {
+      "id": "nav-verify-email",
+      "path": "src/screens/SignUp.tsx",
+      "line": 14,
+      "quote": "navigate(\"/verify-email\")"
+    },
+    {
+      "id": "link-signin",
+      "path": "src/screens/SignUp.tsx",
+      "line": 33,
+      "quote": "<Link to=\"/signin\">"
+    }
+  ]
+}

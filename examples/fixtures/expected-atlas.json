@@ -1,0 +1,58 @@
+{
+  "apis": {
+    "api--orders": ["api:orders/get-id", "api:orders/post"]
+  },
+  "calls": {
+    "web--checkout": ["api:orders/post"]
+  },
+  "jobs": {
+    "overview-batch": ["batch:close-stale-orders", "batch:send-receipt"]
+  },
+  "tables": {
+    "overview-db": ["db:order-items", "db:orders"]
+  },
+  "screens": {
+    "overview-web": ["web:cart", "web:checkout", "web:home", "web:products"],
+    "overview-mobile": ["mobile:cart", "mobile:catalog", "mobile:order-detail"]
+  },
+  "screenBoards": {
+    "web--checkout": [
+      { "role": "bar", "children": [{ "role": "icon" }, { "role": "text" }] },
+      { "role": "text" },
+      {
+        "role": "container",
+        "children": [
+          {
+            "role": "container",
+            "children": [
+              { "role": "input" },
+              { "role": "input" },
+              { "role": "input" },
+              { "role": "checkbox" },
+              { "role": "button" }
+            ]
+          },
+          { "role": "container", "children": [{ "role": "text" }, { "role": "text" }] }
+        ]
+      },
+      { "role": "link" }
+    ],
+    "mobile--cart": [
+      { "role": "bar" },
+      { "role": "text" },
+      {
+        "role": "container",
+        "children": [
+          {
+            "role": "container",
+            "children": [{ "role": "image" }, { "role": "text" }, { "role": "text" }]
+          }
+        ]
+      },
+      { "role": "text" },
+      { "role": "button" },
+      { "role": "link" },
+      { "role": "bar", "children": [{ "role": "icon" }, { "role": "icon" }] }
+    ]
+  }
+}
