@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     branches: [main]
+  # Publishes a release that already has a tag and a GitHub release but never reached npm,
+  # e.g. when a publish step failed or was skipped. Runs the same jobs as a release does.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish, e.g. v0.1.0-rc.1
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,15 +24,25 @@ jobs:
     outputs:
       # The package lives at packages/groundboard, so release-please names its outputs after that path;
       # the bare release_created, version and tag_name are set only for a package at the repository root.
-      release_created: ${{ steps.release.outputs['packages/groundboard--release_created'] }}
-      version: ${{ steps.release.outputs['packages/groundboard--version'] }}
-      tag_name: ${{ steps.release.outputs['packages/groundboard--tag_name'] }}
+      release_created: ${{ steps.release.outputs['packages/groundboard--release_created'] || steps.existing.outputs.release_created }}
+      version: ${{ steps.release.outputs['packages/groundboard--version'] || steps.existing.outputs.version }}
+      tag_name: ${{ steps.release.outputs['packages/groundboard--tag_name'] || steps.existing.outputs.tag_name }}
     steps:
       - id: release
+        if: github.event_name == 'push'
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      - id: existing
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "::error::$TAG is not a release tag"; exit 1; }
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null
+          { echo "release_created=true"; echo "tag_name=$TAG"; echo "version=${TAG#v}"; } >> "$GITHUB_OUTPUT"
 
   # 1. npm first: nothing below may point at a version npm does not have.
   publish-npm:
@@ -36,6 +54,8 @@ jobs:
       id-token: write # npm trusted publishing (OIDC) and provenance; no stored token
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -63,6 +83,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
