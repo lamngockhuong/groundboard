@@ -2,6 +2,7 @@
 // Points the Claude Code plugin at a published groundboard version: sets the plugin's
 // `version`, the `groundboard@X.Y.Z` argument its MCP server runs through npx, and the metadata
 // version of every skill. Run only after `npm publish` of that version succeeded.
+// Each file is edited in place, so the formatting the linter expects stays as it is.
 //
 //   node scripts/bump-plugin-version.mjs <version>
 
@@ -14,18 +15,18 @@ export function bumpPluginVersion(version, root = path.resolve(import.meta.dirna
   if (!SEMVER.test(version)) throw new Error(`not a version: ${JSON.stringify(version)}`);
   const file = (rel) => path.join(root, rel);
 
-  const pluginPath = file("plugins/groundboard/.claude-plugin/plugin.json");
-  const plugin = JSON.parse(readFileSync(pluginPath, "utf8"));
-  plugin.version = version;
-  writeFileSync(pluginPath, `${JSON.stringify(plugin, null, 2)}\n`);
-
-  const mcpPath = file("plugins/groundboard/.mcp.json");
-  const mcp = JSON.parse(readFileSync(mcpPath, "utf8"));
-  const args = mcp.mcpServers.groundboard.args;
-  const index = args.findIndex((a) => typeof a === "string" && a.startsWith("groundboard@"));
-  if (index === -1) throw new Error(".mcp.json has no groundboard@<version> argument");
-  args[index] = `groundboard@${version}`;
-  writeFileSync(mcpPath, `${JSON.stringify(mcp, null, 2)}\n`);
+  replaceOnce(
+    file("plugins/groundboard/.claude-plugin/plugin.json"),
+    /^( {2}"version": )"[^"]*"/m,
+    `$1"${version}"`,
+    "plugin.json has no top-level version",
+  );
+  replaceOnce(
+    file("plugins/groundboard/.mcp.json"),
+    /"groundboard@[^"]*"/,
+    `"groundboard@${version}"`,
+    ".mcp.json has no groundboard@<version> argument",
+  );
 
   for (const skillPath of skillFiles(root)) {
     const skill = readFileSync(skillPath, "utf8");
@@ -35,6 +36,15 @@ export function bumpPluginVersion(version, root = path.resolve(import.meta.dirna
     }
     writeFileSync(skillPath, updated);
   }
+}
+
+/** Replaces the one match of `pattern` in a JSON file and checks the file still parses. */
+function replaceOnce(filePath, pattern, replacement, missing) {
+  const text = readFileSync(filePath, "utf8");
+  if (!pattern.test(text)) throw new Error(missing);
+  const updated = text.replace(pattern, replacement);
+  JSON.parse(updated);
+  writeFileSync(filePath, updated);
 }
 
 /** Every skill of the plugin: `plugins/groundboard/skills/<name>/SKILL.md`. */

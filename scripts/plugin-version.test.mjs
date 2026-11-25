@@ -53,6 +53,19 @@ test("bump-plugin-version moves the plugin, the npx pin and every skill's metada
   expect(() => bumpPluginVersion("latest", root)).toThrow(/not a version/);
 });
 
+test("bump-plugin-version changes only the version strings, keeping each file's formatting", () => {
+  const root = copyRepoParts();
+  const files = ["plugins/groundboard/.claude-plugin/plugin.json", "plugins/groundboard/.mcp.json"];
+  const before = files.map((rel) => readFileSync(path.join(root, rel), "utf8"));
+  const from = pluginVersions(root).plugin;
+  bumpPluginVersion("1.2.3", root);
+  files.forEach((rel, i) => {
+    expect(readFileSync(path.join(root, rel), "utf8"), rel).toBe(
+      before[i].replaceAll(`"${from}"`, '"1.2.3"').replaceAll(`@${from}"`, '@1.2.3"'),
+    );
+  });
+});
+
 test("a skill whose version differs from the plugin's fails the check", () => {
   const root = copyRepoParts();
   const file = path.join(root, "plugins/groundboard/skills/atlas/SKILL.md");
