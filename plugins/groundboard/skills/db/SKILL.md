@@ -4,7 +4,7 @@ description: Map the database schema of the current repository as a source-groun
 license: MIT
 compatibility: Claude Code with the groundboard plugin's MCP server (Node 24 or later, network on first start for npx).
 metadata:
-  version: 0.1.0-rc.0
+  version: 0.1.0-rc.1
   homepage: https://github.com/lamngockhuong/groundboard
 argument-hint: "[domain]"
 allowed-tools: Read Grep Glob Write Bash(npx groundboard:*) Bash(cp -R .groundboard .groundboard-baseline) Bash(rm -r .groundboard-baseline) mcp__plugin_groundboard_groundboard__get_board_schema mcp__plugin_groundboard_groundboard__validate_board mcp__plugin_groundboard_groundboard__render_board mcp__plugin_groundboard_groundboard__check_atlas

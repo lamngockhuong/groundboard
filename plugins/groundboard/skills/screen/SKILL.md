@@ -4,7 +4,7 @@ description: Draw one screen of the current app as a low-fidelity wireframe boar
 license: MIT
 compatibility: Claude Code with the groundboard plugin's MCP server (Node 24 or later, network on first start for npx). Figma layouts need the Figma MCP server.
 metadata:
-  version: 0.1.0-rc.0
+  version: 0.1.0-rc.1
   homepage: https://github.com/lamngockhuong/groundboard
 argument-hint: "<ref> [figma-url | screenshot-path...]"
 allowed-tools: Read Grep Glob Write Bash(npx groundboard:*) mcp__plugin_groundboard_groundboard__get_board_schema mcp__plugin_groundboard_groundboard__validate_board mcp__plugin_groundboard_groundboard__render_board mcp__plugin_groundboard_groundboard__check_atlas mcp__plugin_figma_figma__get_metadata mcp__plugin_figma_figma__get_screenshot mcp__plugin_figma_figma__use_figma Bash(mkdir -p .groundboard/.cache/*) Bash(curl -f -L -o .groundboard/.cache/figma/*) Bash(curl -f -L -o .groundboard/.cache/figma-check/*) Bash(cp -R .groundboard .groundboard-baseline) Bash(rm -r .groundboard-baseline)

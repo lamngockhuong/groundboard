@@ -2,7 +2,7 @@
   "mcpServers": {
     "groundboard": {
       "command": "npx",
-      "args": ["-y", "groundboard@0.1.0-rc.0", "mcp"],
+      "args": ["-y", "groundboard@0.1.0-rc.1", "mcp"],
       "env": {
         "GROUNDBOARD_ROOT": "${CLAUDE_PROJECT_DIR}"
       }
