@@ -4,7 +4,7 @@ description: Publish the screen atlas of the current repository (.groundboard/*.
 license: MIT
 compatibility: Claude Code with the Artifact tool and Node 24 or later (network on first start for npx).
 metadata:
-  version: 0.1.0-rc.0
+  version: 0.1.0-rc.1
   homepage: https://github.com/lamngockhuong/groundboard
 argument-hint: "[--no-references]"
 allowed-tools: Read Grep Write Bash(npx groundboard export:*) Artifact

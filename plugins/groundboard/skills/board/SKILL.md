@@ -4,7 +4,7 @@ description: Answer a question about the current repository with an editable Exc
 license: MIT
 compatibility: Claude Code with the groundboard plugin's MCP server (Node 24 or later, network on first start for npx).
 metadata:
-  version: 0.1.0-rc.0
+  version: 0.1.0-rc.1
   homepage: https://github.com/lamngockhuong/groundboard
 allowed-tools: Read Grep Glob Write Bash(git remote get-url:*) Bash(git rev-parse:*) Bash(git status:*) Bash(git branch:*) Bash(npx groundboard:*) Bash(cp -R .groundboard .groundboard-baseline) Bash(rm -r .groundboard-baseline) mcp__plugin_groundboard_groundboard__get_board_schema mcp__plugin_groundboard_groundboard__validate_board mcp__plugin_groundboard_groundboard__render_board mcp__plugin_groundboard_groundboard__check_atlas
 ---
