@@ -14,9 +14,11 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      version: ${{ steps.release.outputs.version }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
+      # The package lives at packages/groundboard, so release-please names its outputs after that path;
+      # the bare release_created, version and tag_name are set only for a package at the repository root.
+      release_created: ${{ steps.release.outputs['packages/groundboard--release_created'] }}
+      version: ${{ steps.release.outputs['packages/groundboard--version'] }}
+      tag_name: ${{ steps.release.outputs['packages/groundboard--tag_name'] }}
     steps:
       - id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
