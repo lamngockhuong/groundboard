@@ -1,6 +1,6 @@
 {
   "name": "groundboard",
-  "version": "0.1.0-rc.0",
+  "version": "0.1.0-rc.1",
   "description": "Turn a question about a codebase into an editable, source-grounded Excalidraw board.",
   "license": "MIT",
   "author": "Lam Ngoc Khuong",
