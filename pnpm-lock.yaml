@@ -351,8 +351,8 @@ importers:
         version: link:../schema
     devDependencies:
       '@excalidraw/element':
-        specifier: 0.18.0-9fbeaed
-        version: 0.18.0-9fbeaed
+        specifier: 0.18.0-9036812b6
+        version: 0.18.0-9036812b6
       '@excalidraw/excalidraw':
         specifier: 0.18.1
         version: 0.18.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -501,8 +501,14 @@ packages:
   '@emnapi/wasi-threads@2.2.0':
     resolution: {integrity: sha512-JP7OYH38Q7+pyTAe14raZHLQIK7BDKbdwji+Xi3pcd/6QkJYQH3SX4wu6EplGrGJWRepoNzedfm0G3B9Z4e9Rw==}
 
+  '@excalidraw/common@0.18.0-9036812b6':
+    resolution: {integrity: sha512-P5hDy8DA3Xe/OonX0mr47gRQrDDAUH2LoxYkmL27A68i7JJzAAfHtcCZKtr44Ca41iwVxBpUABNj8PvdAhKl0g==}
+
   '@excalidraw/common@0.18.0-9fbeaed':
     resolution: {integrity: sha512-VEOkZhaS0IgdaiKydlywyOCnl+PldW8v9hfDpX9pL7l6Wx95a8Yf802H3qKx3k6pgIxk5SB7n42M5WnYkFXcOQ==}
+
+  '@excalidraw/element@0.18.0-9036812b6':
+    resolution: {integrity: sha512-tfUOiBCVr/nfjt7c+sWY90SVa3HrVdc5hTZopmDFapLtV8YDdFSSmCtYXn0UvT/0OYsYca5cXBNgeCjvlRDH2Q==}
 
   '@excalidraw/element@0.18.0-9fbeaed':
     resolution: {integrity: sha512-h+zetWpX3zapnDLYdPVsD0wcr6B/2gGQdQZkYFcwiBLK0DOMEZ4NJZx6PiCgpRBYbHoit7WGwKHS3uDL6dameg==}
@@ -528,6 +534,9 @@ packages:
 
   '@excalidraw/markdown-to-text@0.1.2':
     resolution: {integrity: sha512-1nDXBNAojfi3oSFwJswKREkFm5wrSjqay81QlyRv2pkITG/XYB5v+oChENVBQLcxQwX4IUATWvXM5BcaNhPiIg==}
+
+  '@excalidraw/math@0.18.0-9036812b6':
+    resolution: {integrity: sha512-W8U38cWrYf51m0OWJIL3HRQOp7zp9RDbJ8H75xvAehOcnKKfn22pSUROO/qQ/YhLaPyDGjtdSNam/ymz0g8o3g==}
 
   '@excalidraw/math@0.18.0-9fbeaed':
     resolution: {integrity: sha512-ZqxvLf8boc+Slo2auUZ5Z4v4TQx5gExkPKHTu5hHhwzoODPbIEbbpGUDIzx72BswyyjiBSIKhbLEfaUv/xwJVA==}
@@ -3449,9 +3458,16 @@ snapshots:
       tslib: 2.9.1
     optional: true
 
+  '@excalidraw/common@0.18.0-9036812b6': {}
+
   '@excalidraw/common@0.18.0-9fbeaed':
     dependencies:
       tinycolor2: 1.6.0
+
+  '@excalidraw/element@0.18.0-9036812b6':
+    dependencies:
+      '@excalidraw/common': 0.18.0-9036812b6
+      '@excalidraw/math': 0.18.0-9036812b6
 
   '@excalidraw/element@0.18.0-9fbeaed':
     dependencies:
@@ -3549,6 +3565,10 @@ snapshots:
   '@excalidraw/laser-pointer@1.3.1': {}
 
   '@excalidraw/markdown-to-text@0.1.2': {}
+
+  '@excalidraw/math@0.18.0-9036812b6':
+    dependencies:
+      '@excalidraw/common': 0.18.0-9036812b6
 
   '@excalidraw/math@0.18.0-9fbeaed':
     dependencies:

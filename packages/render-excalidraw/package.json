@@ -16,7 +16,7 @@
     "@groundboard/schema": "workspace:*"
   },
   "devDependencies": {
-    "@excalidraw/element": "0.18.0-9fbeaed",
+    "@excalidraw/element": "0.18.0-9036812b6",
     "@excalidraw/excalidraw": "0.18.1",
     "excalidraw-next": "npm:@excalidraw/excalidraw@0.18.0-9fbeaed",
     "jsdom": "31.0.1",
