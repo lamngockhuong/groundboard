@@ -30,6 +30,8 @@ const PATHS = {
   panel: "M4 4h16v16H4zM15 4v16",
   prev: "M15 6l-6 6 6 6",
   next: "M9 6l6 6-6 6",
+  historyBack: "M19 12H5m6-6-6 6 6 6",
+  historyForward: "M5 12h14m-6-6 6 6-6 6",
   play: "M8 5v14l11-7z",
   pause: "M8 5v14M16 5v14",
   present: "M3 4h18v12H3zM8 20h8M12 16v4M10 7.5v5l4-2.5z",

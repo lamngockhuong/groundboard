@@ -78,6 +78,17 @@ async function go(hash: string) {
 
 const flush = () => act(async () => undefined);
 
+/** Back or Forward: waits for the popstate the browser fires once it has moved. */
+async function traverse(move: () => void) {
+  await act(async () => {
+    const moved = new Promise((resolve) =>
+      window.addEventListener("popstate", resolve, { once: true }),
+    );
+    move();
+    await moved;
+  });
+}
+
 describe("useAtlas", () => {
   beforeEach(async () => {
     await new Promise<void>((resolve) => {
@@ -217,6 +228,69 @@ describe("useAtlas", () => {
     expect(latest.library?.sample).toBe(true);
     expect(latest.atlas?.boards.map((b) => b.slug)).toContain("overview-web");
     expect(window.location.hash).toBe("#/");
+  });
+
+  it("goes back to the last node of the same board without loading it again, with its view", async () => {
+    api.fetchAtlasBoard.mockResolvedValue(ok);
+    const h = host();
+    await mount(h);
+    await go("#/board/a");
+    await flush();
+    const view = { scrollX: 5, scrollY: 6, zoom: 2, selected: ["el"] };
+    latest.viewReader.current = (slug) => (slug === "a" ? view : null);
+    await go("#/board/a?node=n1");
+    expect(latest.focus).toMatchObject({ nodeId: "n1" });
+    expect(latest.canBack).toBe(true);
+    await traverse(() => latest.back());
+    expect(window.location.hash).toBe("#/board/a");
+    expect(latest.focus?.view).toEqual(view);
+    expect(latest.focus?.nodeId).toBeUndefined();
+    expect(latest.canForward).toBe(true);
+    expect(api.fetchAtlasBoard).toHaveBeenCalledTimes(1);
+    await traverse(() => latest.forward());
+    expect(window.location.hash).toBe("#/board/a?node=n1");
+    expect(latest.focus?.view).toEqual(view);
+    expect(api.fetchAtlasBoard).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the board of an earlier entry on Back, and a new link drops the entries ahead", async () => {
+    api.fetchAtlasBoard.mockResolvedValue(ok);
+    const h = host();
+    await mount(h);
+    await go("#/board/a");
+    await flush();
+    await go("#/board/b");
+    await flush();
+    await traverse(() => latest.back());
+    await flush();
+    expect(h.shown).toEqual(["a", "b", "a"]);
+    await go("#/board/c");
+    await flush();
+    expect(latest.canForward).toBe(false);
+    expect(latest.canBack).toBe(true);
+  });
+
+  it("stays on the board when unsaved edits refuse Back, and keeps the history as it was", async () => {
+    api.fetchAtlasBoard.mockResolvedValue(ok);
+    const h = host();
+    await mount(h);
+    await go("#/board/a");
+    await flush();
+    await go("#/board/b");
+    await flush();
+    latest.leaveGuard.current = () => false;
+    await traverse(() => latest.back());
+    // The refused step is undone by a step the other way.
+    await vi.waitFor(() => expect(window.location.hash).toBe("#/board/b"));
+    await flush();
+    expect(latest.route).toEqual({ view: "board", slug: "b" });
+    expect(h.shown).toEqual(["a", "b"]);
+    expect(latest.canBack).toBe(true);
+    expect(latest.canForward).toBe(false);
+    latest.leaveGuard.current = null;
+    await traverse(() => latest.back());
+    await flush();
+    expect(h.shown).toEqual(["a", "b", "a"]);
   });
 
   it("does nothing on the way home when no atlas board was asked for", async () => {

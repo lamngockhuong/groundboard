@@ -45,6 +45,7 @@ import {
 import { safeExternalUrl } from "../links.ts";
 import { lockedItemAt } from "../locked-hit.ts";
 import { readMotionGraph, selectedBoardItems } from "../motion-graph.ts";
+import type { ViewState } from "../nav-history.ts";
 import {
   DESIGN_SHOWN_KEY,
   HIDDEN_LAYERS_KEY,
@@ -129,6 +130,21 @@ interface EditWork {
   base: { elements: readonly unknown[]; step: EditStep };
 }
 
+/** The viewer's Back and Forward, shown in the toolbar. */
+export interface BoardHistory {
+  canBack: boolean;
+  canForward: boolean;
+  onBack: () => void;
+  onForward: () => void;
+}
+
+/** What the viewer reads from the canvas: where it stands, and how much is selected. */
+export interface CanvasReader {
+  /** Null while presenting or before the scene is on the canvas: nothing worth going back to. */
+  view: () => ViewState | null;
+  selectedCount: () => number;
+}
+
 export interface BoardStep {
   title: string;
   href: string;
@@ -171,8 +187,15 @@ interface EditorProps {
   /** Every arrow in view runs, not only the arrows of the selected node. */
   motionAll?: boolean;
   fileName: string;
-  /** Select this board node and scroll to it; `seq` changes to focus the same node again. */
-  focus?: { nodeId: string; seq: number } | null;
+  /**
+   * Put the canvas back where a view left it, else select this board node and scroll to it;
+   * `seq` changes to apply the same focus again.
+   */
+  focus?: { nodeId?: string; view?: ViewState; seq: number } | null;
+  /** Back and Forward through the places visited; absent where there is no history. */
+  history?: BoardHistory;
+  /** Hands over a reader of the canvas, and null when the board leaves the screen. */
+  registerCanvas?: (reader: CanvasReader | null) => void;
   onSelectionChange: (citations: NodeCitations[]) => void;
   /** The nodes of the board, handed over once the scene is ready. */
   onNodes?: (nodes: BoardNode[]) => void;
@@ -252,6 +275,23 @@ function StepLink({
   );
 }
 
+/** The ids marked selected, in order. */
+const selectedIds = (ids: Readonly<Record<string, boolean>>) =>
+  Object.keys(ids).filter((id) => ids[id]);
+
+/** A saved view as Excalidraw's app state, keeping only the selected elements still there. */
+function viewAppState(view: ViewState, elements: readonly unknown[]) {
+  const present = new Set(elements.map((e) => (e as { id: string }).id));
+  return {
+    scrollX: view.scrollX,
+    scrollY: view.scrollY,
+    zoom: { value: view.zoom },
+    selectedElementIds: Object.fromEntries(
+      view.selected.filter((id) => present.has(id)).map((id) => [id, true]),
+    ),
+  };
+}
+
 const selectionKey = (ids: Readonly<Record<string, boolean>>) =>
   Object.keys(ids)
     .filter((id) => ids[id])
@@ -269,6 +309,8 @@ export default function Editor({
   motionAll = false,
   fileName,
   focus = null,
+  history,
+  registerCanvas,
   onSelectionChange,
   onNodes,
   onOpenRef,
@@ -338,6 +380,8 @@ export default function Editor({
   // Excalidraw runs `restore()` over initialData, which validates and normalizes every
   // element, so the opaque scene parsed at the boundary is handed over as-is (with reference
   // images marked deleted when the reader hid them).
+  // Back or Forward to this board opens it where the reader left it, without a fit first.
+  const viewAtLoad = useRef(focus?.view);
   const initialData = useMemo(
     () =>
       ({
@@ -346,9 +390,11 @@ export default function Editor({
           hiddenAtLoad.current,
           shownAtLoad.current,
         ),
-        appState: scene.appState,
+        appState: viewAtLoad.current
+          ? { ...scene.appState, ...viewAppState(viewAtLoad.current, scene.elements) }
+          : scene.appState,
         files: scene.files,
-        scrollToContent: true,
+        scrollToContent: !viewAtLoad.current,
       }) as ExcalidrawInitialDataState,
     [scene],
   );
@@ -383,11 +429,19 @@ export default function Editor({
   };
 
   // Boards are often wider than the window; fit the whole scene once the editor is ready,
-  // unless a deep link names one node, which is then selected and brought into view.
+  // unless a deep link names one node, which is then selected and brought into view. Back and
+  // Forward put the canvas back where the reader left it.
   useEffect(() => {
     if (!api) return;
     const frame = requestAnimationFrame(() => {
-      const target = focus ? elementForNode(api.getSceneElements(), focus.nodeId) : null;
+      if (focus?.view) {
+        api.updateScene({
+          appState: viewAppState(focus.view, api.getSceneElements()) as never,
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+        return;
+      }
+      const target = focus?.nodeId ? elementForNode(api.getSceneElements(), focus.nodeId) : null;
       if (!target) {
         api.scrollToContent(undefined, { fitToViewport: true, viewportZoomFactor: 0.9 });
         return;
@@ -443,6 +497,33 @@ export default function Editor({
       cancelled = true;
     };
   }, [api, sceneReady, font, originals, onError]);
+
+  // The viewer reads the canvas before it leaves the board, to come back to the same view.
+  const readerState = useRef({ api, sceneReady, presenting });
+  readerState.current = { api, sceneReady, presenting };
+  const registerCanvasRef = useRef(registerCanvas);
+  registerCanvasRef.current = registerCanvas;
+  useEffect(() => {
+    const register = registerCanvasRef.current;
+    register?.({
+      view: () => {
+        const { api, sceneReady, presenting } = readerState.current;
+        if (!api || !sceneReady || presenting) return null;
+        const state = api.getAppState();
+        return {
+          scrollX: state.scrollX,
+          scrollY: state.scrollY,
+          zoom: state.zoom.value,
+          selected: selectedIds(state.selectedElementIds),
+        };
+      },
+      selectedCount: () => {
+        const { api } = readerState.current;
+        return api ? selectedIds(api.getAppState().selectedElementIds).length : 0;
+      },
+    });
+    return () => register?.(null);
+  }, []);
 
   // Hand the board's nodes over once, for the command palette.
   const onNodesRef = useRef(onNodes);
@@ -848,6 +929,32 @@ export default function Editor({
     <div className="editor">
       <div className="toolbar">
         <div className="toolbar-title">
+          {history ? (
+            <nav className="board-steps" aria-label={t("editor.history")}>
+              <button
+                type="button"
+                className="ghost icon-button"
+                onClick={history.onBack}
+                disabled={!history.canBack}
+                aria-label={t("editor.back")}
+                aria-keyshortcuts="Alt+ArrowLeft"
+                title={t("editor.backHint", { key: "Alt+←" })}
+              >
+                <Icon name="historyBack" size={18} />
+              </button>
+              <button
+                type="button"
+                className="ghost icon-button"
+                onClick={history.onForward}
+                disabled={!history.canForward}
+                aria-label={t("editor.forward")}
+                aria-keyshortcuts="Alt+ArrowRight"
+                title={t("editor.forwardHint", { key: "Alt+→" })}
+              >
+                <Icon name="historyForward" size={18} />
+              </button>
+            </nav>
+          ) : null}
           {context ? (
             <nav className="board-steps" aria-label={t("editor.boardsInGroup")}>
               <StepLink step={context.prev} dir="prev" group={context.group} />

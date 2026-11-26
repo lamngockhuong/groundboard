@@ -52,3 +52,29 @@ export function isPaletteKey(event: KeyboardEvent, apple: boolean = isApple()): 
 export function paletteKeyLabel(platform: string = navigator.platform): string {
   return isApple(platform) ? "⌘K" : "Ctrl K";
 }
+
+/**
+ * Alt ← and Alt → (⌥ on macOS): the viewer's Back and Forward. Not in a field, where Alt and an
+ * arrow moves by word on macOS, and not with Ctrl, Cmd or Shift held.
+ */
+export function isHistoryKey(event: KeyboardEvent): "back" | "forward" | null {
+  if (
+    !event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    event.defaultPrevented ||
+    isTypingTarget(event.target)
+  ) {
+    return null;
+  }
+  return event.key === "ArrowLeft" ? "back" : event.key === "ArrowRight" ? "forward" : null;
+}
+
+/**
+ * Whether the viewer takes a history key: only while nothing is selected on the canvas. With a
+ * selection, Excalidraw may use Alt and an arrow for its flowchart, so the key is left to it.
+ */
+export function historyKeyWins(event: KeyboardEvent, selectedCount: number): boolean {
+  return isHistoryKey(event) !== null && selectedCount === 0;
+}

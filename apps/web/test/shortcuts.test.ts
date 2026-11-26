@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { readFlag, saveFlag } from "../src/prefs.ts";
-import { isPageKey, isPaletteKey, isViewerKey, paletteKeyLabel } from "../src/shortcuts.ts";
+import {
+  historyKeyWins,
+  isHistoryKey,
+  isPageKey,
+  isPaletteKey,
+  isViewerKey,
+  paletteKeyLabel,
+} from "../src/shortcuts.ts";
 
 function press(key: string, target: Element, init: KeyboardEventInit = {}): KeyboardEvent {
   let seen: KeyboardEvent | null = null;
@@ -27,6 +34,43 @@ describe("shortcuts", () => {
     expect(isPageKey(press("/", at("i")), "/")).toBe(false);
     expect(isPageKey(press("/", at("c")), "/")).toBe(false);
     expect(isPageKey(press("/", at("b"), { ctrlKey: true }), "/")).toBe(false);
+  });
+
+  it("reads Alt ← and Alt → as Back and Forward, on the canvas too", () => {
+    document.body.innerHTML =
+      '<button id="b"></button><div class="excalidraw"><div id="c"></div></div>';
+    const at = (id: string) => document.getElementById(id) as Element;
+    expect(isHistoryKey(press("ArrowLeft", at("b"), { altKey: true }))).toBe("back");
+    expect(isHistoryKey(press("ArrowRight", at("c"), { altKey: true }))).toBe("forward");
+    expect(isHistoryKey(press("ArrowLeft", at("b")))).toBeNull();
+    expect(isHistoryKey(press("ArrowUp", at("b"), { altKey: true }))).toBeNull();
+  });
+
+  it("leaves Alt and an arrow alone with another modifier, in a field, or once handled", () => {
+    document.body.innerHTML =
+      '<button id="b"></button><input id="i"><textarea id="t"></textarea><div id="e" contenteditable="true"></div>';
+    const at = (id: string) => document.getElementById(id) as Element;
+    for (const extra of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }]) {
+      expect(isHistoryKey(press("ArrowLeft", at("b"), { altKey: true, ...extra }))).toBeNull();
+    }
+    for (const id of ["i", "t"]) {
+      expect(isHistoryKey(press("ArrowLeft", at(id), { altKey: true }))).toBeNull();
+    }
+    const editable = at("e") as HTMLElement;
+    // jsdom does not compute isContentEditable from the attribute.
+    Object.defineProperty(editable, "isContentEditable", { value: true });
+    expect(isHistoryKey(press("ArrowLeft", editable, { altKey: true }))).toBeNull();
+    at("b").addEventListener("keydown", (event) => event.preventDefault(), { once: true });
+    const handled = press("ArrowLeft", at("b"), { altKey: true, cancelable: true });
+    expect(isHistoryKey(handled)).toBeNull();
+  });
+
+  it("takes a history key only while nothing is selected on the canvas", () => {
+    document.body.innerHTML = '<div class="excalidraw"><div id="c"></div></div>';
+    const event = press("ArrowLeft", document.getElementById("c") as Element, { altKey: true });
+    expect(historyKeyWins(event, 0)).toBe(true);
+    expect(historyKeyWins(event, 2)).toBe(false);
+    expect(historyKeyWins(press("ArrowLeft", document.body), 0)).toBe(false);
   });
 
   it("takes a viewer key on the canvas, but not while text is typed", () => {

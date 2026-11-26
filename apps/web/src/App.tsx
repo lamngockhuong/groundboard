@@ -12,7 +12,7 @@ import { type Issue, type ReferenceCount, saveBoardTags, saveToken } from "./api
 import { atlasTags, boardDefiningRef, groupTitle, neighbours } from "./atlas-nav.ts";
 import { AtlasHome } from "./components/AtlasHome.tsx";
 import { CommandPalette } from "./components/CommandPalette.tsx";
-import type { BoardContext, BoardEditing } from "./components/Editor.tsx";
+import type { BoardContext, BoardEditing, CanvasReader } from "./components/Editor.tsx";
 import { Icon } from "./components/Icon.tsx";
 import { type InputItem, InputPanel } from "./components/InputPanel.tsx";
 import { IssueList } from "./components/IssueList.tsx";
@@ -40,7 +40,7 @@ import {
 } from "./prefs.ts";
 import { renderBoard } from "./render-client.ts";
 import { formatRoute, parseRoute } from "./route.ts";
-import { isPageKey, isPaletteKey, isViewerKey } from "./shortcuts.ts";
+import { historyKeyWins, isHistoryKey, isPageKey, isPaletteKey, isViewerKey } from "./shortcuts.ts";
 import type { BoardNode, NodeCitations } from "./sources.ts";
 import { describeStamp } from "./stamp.ts";
 import {
@@ -168,6 +168,8 @@ export function App() {
   } | null>(null);
   /** Asks the editor whether the board has unsaved changes. */
   const dirtyCheck = useRef<(() => boolean) | null>(null);
+  /** Reads the canvas of the board on screen: its view, and what is selected. */
+  const canvasReader = useRef<CanvasReader | null>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   const [focusFilter, setFocusFilter] = useState(0);
 
@@ -269,6 +271,11 @@ export function App() {
     reloadBoard,
     leaveGuard,
     draftsVolatile,
+    back,
+    forward,
+    canBack,
+    canForward,
+    viewReader,
   } = useAtlas({
     setBusy,
     clearMessages,
@@ -567,10 +574,31 @@ export function App() {
 
   // Shortcuts: Ctrl K (Cmd K) opens the palette, even from the canvas, where Excalidraw would
   // otherwise take it for "add a link"; "/" filters the boards; "[" and "]" step between boards.
-  const keys = useRef({ context, atlas, narrow, collapsed });
-  keys.current = { context, atlas, narrow, collapsed };
+  // Alt ← and Alt → go Back and Forward, ahead of the browser and of Excalidraw, as long as
+  // nothing is selected on the canvas.
+  const keys = useRef({ context, atlas, narrow, collapsed, back, forward, canBack, canForward });
+  keys.current = { context, atlas, narrow, collapsed, back, forward, canBack, canForward };
   useEffect(() => {
     const onCapture = (event: KeyboardEvent) => {
+      const move = isHistoryKey(event);
+      if (move) {
+        const current = keys.current;
+        const selected = canvasReader.current?.selectedCount() ?? 0;
+        const possible = move === "back" ? current.canBack : current.canForward;
+        if (
+          !current.atlas ||
+          !possible ||
+          !historyKeyWins(event, selected) ||
+          document.querySelector("dialog[open]")
+        ) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        if (move === "back") current.back();
+        else current.forward();
+        return;
+      }
       // Not over another dialog: the drawer or the file dialog would stay open behind it.
       if (!isPaletteKey(event) || document.querySelector("dialog[open]")) return;
       event.preventDefault();
@@ -682,6 +710,13 @@ export function App() {
     return () => window.removeEventListener("beforeunload", onUnload);
   }, [leaveGuard]);
 
+  // The view kept for Back and Forward is an atlas board's; a pasted board has no place to keep.
+  const loadedSlug = loaded?.slug ?? null;
+  useEffect(() => {
+    viewReader.current = (slug) =>
+      slug === loadedSlug ? (canvasReader.current?.view() ?? null) : null;
+  }, [viewReader, loadedSlug]);
+
   // Another board on screen ends editing of the last one.
   const editedSlug = loaded?.slug ?? null;
   useEffect(() => {
@@ -754,6 +789,10 @@ export function App() {
           motionAll={motionAll}
           fileName={loaded.fileName}
           focus={loaded.slug !== null ? focus : localFocus}
+          {...(atlas ? { history: { canBack, canForward, onBack: back, onForward: forward } } : {})}
+          registerCanvas={(reader) => {
+            canvasReader.current = reader;
+          }}
           onSelectionChange={setCitations}
           onNodes={setNodes}
           onOpenRef={openRef}
