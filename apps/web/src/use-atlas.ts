@@ -23,6 +23,20 @@ import {
   saveEntries,
 } from "./library.ts";
 import { isStaticMode } from "./mode.ts";
+import {
+  canBack,
+  canForward,
+  currentEntry,
+  goTo,
+  indexOf,
+  type NavStack,
+  push,
+  replaceRoute,
+  saveView,
+  startStack,
+  stateId,
+  type ViewState,
+} from "./nav-history.ts";
 import { formatRoute, parseRoute, type Route } from "./route.ts";
 
 /** Boards opened in this browser, shown like an atlas when the server serves none. */
@@ -80,10 +94,20 @@ export interface AtlasHost {
   closeAtlasBoard: () => void;
 }
 
+/**
+ * Where the board on screen should look: a saved view (Back and Forward), else a node (a deep
+ * link), else the whole board. `seq` changes to apply the same focus again.
+ */
 export interface NodeFocus {
-  nodeId: string;
+  nodeId?: string;
+  view?: ViewState;
   seq: number;
 }
+
+/** Ids of the viewer's history entries: unique to this page load, so a reload never mixes them. */
+const pageLoad = Math.random().toString(36).slice(2, 8);
+let entryCount = 0;
+const newEntryId = () => `${pageLoad}-${++entryCount}`;
 
 const currentRoute = (): Route => parseRoute(window.location.hash);
 
@@ -184,18 +208,107 @@ export function useAtlas(host: AtlasHost) {
   const libraryRef = useRef<LibraryData | null>(null);
   const memoryOnly = useRef(false);
 
+  /** The viewer's history of places; the browser's entries carry their ids in `history.state`. */
+  const nav = useRef<NavStack | null>(null);
+  const [navState, setNavState] = useState({ canBack: false, canForward: false });
+  /**
+   * Reads where the canvas stands when the board of that slug is the one on screen; null when
+   * another board is (the one asked for is still loading) or there is nothing to keep.
+   */
+  const viewReader = useRef<((slug: string) => ViewState | null) | null>(null);
+  /** The view saved on the entry just reached, for the route effect to hand to the board. */
+  const arrivingView = useRef<ViewState | undefined>(undefined);
+
+  const commitNav = useCallback((stack: NavStack) => {
+    nav.current = stack;
+    setNavState({ canBack: canBack(stack), canForward: canForward(stack) });
+  }, []);
+
+  /** Keeps the view of the board on screen on the entry being left. */
+  const keepView = useCallback((stack: NavStack): NavStack => {
+    const entry = currentEntry(stack);
+    if (entry?.route.view !== "board") return stack;
+    const view = viewReader.current?.(entry.route.slug);
+    return view ? saveView(stack, entry.id, view) : stack;
+  }, []);
+
+  /** The current entry names another address without becoming a new place. */
+  const replaceAddress = useCallback(
+    (hash: string) => {
+      const stack = nav.current;
+      const entry = stack ? currentEntry(stack) : undefined;
+      window.history.replaceState(entry ? { gb: entry.id } : null, "", hash);
+      lastHash.current = window.location.hash;
+      if (stack) commitNav(replaceRoute(stack, currentRoute()));
+    },
+    [commitNav],
+  );
+
   useEffect(() => {
-    const onHash = () => {
-      // Unsaved edits: the user may stay, and the address goes back to the board.
-      if (window.location.hash !== lastHash.current && leaveGuard.current?.() === false) {
-        window.history.replaceState(null, "", lastHash.current);
+    const first = { id: newEntryId(), route: currentRoute() };
+    window.history.replaceState({ gb: first.id }, "");
+    commitNav(startStack(first));
+
+    // A link followed fires hashchange (and popstate in most browsers) with no id in the state:
+    // a new place. Back and Forward fire popstate with the id of the entry reached. Both events
+    // of one move land here; the second finds the entry already current and does nothing.
+    const onNavigate = () => {
+      const stack = nav.current;
+      if (!stack) return;
+      const hash = window.location.hash;
+      const id = stateId(window.history.state);
+      const here = currentEntry(stack);
+      if (id !== null && id === here?.id) return;
+      const target = id === null ? -1 : indexOf(stack, id);
+      if (id === null && hash === lastHash.current) {
+        // Same address, state dropped by someone else's replaceState: the same place still.
+        if (here) window.history.replaceState({ gb: here.id }, "");
         return;
       }
-      lastHash.current = window.location.hash;
+      // Unsaved edits: the user may stay, and the address goes back to the board.
+      if (hash !== lastHash.current && leaveGuard.current?.() === false) {
+        if (target >= 0) {
+          // Back or Forward refused: step back the other way, onto the entry still current.
+          window.history.go(stack.index - target);
+        } else {
+          window.history.replaceState(here ? { gb: here.id } : null, "", lastHash.current);
+        }
+        return;
+      }
+      const left = keepView(stack);
+      lastHash.current = hash;
+      if (target >= 0 && id !== null) {
+        const next = goTo(left, id);
+        arrivingView.current = currentEntry(next)?.view;
+        commitNav(next);
+      } else if (id !== null) {
+        // An entry of an earlier page load: the history kept before it is gone.
+        const entry = { id: newEntryId(), route: currentRoute() };
+        window.history.replaceState({ gb: entry.id }, "");
+        arrivingView.current = undefined;
+        commitNav(startStack(entry));
+      } else {
+        const entry = { id: newEntryId(), route: currentRoute() };
+        window.history.replaceState({ gb: entry.id }, "");
+        arrivingView.current = undefined;
+        commitNav(push(left, entry));
+      }
       setRoute(currentRoute());
     };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    window.addEventListener("hashchange", onNavigate);
+    window.addEventListener("popstate", onNavigate);
+    return () => {
+      window.removeEventListener("hashchange", onNavigate);
+      window.removeEventListener("popstate", onNavigate);
+    };
+  }, [commitNav, keepView]);
+
+  /** Back and Forward go through the browser's history, so both histories stay in step. */
+  const back = useCallback(() => {
+    if (nav.current && canBack(nav.current)) window.history.back();
+  }, []);
+  const forward = useCallback(() => {
+    if (nav.current && canForward(nav.current)) window.history.forward();
   }, []);
 
   /** Reads the stored boards (or the samples when there are none) and indexes them. */
@@ -245,7 +358,7 @@ export function useAtlas(host: AtlasHost) {
           const { SAMPLE_START } = await import("./samples.ts");
           const start = data.entries.has(SAMPLE_START) ? SAMPLE_START : [...data.entries.keys()][0];
           if (start !== undefined) {
-            window.history.replaceState(null, "", formatRoute({ view: "board", slug: start }));
+            replaceAddress(formatRoute({ view: "board", slug: start }));
             setRoute(currentRoute());
           }
         }
@@ -253,7 +366,7 @@ export function useAtlas(host: AtlasHost) {
       setAtlasEnabled(enabled || libraryRef.current !== null);
       setChecked(true);
     })();
-  }, [loadAtlas, loadLibrary]);
+  }, [loadAtlas, loadLibrary, replaceAddress]);
 
   /**
    * A board as the viewer shows it: the library's rendered here; an atlas board with a draft in
@@ -358,7 +471,16 @@ export function useAtlas(host: AtlasHost) {
       return;
     }
     focusSeq.current += 1;
-    setFocus(route.node ? { nodeId: route.node, seq: focusSeq.current } : null);
+    // Back or Forward: the canvas as it was left; else the node the link names, or the board.
+    const view = arrivingView.current;
+    arrivingView.current = undefined;
+    setFocus(
+      view
+        ? { view, seq: focusSeq.current }
+        : route.node
+          ? { nodeId: route.node, seq: focusSeq.current }
+          : null,
+    );
     if (route.slug !== requestedSlug.current) void openAtlasBoard(route.slug);
   }, [atlasEnabled, route, openAtlasBoard, loadAtlas]);
 
@@ -600,5 +722,10 @@ export function useAtlas(host: AtlasHost) {
     reloadBoard,
     leaveGuard,
     draftsVolatile,
+    back,
+    forward,
+    canBack: navState.canBack,
+    canForward: navState.canForward,
+    viewReader,
   };
 }

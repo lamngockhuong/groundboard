@@ -332,11 +332,12 @@ lists invalid then stale boards, each with a status chip, a link, the board kind
 reason in words; with none, one green line with a check says every board matches the code.
 
 ### Board toolbar
-Previous and next board buttons (`[` and `]`), a breadcrumb `<Group> › <Title>`, a status chip
+Back and Forward buttons (`Alt+←` and `Alt+→`, arrows rather than chevrons, disabled when
+there is nowhere to go), previous and next board buttons (`[` and `]`), a breadcrumb `<Group> › <Title>`, a status chip
 ("Stale · N sources" or "Up to date"), the layout-origin badge, then the reading font, the
 Export menu and the source panel toggle (pressed while the panel shows). At the start or end
-of a group the step button is disabled and its label says why. A pasted board shows the
-title only.
+of a group the step button is disabled and its label says why. A pasted board under an atlas
+shows Back and Forward and the title; without an atlas, the title only.
 
 ### Export menu
 A secondary "Export" button with `aria-haspopup="menu"` opens a lifted menu of three items
@@ -396,6 +397,14 @@ command palette; the toolbar steps to the previous or next board of the same gro
 one, a single header bar holds the back button, logo tile, app name and tagline, with the theme
 toggle and "New board" on the right. Every board is reached by its hash deep link
 (`#/board/<slug>?node=<id>`).
+
+Back and Forward walk the places visited: each board opened and each node followed by a link
+is one place, and coming back to it restores the scroll, the zoom and the selection as the
+reader left them, so the source panel shows the same citations again. The toolbar buttons and
+the browser's own buttons move through the same history. `Alt+←` and `Alt+→` work on the atlas
+home too, but only while nothing is selected on the canvas; with a selection the keys are left
+to Excalidraw. Leaving a board with unsaved edits asks first, and staying keeps the history as
+it was.
 
 On a screen board, a click on the numbered tag or the list line of a link to another screen
 selects it and shows its sources; a double click opens the board that defines that screen
