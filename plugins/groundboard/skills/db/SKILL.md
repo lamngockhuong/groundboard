@@ -46,6 +46,16 @@ older than this skill: stop, and tell the user to update the groundboard plugin.
 
 When migrations alter tables over time, read them in order and draw the result.
 
+**Name the reader**, as step 1 of `/groundboard:board` does
+([../board/SKILL.md](../board/SKILL.md)): ask who will read the schema board (a developer on the
+project, a developer new to it, or a PM, BA, QA or client who does not read code), write the
+three to eight things that reader surely knows, and a term list. With nobody to ask, infer the
+level from the request and record it as an assumption. Table and column names stay as declared
+(they are what a query and a ref name); for a reader who does not know the schema, the table's
+`detail` says in the product's words what one row is ("One row per item in an order") and what
+a column with coded values means (`status`: 1 pending, 2 paid, 3 refunded), citing the line
+that defines those values.
+
 ### 2. Write the tables
 
 - One `table` node per table: `label` the table's name as declared, `ref: "db:<table-slug>"`
@@ -90,7 +100,10 @@ every other id of those boards as it is.
 - the tables and columns found, from which files and which ORM;
 - foreign keys drawn, and relations left as questions;
 - the `reads` and `writes` edges added, per board;
-- the grounding `check_atlas` prints for each board.
+- the grounding `check_atlas` prints for each board;
+- the reader level and the "surely knows" list, saying whether the person who gave the task
+  picked the level or you inferred it, and the tables whose `detail` explains them for that
+  reader.
 
 ## Rules
 

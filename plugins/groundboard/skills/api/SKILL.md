@@ -41,6 +41,20 @@ prefix the routes share (`/v1`, `/api`): `/api/orders/:id` belongs to `orders`.
 | no routes, an OpenAPI file or an API document | **from the specification**: step 2S |
 | an API board, and now routes | **update**: step 2U |
 
+**Name the reader**, as step 1 of `/groundboard:board` does
+([../board/SKILL.md](../board/SKILL.md)): ask who will read the API boards (a developer on the
+project, a developer new to it, or a PM, BA, QA or client who does not read code), write the
+three to eight things that reader surely knows, and a term list. With nobody to ask, infer the
+level from the request (a frontend developer wiring a screen, QA checking what a button sends, a
+client comparing the API with the contract) and record it as an assumption. The `method` and
+`path` are the real values and stay as declared; what you write yourself is for the reader:
+
+- an endpoint's `label` says what it does in the product's words (`Place an order`,
+  `List my orders`), so a PM can read `POST /orders` without knowing HTTP;
+- a resource's `label` is the thing as people say it (`Orders`), not the controller's name;
+- a term the reader may not know (`idempotency key`, `webhook`, `pagination cursor`) is explained
+  in the endpoint's `detail`, as the guide's "Writing for the reader" says.
+
 ### 2. Find every route
 
 Look where the framework declares routes, and read each declaration:
@@ -115,7 +129,9 @@ Without the MCP tools, run `npx groundboard validate <file> --check-sources .` a
 - the resources and how many endpoints each has, from which framework and files;
 - routes skipped and why (health checks, static files, catch-alls);
 - the `calls` edges added, per screen board, and calls you could not follow to a route;
-- the mode, and the grounding `check_atlas` prints for each board.
+- the mode, and the grounding `check_atlas` prints for each board;
+- the reader level and the "surely knows" list, saying whether the person who gave the task
+  picked the level or you inferred it, and the terms you explained in a `detail`.
 
 ## Rules
 
