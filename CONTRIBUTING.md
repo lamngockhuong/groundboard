@@ -53,6 +53,26 @@ pnpm dev --root ../my-app                         # atlas in ../my-app/.groundbo
 pnpm dev --root ../my-app --atlas-dir docs/boards
 ```
 
+With no atlas behind it (`pnpm -C apps/web dev` alone), the viewer shows the sample boards of
+`examples/fixtures`, as the hosted editor does. The built viewer that ships in the package does
+not carry them: they are bundled only when `import.meta.env.DEV` is true or the build sets
+`VITE_GROUNDBOARD_HOSTED=1`, which `pnpm -C apps/web build:hosted` does for the site.
+
+### The site and the hosted editor
+
+`apps/site` is the home page of groundboard.ohnice.app, plain HTML and CSS with no build. The
+`Pages` workflow puts it at the root and the hosted editor (`apps/web` built with
+`build:hosted` into `dist-hosted/`) under `/editor/`, then deploys to GitHub Pages. The release
+workflow runs it for every release. To deploy again, run it from the Actions tab and pick the
+branch in "Use workflow from"; the `github-pages` environment accepts deploys from `main` only
+unless its rules are changed. To look at the result locally:
+
+```sh
+pnpm -C apps/web build:hosted
+mkdir -p /tmp/gb-site && cp -R apps/site/. /tmp/gb-site/ && cp -R apps/web/dist-hosted /tmp/gb-site/editor
+npx serve /tmp/gb-site            # any static server
+```
+
 `GROUNDBOARD_DEV_PORT` changes the server's port. If a port is taken, the command stops instead
 of picking another: stop the viewer or server left running on it. `pnpm -C apps/web dev` runs
 the viewer alone, in front of a `groundboard serve` you start yourself on port 8787.

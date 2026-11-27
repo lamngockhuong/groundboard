@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-11-27T09:15:31.727Z",
+        "reason": "project design system: DESIGN.md typography sets the Inter/system stack for every surface; the site follows it"
+      }
+    ]
+  }
+}

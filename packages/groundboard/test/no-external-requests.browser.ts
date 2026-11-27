@@ -2,13 +2,14 @@
 // to another origin, no attempt the page's CSP has to block, and no link in the canvas UI that
 // leads elsewhere. Runs the built viewer in Chromium against an in-process server.
 // Needs `pnpm -r build` and `pnpm exec playwright install --only-shell chromium` first.
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { serve } from "@hono/node-server";
 import { type Browser, type BrowserContext, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { type AppOptions, createApp } from "../src/server/app.ts";
+import { openExampleBoards } from "./library-boards.ts";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
 const webRoot = path.join(packageDir, "dist", "web");
@@ -149,15 +150,30 @@ describe("the served viewer reaches nothing off this machine", () => {
     expect(result).toEqual({ external: [], violations: [], links: [] });
   });
 
-  test("without an atlas, sample boards rendered in the browser one after another", async () => {
+  test("without an atlas, boards opened from a file rendered in the browser one after another", async () => {
     const result = await withViewer({}, async (page, origin) => {
+      // The empty list, before anything is opened, leads nowhere either.
+      await page.goto(`${origin}/#/`);
+      await page
+        .getByRole("heading", { name: "No boards opened yet" })
+        .waitFor({ timeout: 30_000 });
+      // The hosted editor is named in plain text, never as a link off this machine.
+      await page.getByText(/groundboard\.ohnice\.app\/editor/).waitFor();
+      const links = await externalLinks(page, origin);
+      await openExampleBoards(page, origin, path.join(fixtures, ".groundboard"));
       // Several boards in a row also exercise the shared render worker past its first layout.
       for (const slug of ["overview-web", "web--checkout", "mobile--cart"]) {
         await page.goto(`${origin}/#/board/${slug}`);
         await waitForBoard(page);
       }
-      return walkCanvasUi(page, origin);
+      return [...links, ...(await walkCanvasUi(page, origin))];
     });
     expect(result).toEqual({ external: [], violations: [], links: [] });
+  });
+
+  test("the release viewer carries no sample boards", () => {
+    // Only the hosted editor's build has them; `groundboard export` copies every viewer file.
+    const assets = readdirSync(path.join(webRoot, "assets"));
+    expect(assets.filter((name) => /^samples-|\.board-/.test(name))).toEqual([]);
   });
 });

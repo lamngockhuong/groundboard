@@ -326,6 +326,11 @@ export const ja: Messages = {
   "library.sampleTitle": "サンプルボード",
   "library.sampleBody":
     "まだ何も開いていないため、サンプルのショップアプリを表示しています。自分の .board.json や .excalidraw ファイルを開くと、サンプルに代わってこのブラウザーに保存されます。",
+  "library.emptyTitle": "まだボードを開いていません",
+  "library.emptyBody":
+    ".board.json、.excalidraw、またはアトラスの zip ファイルを開いてください。ボードはこのブラウザーにだけ保存され、どこにも送信されません。",
+  "library.examples":
+    "ボードの例は、groundboard.ohnice.app/editor のオンラインエディターでショップアプリのサンプルとして見られます。",
   "library.openFiles": "ファイルを開く",
   "library.clear": "一覧を消去",
   "library.clearConfirm": "このブラウザーに保存した一覧からすべてのボードを削除しますか?",

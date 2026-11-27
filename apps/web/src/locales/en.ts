@@ -337,6 +337,11 @@ export const en = {
   "library.sampleTitle": "Sample boards",
   "library.sampleBody":
     "Nothing is opened yet, so a sample shop app is shown. Open your own .board.json or .excalidraw files; they replace the samples and stay in this browser.",
+  "library.emptyTitle": "No boards opened yet",
+  "library.emptyBody":
+    "Open .board.json or .excalidraw files, or a zip of an atlas. They are kept in this browser only: nothing is uploaded.",
+  "library.examples":
+    "To see what boards look like, the example shop app is in the hosted editor at groundboard.ohnice.app/editor.",
   "library.openFiles": "Open files",
   "library.clear": "Clear the list",
   "library.clearConfirm": "Remove every board from the list kept in this browser?",

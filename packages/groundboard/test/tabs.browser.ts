@@ -15,6 +15,7 @@ import { type Browser, chromium, type Frame, type Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { exportAtlas } from "../src/commands/export.ts";
 import { type AppOptions, createApp } from "../src/server/app.ts";
+import { openExampleBoards } from "./library-boards.ts";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
 const webRoot = path.join(packageDir, "dist", "web");
@@ -343,8 +344,7 @@ describe("tabs", () => {
     try {
       const page = await context.newPage();
       await page.addInitScript(() => localStorage.setItem("groundboard.locale", "en"));
-      await page.goto(server.origin);
-      await waitForBoard(page);
+      await openExampleBoards(page, server.origin, atlasDir);
       const titles = (
         await page.locator(".sidebar .nav-group a.nav-item .nav-label").allTextContents()
       ).slice(0, 3);

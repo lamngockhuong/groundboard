@@ -115,8 +115,8 @@ describe("zips of boards", () => {
 
     const library = await start({});
     try {
-      const { context, page, problems } = await openPage(library.origin);
-      await waitForBoard(page);
+      const { context, page, problems } = await openPage(`${library.origin}/#/`);
+      await page.locator(".atlas-home").waitFor({ timeout: 30_000 });
       await page.getByRole("button", { name: "Open file", exact: true }).first().click();
       await page.locator(".file-dialog input[type=file]").setInputFiles({
         name: "atlas.zip",
