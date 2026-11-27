@@ -12,11 +12,13 @@ import {
   type LayoutOrigin,
   lintBoardText,
   lintOverlayText,
+  missingFlowRefs,
   type NodeKind,
   overlayOrphans,
   parseBoard,
   refProblems,
   refsOf,
+  unlinkedFlowElements,
 } from "@groundboard/schema";
 import { checkSources } from "./check-sources.ts";
 import {
@@ -48,6 +50,8 @@ export const MAX_ATLAS_BYTES = 256 * 1024 * 1024;
 export const MAX_SPEC_ONLY_PATHS = 50;
 /** Most JSON paths a `--require` problem lists. */
 export const MAX_REQUIRE_PATHS = 10;
+/** Most refs or elements a missing-flow warning lists. */
+export const MAX_MISSING_FLOW_REFS = 5;
 
 export type { AtlasBoardKind };
 /** The least grounding every claim must have: code, or at least a specification. */
@@ -94,6 +98,8 @@ export interface AtlasRef {
   definedIn: Array<AtlasPlace & { kind: NodeKind }>;
   /** Nodes that carry the ref without defining it, and `toRef` edges (their `from` node). */
   usedIn: Array<AtlasPlace & { edgeId?: string }>;
+  /** An element that calls an API or changes state, so a flow should cover it. */
+  needsFlow?: true;
 }
 
 export interface AtlasIndex {
@@ -133,6 +139,10 @@ function identities(board: Board): { nodes: Set<string>; edges: Set<string>; ref
 }
 
 const listed = (values: string[]) => values.map((v) => `\`${v}\``).join(", ");
+
+/** A shortened list followed by how many were left out, if any. */
+const firstFew = (shown: string, total: number) =>
+  total > MAX_MISSING_FLOW_REFS ? `${shown}, and ${total - MAX_MISSING_FLOW_REFS} more` : shown;
 
 /**
  * The ids of the sources named by source-check issues (`sources[3].quote` → the id of source 3),
@@ -203,6 +213,8 @@ export async function buildAtlas(
   const kinds = new Map<string, AtlasBoardKind>();
   /** The valid boards read, by slug, for the baseline comparison. */
   const parsedBoards = new Map<string, Board>();
+  /** Elements that call an API or change state but carry no ref, as `slug (node id)`. */
+  const unlinked: string[] = [];
 
   for (const slug of slugs) {
     const invalid = (issues: Issue[], title = slug): AtlasBoardEntry => ({
@@ -247,6 +259,7 @@ export async function buildAtlas(
     }
     const board = parsed.value;
     parsedBoards.set(slug, board);
+    for (const nodeId of unlinkedFlowElements(board)) unlinked.push(`${slug} (${nodeId})`);
     const checked = await checkSources(board, realRoot, { reader });
     const kind = boardKindOf(board);
     kinds.set(slug, kind);
@@ -306,6 +319,7 @@ export async function buildAtlas(
         nodeId: place.nodeId,
         kind: place.kind as NodeKind,
       });
+      if (place.needsFlow) refEntry(place.ref).needsFlow = true;
     }
     for (const place of used) {
       refEntry(place.ref).usedIn.push({
@@ -323,11 +337,27 @@ export async function buildAtlas(
     problems.push(...(await compareBaseline(options.baselineDir, parsedBoards, boards, budget)));
   }
 
+  // Missing flows are hints, never problems: the check still passes.
+  const warnings: string[] = [];
+  const missing = missingFlowRefs(sorted, (slug) => kinds.get(slug));
+  if (missing.length > 0) {
+    warnings.push(
+      `${missing.length} element(s) that call an API or change state have no flow yet: ${firstFew(listed(missing.slice(0, MAX_MISSING_FLOW_REFS)), missing.length)}; draw one with the board skill, e.g. /groundboard:board`,
+    );
+  }
+  if (unlinked.length > 0) {
+    warnings.push(
+      `${unlinked.length} element(s) call an API or change state but have no ref, so no flow can point at them: ${firstFew(unlinked.slice(0, MAX_MISSING_FLOW_REFS).join(", "), unlinked.length)}; give each a ref such as web:<screen>/<element>`,
+    );
+  }
+
   // An overlay whose board is gone lays out nothing; say so, without failing the check.
   const slugSet = new Set(slugs);
-  const warnings = (await listOverlaySlugs(realDir))
-    .filter((slug) => !slugSet.has(slug))
-    .map((slug) => `${slug}${OVERLAY_FILE_SUFFIX} has no ${slug}${BOARD_FILE_SUFFIX} beside it`);
+  warnings.push(
+    ...(await listOverlaySlugs(realDir))
+      .filter((slug) => !slugSet.has(slug))
+      .map((slug) => `${slug}${OVERLAY_FILE_SUFFIX} has no ${slug}${BOARD_FILE_SUFFIX} beside it`),
+  );
 
   return { boards, refs: sorted, problems, ...(warnings.length > 0 ? { warnings } : {}) };
 }
