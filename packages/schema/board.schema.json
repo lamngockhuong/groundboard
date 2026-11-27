@@ -197,6 +197,18 @@
             "maxLength": 64,
             "pattern": "^[A-Za-z0-9_.:-]+$"
           },
+          "layout": {
+            "type": "boolean",
+            "const": true
+          },
+          "layouts": {
+            "minItems": 1,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "width": {
             "type": "integer",
             "exclusiveMinimum": 0,

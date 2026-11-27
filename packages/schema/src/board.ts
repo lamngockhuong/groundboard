@@ -340,6 +340,18 @@ export const NodeSchema = z.object({
    */
   stateOf: id.optional(),
   /**
+   * `screen` only: this screen is a shared layout (a header, a footer, a sidebar) drawn once
+   * rather than a route. Its elements define refs such as `web:layout/header-logout` that the
+   * screens listing it in `layouts` carry on their own copies of those elements.
+   */
+  layout: z.literal(true).optional(),
+  /**
+   * `screen` only: the refs of the layout screens this screen is drawn in, e.g.
+   * `["web:layout"]`. An element of this screen may then carry a ref of one of those layouts,
+   * which points at the layout's element instead of defining a ref of its own.
+   */
+  layouts: z.array(atlasRef).min(1).max(LIMITS.layoutsPerScreen).optional(),
+  /**
    * `screen` with elements: the frame's content width in pixels, within the platform's bounds;
    * defaults to the platform's width. `element` in a row: the element's fixed width in pixels;
    * the row shares what is left among its children without a width.

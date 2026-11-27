@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "title": "Orders screen",
+  "question": "What is on the Orders screen and what does each control do?",
+  "nodes": [
+    {
+      "id": "orders",
+      "kind": "screen",
+      "label": "Orders",
+      "ref": "web:orders",
+      "platform": "web",
+      "layoutFrom": "code",
+      "layouts": ["web:layout"],
+      "sourceIds": ["r-orders", "wrap"]
+    },
+    {
+      "id": "header",
+      "kind": "element",
+      "role": "container",
+      "label": "Header",
+      "parentId": "orders",
+      "direction": "row",
+      "sourceIds": ["layout"]
+    },
+    {
+      "id": "logout",
+      "kind": "element",
+      "role": "button",
+      "label": "Log out",
+      "parentId": "header",
+      "ref": "web:layout/header-logout",
+      "action": "Logs the user out",
+      "sourceIds": ["logout"]
+    },
+    {
+      "id": "privacy",
+      "kind": "element",
+      "role": "link",
+      "label": "Privacy policy",
+      "parentId": "orders",
+      "ref": "web:layout/footer-privacy-policy",
+      "action": "Opens the privacy policy",
+      "sourceIds": ["privacy"]
+    },
+    {
+      "id": "content",
+      "kind": "element",
+      "role": "text",
+      "label": "Orders content",
+      "parentId": "orders",
+      "sourceIds": ["r-orders"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "logout-call",
+      "from": "logout",
+      "toRef": "api:auth/logout",
+      "kind": "calls",
+      "sourceIds": ["logout"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "r-orders",
+      "kind": "code",
+      "path": "src/routes.tsx",
+      "line": 3,
+      "quote": "path=\"/orders\""
+    },
+    {
+      "id": "wrap",
+      "kind": "code",
+      "path": "src/routes.tsx",
+      "line": 1,
+      "quote": "<Route element={<AppLayout />}>"
+    },
+    {
+      "id": "layout",
+      "kind": "code",
+      "path": "src/AppLayout.tsx",
+      "line": 1,
+      "quote": "export function AppLayout"
+    },
+    {
+      "id": "logout",
+      "kind": "code",
+      "path": "src/AppLayout.tsx",
+      "line": 7,
+      "quote": "onClick={() => logout.mutate()}"
+    },
+    {
+      "id": "privacy",
+      "kind": "code",
+      "path": "src/AppLayout.tsx",
+      "line": 13,
+      "quote": "<a href=\"/privacy\">Privacy policy</a>"
+    }
+  ]
+}

@@ -215,6 +215,45 @@ describe("missing-flow hints", () => {
     }
   });
 
+  test("count a shared layout's element once and mark it on every screen that carries it", async () => {
+    // The layouts fixture: web--cart and web--orders list `web:layout` and carry its Log out
+    // button (`web:layout/header-logout`), which calls an API and has no flow yet.
+    const server = await startServe(path.join(fixtures, "layouts"));
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => localStorage.setItem("groundboard.locale", "en"));
+      await page.goto(`${server.origin}/#/board/web--cart?node=logout`);
+      await waitForBoard(page);
+      await marks(page).first().waitFor({ timeout: 10_000 });
+      expect(await marks(page).count()).toBe(1);
+      const panel = page.locator(".source-panel");
+      await panel.locator(".flow-hint").waitFor({ timeout: 10_000 });
+      // The screen's copy points at the layout's button rather than defining it.
+      expect(await panel.locator(".target-ref").textContent()).toBe("web:layout/header-logout");
+      expect(await panel.locator(".target-title").textContent()).toBe("Shared layout");
+      expect(await panel.locator(".appearances > summary").textContent()).toContain(
+        "Other boards with this target",
+      );
+
+      await page.goto(`${server.origin}/#/board/web--layout?node=logout`);
+      await waitForBoard(page);
+      await panel.locator(".flow-hint").waitFor({ timeout: 10_000 });
+      expect(await panel.locator(".target-ref").count()).toBe(0);
+      expect(await panel.locator(".appearances > summary").textContent()).toContain(
+        "Boards that link here",
+      );
+
+      await page.goto(`${server.origin}/#/`);
+      const stat = page.locator(".stat-button");
+      await stat.waitFor({ timeout: 10_000 });
+      expect(await stat.locator(".stat-value").textContent()).toBe("1");
+    } finally {
+      await context.close();
+      await server.close();
+    }
+  });
+
   test("show nothing where every element that needs a flow has one", async () => {
     const server = await startServe(fixtures);
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });

@@ -16,6 +16,8 @@ export const LIMITS = {
   /** tags on a board, and the length of one */
   tags: 10,
   tag: 40,
+  /** layouts one screen is drawn in */
+  layoutsPerScreen: 5,
   /** columns of one table */
   columns: 200,
   /** notes in a layout overlay, and the overlay file's size in bytes */

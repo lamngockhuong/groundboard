@@ -95,9 +95,13 @@ export interface AtlasPlace {
 
 export interface AtlasRef {
   ref: string;
-  definedIn: Array<AtlasPlace & { kind: NodeKind }>;
-  /** Nodes that carry the ref without defining it, and `toRef` edges (their `from` node). */
-  usedIn: Array<AtlasPlace & { edgeId?: string }>;
+  /** `layout` marks a screen drawn as a shared layout (`layout: true`). */
+  definedIn: Array<AtlasPlace & { kind: NodeKind; layout?: true }>;
+  /**
+   * Nodes that carry the ref without defining it (an element of a shared layout among them),
+   * `toRef` edges (their `from` node), and screens that list the ref in `layouts` (`asLayout`).
+   */
+  usedIn: Array<AtlasPlace & { edgeId?: string; asLayout?: true }>;
   /** An element that calls an API or changes state, so a flow should cover it. */
   needsFlow?: true;
 }
@@ -318,6 +322,7 @@ export async function buildAtlas(
         slug,
         nodeId: place.nodeId,
         kind: place.kind as NodeKind,
+        ...(place.layout ? { layout: true as const } : {}),
       });
       if (place.needsFlow) refEntry(place.ref).needsFlow = true;
     }
@@ -326,7 +331,10 @@ export async function buildAtlas(
         slug,
         nodeId: place.nodeId,
         ...(place.edgeId !== undefined ? { edgeId: place.edgeId } : {}),
+        ...(place.asLayout ? { asLayout: true as const } : {}),
       });
+      // A screen's copy of a layout's element that calls an API asks for a flow as well.
+      if (place.needsFlow) refEntry(place.ref).needsFlow = true;
     }
   }
 

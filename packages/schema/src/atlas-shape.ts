@@ -1,6 +1,7 @@
 import type { Board, BoardEdge, BoardNode, NodeKind } from "./board.ts";
 import { FLOW_EDGE_KINDS } from "./edges.ts";
 import { parseRef, type RefNamespace, rootRefOf } from "./ref.ts";
+import { familyOf, stateRoots } from "./states.ts";
 import { columnRefs } from "./table.ts";
 
 /**
@@ -61,8 +62,12 @@ export interface RefPlace {
   edgeId?: string;
   /** The kind of the node that defines the ref, for a definition. */
   kind?: NodeKind;
-  /** On an element's definition: the element calls an API or changes state, so a flow should cover it. */
+  /** On an element: it calls an API or changes state, so a flow should cover its ref. */
   needsFlow?: true;
+  /** On the definition of a screen marked `layout: true`. */
+  layout?: true;
+  /** On a ref a screen lists in its `layouts`. */
+  asLayout?: true;
 }
 
 /** The ids of the nodes an edge that calls an API or changes state starts from. */
@@ -85,6 +90,28 @@ export function unlinkedFlowElements(board: Pick<Board, "nodes" | "edges">): str
     .map((n) => n.id);
 }
 
+/**
+ * The ids of the elements that carry a ref of one of their screen's `layouts`: each points at
+ * the element the layout board defines, rather than defining a ref of its own.
+ */
+export function layoutPointerIds(board: Pick<Board, "nodes">): Set<string> {
+  const ids = new Set<string>();
+  if (!board.nodes.some((n) => n.kind === "screen" && n.layouts !== undefined)) return ids;
+  const byId = new Map<string, BoardNode>();
+  for (const node of board.nodes) if (!byId.has(node.id)) byId.set(node.id, node);
+  const roots = stateRoots(board);
+  for (const node of board.nodes) {
+    if (node.kind !== "element" || node.ref === undefined) continue;
+    const parsed = parseRef(node.ref);
+    if (parsed === null || !("platform" in parsed)) continue;
+    const rootId = familyOf(node.id, byId, roots);
+    const root = rootId === undefined ? undefined : byId.get(rootId);
+    if (root?.ref === undefined || parsed.screenRef === root.ref) continue;
+    if (root.layouts?.includes(parsed.screenRef)) ids.add(node.id);
+  }
+  return ids;
+}
+
 /** The refs a board defines and the refs it points at, each with the node or edge it is on. */
 export function refsOf(board: Pick<Board, "nodes" | "edges">): {
   defined: RefPlace[];
@@ -94,13 +121,21 @@ export function refsOf(board: Pick<Board, "nodes" | "edges">): {
   const used: RefPlace[] = [];
   // An element needs a flow when it starts a `calls` or `transition` edge on its own board.
   const sources = flowSourceIds(board);
+  const pointers = layoutPointerIds(board);
   for (const node of board.nodes) {
     if (node.ref !== undefined) {
-      if (definesRef(node)) {
-        const place: RefPlace = { ref: node.ref, nodeId: node.id, kind: node.kind };
-        if (node.kind === "element" && sources.has(node.id)) place.needsFlow = true;
+      const place: RefPlace = { ref: node.ref, nodeId: node.id };
+      if (node.kind === "element" && sources.has(node.id)) place.needsFlow = true;
+      if (definesRef(node) && !pointers.has(node.id)) {
+        place.kind = node.kind;
+        if (node.kind === "screen" && node.layout === true) place.layout = true;
         defined.push(place);
-      } else used.push({ ref: node.ref, nodeId: node.id });
+      } else used.push(place);
+    }
+    if (node.kind === "screen") {
+      for (const layout of node.layouts ?? []) {
+        used.push({ ref: layout, nodeId: node.id, asLayout: true });
+      }
     }
     const parsed = node.ref === undefined ? null : parseRef(node.ref);
     const derive = parsed ? REF_DEFINERS[parsed.namespace].deriveChildren : undefined;
@@ -137,22 +172,23 @@ export const refRoot = (ref: string): string => rootRefOf(ref) ?? ref;
 /** A ref across the atlas: where it is defined and where it is pointed at. */
 export interface RefUse {
   ref: string;
-  definedIn: ReadonlyArray<{ slug: string; nodeId: string; kind?: NodeKind }>;
-  usedIn: ReadonlyArray<{ slug: string; nodeId: string; edgeId?: string }>;
+  definedIn: ReadonlyArray<{ slug: string; nodeId: string; kind?: NodeKind; layout?: boolean }>;
+  usedIn: ReadonlyArray<{ slug: string; nodeId: string; edgeId?: string; asLayout?: boolean }>;
   /** An element that calls an API or changes state, so a flow should cover it. */
   needsFlow?: boolean;
 }
 
 /**
  * Whether a flow covers a ref: some node that is not on a screen board carries it. A node, not
- * an edge's `toRef`, and on a board of known kind (an invalid board counts for nothing).
+ * an edge's `toRef` or a screen's `layouts`, and on a board of known kind (an invalid board
+ * counts for nothing).
  */
 export function hasFlow(
   entry: Pick<RefUse, "usedIn">,
   boardKind: (slug: string) => AtlasBoardKind | undefined,
 ): boolean {
   return entry.usedIn.some((u) => {
-    if (u.edgeId !== undefined) return false;
+    if (u.edgeId !== undefined || u.asLayout === true) return false;
     const kind = boardKind(u.slug);
     return kind !== undefined && kind !== "screen";
   });
@@ -175,8 +211,9 @@ const KIND_NAMES: Partial<Record<NodeKind, string>> = {
 };
 
 /**
- * The problems of the refs of an atlas: a ref pointed at that no board defines, and a ref
- * defined more often than `isDefinedTwice` allows. In ref order.
+ * The problems of the refs of an atlas: a ref pointed at that no board defines, a ref defined
+ * more often than `isDefinedTwice` allows, and a screen listed in `layouts` that is not marked
+ * `layout: true`. In ref order.
  */
 export function refProblems(
   refs: readonly RefUse[],
@@ -192,6 +229,13 @@ export function refProblems(
         message: `ref \`${entry.ref}\` is used in ${where(entry.usedIn)} but no board defines it`,
       });
       continue;
+    }
+    const listedAsLayout = entry.usedIn.filter((u) => u.asLayout === true);
+    if (listedAsLayout.length > 0 && !entry.definedIn.some((d) => d.layout === true)) {
+      problems.push({
+        path: entry.ref,
+        message: `\`${entry.ref}\` is listed in the layouts of ${where(listedAsLayout)} but is not a layout; mark its screen node \`"layout": true\` on its own board (${where(entry.definedIn)})`,
+      });
     }
     if (!isDefinedTwice(entry.definedIn, boardKind)) continue;
     const isScreen = entry.definedIn.some((d) => d.kind === "screen");

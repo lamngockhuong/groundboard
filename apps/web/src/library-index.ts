@@ -81,6 +81,9 @@ export function buildLibraryIndex(entries: readonly LibraryEntry[]): AtlasIndex 
   /** The kind of each valid board, and of each node that defines a ref, for the ref checks. */
   const kinds = new Map<string, AtlasBoardKind>();
   const definerKinds = new Map<string, NodeKind | undefined>();
+  /** Definitions of a screen marked `layout: true`, and screens listing a ref in `layouts`. */
+  const layoutDefs = new Set<string>();
+  const layoutUses = new Set<string>();
   for (const entry of sorted) {
     const { slug } = entry;
     const title = entryTitle(entry);
@@ -121,6 +124,7 @@ export function buildLibraryIndex(entries: readonly LibraryEntry[]): AtlasIndex 
     for (const place of defined) {
       refEntry(place.ref).definedIn.push({ slug, nodeId: place.nodeId });
       definerKinds.set(`${place.ref} ${slug} ${place.nodeId}`, place.kind);
+      if (place.layout) layoutDefs.add(`${place.ref} ${slug} ${place.nodeId}`);
       if (place.needsFlow) refEntry(place.ref).needsFlow = true;
     }
     for (const place of used) {
@@ -129,6 +133,9 @@ export function buildLibraryIndex(entries: readonly LibraryEntry[]): AtlasIndex 
         nodeId: place.nodeId,
         ...(place.edgeId !== undefined ? { edgeId: place.edgeId } : {}),
       });
+      if (place.asLayout) layoutUses.add(`${place.ref} ${slug} ${place.nodeId}`);
+      // A screen's copy of a layout's element that calls an API asks for a flow as well.
+      if (place.needsFlow) refEntry(place.ref).needsFlow = true;
     }
   }
 
@@ -142,6 +149,11 @@ export function buildLibraryIndex(entries: readonly LibraryEntry[]): AtlasIndex 
       definedIn: r.definedIn.map((d) => ({
         ...d,
         kind: definerKinds.get(`${r.ref} ${d.slug} ${d.nodeId}`),
+        layout: layoutDefs.has(`${r.ref} ${d.slug} ${d.nodeId}`),
+      })),
+      usedIn: r.usedIn.map((u) => ({
+        ...u,
+        asLayout: u.edgeId === undefined && layoutUses.has(`${r.ref} ${u.slug} ${u.nodeId}`),
       })),
     })),
     (slug) => kinds.get(slug),
