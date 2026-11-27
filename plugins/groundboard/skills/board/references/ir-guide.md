@@ -295,7 +295,8 @@ otherwise unchanged page stays an element of the screen, described in its `detai
 
 Boards are committed. Never copy real data from a screenshot or design: write "Customer name",
 "Order total" instead of names, emails, amounts or order numbers. groundboard warns about text
-that looks like an email, phone number, card number or absolute local path.
+that looks like an email, phone number, card number or absolute local path, or like a secret (a
+private key, a vendor token, a JWT, a URL with a password, a password assigned in code).
 
 A screen with two states, joined by cited transitions:
 

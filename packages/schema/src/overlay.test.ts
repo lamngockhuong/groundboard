@@ -74,14 +74,15 @@ describe("lintOverlayText", () => {
         note({ id: "a", text: "ask jane@example.com" }),
         note({ id: "b", text: "see /home/jane/notes" }),
         note({ id: "c", text: "db at postgres://admin:hunter2@db.internal/app" }),
-        note({ id: "d", text: "key ghp_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8" }),
+        // Assembled at runtime so the repository holds no string a secret scanner would report.
+        note({ id: "d", text: `key ${["gh", "p_", "a1B2c3D4e5F6g7H8i9J0".repeat(2)].join("")}` }),
         note({ id: "e", text: "Placeholder: Customer email" }),
       ],
     };
     const warnings = lintOverlayText(overlay as Parameters<typeof lintOverlayText>[0]);
     expect(warnings).toHaveLength(4);
     expect(warnings[2]).toContain("a URL with a password");
-    expect(warnings[3]).toContain("an access token");
+    expect(warnings[3]).toContain("a GitHub token");
   });
 });
 

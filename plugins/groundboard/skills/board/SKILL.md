@@ -227,6 +227,10 @@ Tell the user, briefly:
 - Cite only what you read in this session. Do not cite from memory.
 - A requirement document is a `doc` source, never a code source: write `"kind": "doc"`.
 - Paths are repository-relative; never put an absolute local path in the board.
+- Never copy a real credential into a board: a quote that assigns a secret keeps the name and
+  shows the value as `<redacted>` or the env read (`process.env.API_TOKEN`). Boards are committed
+  and may be published to a client; render warns when text looks like a key, a token, a JWT or a
+  password, and you fix every such warning before you answer.
 - Keep the board to what answers the question: usually 5 to 30 nodes.
 - **A board about a vulnerability or a security incident draws the mechanism and the defence,
   never the attack.** A board is committed with the repository and can be published as an

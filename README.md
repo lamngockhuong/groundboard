@@ -113,7 +113,9 @@ on a second row. A worked example is in
 Commit `.groundboard/*.board.json`. Never commit screenshots: the skill only reads them and
 writes no image or image path into a board. Take screenshots with a test account; the skill
 replaces names, emails, amounts and order numbers with placeholders, and groundboard warns about
-text that looks like an email, a phone or card number or a local path.
+text that looks like an email, a phone or card number or a local path, or like a secret: a
+private key, an AWS, GitHub, Slack or Stripe key, a JWT, a URL with a password or a password
+assigned in code. The warning names the kind and the JSON path, never the value.
 
 Check the atlas, in CI or before committing (exit 3 on a dangling ref, a duplicate definition
 or a board whose quotes no longer match the files):

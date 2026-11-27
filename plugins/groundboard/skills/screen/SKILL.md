@@ -171,8 +171,8 @@ For a screen with states:
 Names, emails, addresses, phone numbers, amounts, order numbers and anything else a user
 typed or owns become descriptions: "Customer name", "Order total", "Product name". Keep
 verbatim only the fixed text of the interface: button labels, headings, field labels.
-`validate_board` warns about text that looks like an email, a phone or card number or a local
-path; fix every such warning, never ignore it.
+`validate_board` warns about text that looks like an email, a phone or card number, a local
+path or a secret; fix every such warning, never ignore it.
 
 ### 5. Tie behaviour to its source
 

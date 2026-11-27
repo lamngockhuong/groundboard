@@ -142,3 +142,164 @@ describe("lintDuplicateEdges", () => {
     expect(lintBoardText(b)).toEqual([expect.stringMatching(/^edges\[1\] /)]);
   });
 });
+
+/**
+ * Fake credentials, assembled at runtime from split pieces so the repository holds no string a
+ * secret scanner would report. The bodies are a fixed, obviously fake run of letters and digits.
+ */
+const body = (n: number) => "Fake0Value1Not2Real3".repeat(4).slice(0, n);
+const join = (...parts: string[]) => parts.join("");
+const b64url = (value: object) => Buffer.from(JSON.stringify(value)).toString("base64url");
+const FAKE = {
+  pem: join(
+    "-----BEGIN ",
+    "RSA PRIVATE",
+    " KEY-----\n",
+    body(40),
+    "\n-----END RSA ",
+    "PRIVATE KEY-----",
+  ),
+  pemEscaped: join("-----BEGIN ", "PRIVATE", " KEY-----\\n", body(40)),
+  aws: join("AK", "IA", body(16).toUpperCase()),
+  githubClassic: join("gh", "p_", body(36)),
+  githubServer: join("gh", "s_", body(36)),
+  githubFine: join("github", "_pat_", body(22), "_", body(40)),
+  slack: join("xo", "xb-", "1234567890-", body(24)),
+  stripe: join("sk", "_live_", body(24)),
+  stripeRestricted: join("rk", "_live_", body(24)),
+  jwt: [b64url({ alg: "HS256", typ: "JWT" }), b64url({ sub: "fake-user" }), body(20)].join("."),
+  password: join("hunter", "2", "Fake!"),
+};
+
+describe("lintBoardText on secrets", () => {
+  const warn = (label: string) => lintBoardText(board(label));
+
+  test.each([
+    ["a PEM private key block", FAKE.pem, "a private key"],
+    ["a PEM block quoted from a JSON string", `const key = "${FAKE.pemEscaped}"`, "a private key"],
+    ["an AWS access key id", `aws key ${FAKE.aws}`, "an AWS access key id"],
+    ["a classic GitHub token", `token ${FAKE.githubClassic}`, "a GitHub token"],
+    ["a GitHub server token", FAKE.githubServer, "a GitHub token"],
+    ["a fine-grained GitHub token", FAKE.githubFine, "a GitHub token"],
+    ["a Slack token", `bot ${FAKE.slack}`, "a Slack token"],
+    ["a Stripe secret key", FAKE.stripe, "a Stripe secret key"],
+    ["a Stripe restricted key", FAKE.stripeRestricted, "a Stripe secret key"],
+    ["a JWT", `Authorization: Bearer ${FAKE.jwt}`, "a JWT"],
+    ["a quoted password", `password: "${FAKE.password}"`, "a password or secret assigned"],
+    ["an env-file token", `API_TOKEN=${body(12)}`, "a password or secret assigned"],
+    ["a JSON client secret", `"client_secret": "${body(10)}"`, "a password or secret assigned"],
+    ["an api key constant", `const apiKey = '${body(10)}';`, "a password or secret assigned"],
+    ["a private key setting", `PRIVATE_KEY := "${body(10)}"`, "a password or secret assigned"],
+  ])("warns about %s and names its kind", (_, label, kind) => {
+    const warnings = warn(label);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/^nodes\[0\]\.label looks like it contains /);
+    expect(warnings[0]).toContain(kind);
+    expect(warnings[0]).toContain('"<redacted>"');
+  });
+
+  test.each([
+    [
+      "a PEM header with no key material",
+      join('if (pem.startsWith("-----BEGIN ', "PRIVATE", ' KEY-----"))'),
+    ],
+    ["a PEM public key", join("-----BEGIN PUBLIC", " KEY-----\n", body(20))],
+    ["AWS's documented sample key", join("AK", "IA", "IOSFODNN7", "EXAMPLE")],
+    ["an AWS-like id that is too short", join("AK", "IA", "1234ABCD")],
+    ["a GitHub prefix with no token", "tokens start with ghp_ or github_pat_"],
+    ["a GitHub placeholder token", join("gh", "p_", "x".repeat(36))],
+    ["a Slack prefix with a placeholder", "set SLACK_BOT to xoxb-your-bot-token"],
+    ["a Stripe test key", join("sk", "_test_", body(16))],
+    ["a Stripe placeholder", join("sk", "_live_", "x".repeat(24))],
+    ["a JWT header alone", b64url({ alg: "none" })],
+    ["two base64url parts", [b64url({ alg: "HS256" }), b64url({ sub: "x" })].join(".")],
+  ])("does not warn about %s", (_, label) => {
+    expect(warn(label)).toEqual([]);
+  });
+
+  test.each([
+    "password: <password>",
+    'token: "<token>"',
+    'password: "***"',
+    "API_TOKEN=xxx",
+    "API_TOKEN=xxxxxxxxxxxx",
+    'password: "changeme"',
+    'password = "change-me-2"',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the text under test is a placeholder written this way
+    "DB_PASSWORD=${DB_PASSWORD}",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the text under test is a placeholder written this way
+    'apiKey: "${API_KEY}"',
+    "SECRET_KEY=$SECRET_KEY",
+    'token: "{{ token }}"',
+    "const token = process.env.API_TOKEN;",
+    "apiKey: import.meta.env.VITE_API_KEY",
+    'password = os.environ["DB_PASSWORD"]',
+    'secret: "<redacted>"',
+    'api_key = "your_api_key_here"',
+    'token: "example-token-1"',
+  ])("does not warn about the placeholder %s", (label) => {
+    expect(warn(label)).toEqual([]);
+  });
+
+  test.each([
+    "const token = await getToken(user);",
+    "if (password === input) return true;",
+    "password: req.body.password",
+    "token: string",
+    "password: z.string().min(8)",
+    "const { accessToken } = session;",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the text under test is a placeholder written this way
+    "headers: { Authorization: `Bearer ${token}` }",
+    "TOKEN_TTL=3600",
+    'passwordLabel: "Mật khẩu"',
+    'tokenType: "Bearer"',
+    'tokenExpiresIn: "15m"',
+    'passwordKey: "auth.password"',
+    "resetToken = generateResetToken()",
+    "Reset password via emailed token",
+  ])("does not warn about code that names a secret %s", (label) => {
+    expect(warn(label)).toEqual([]);
+  });
+
+  test("never prints the matched value", () => {
+    for (const value of [
+      FAKE.pem,
+      FAKE.aws,
+      FAKE.githubClassic,
+      FAKE.githubFine,
+      FAKE.slack,
+      FAKE.stripe,
+      FAKE.jwt,
+      FAKE.password,
+    ]) {
+      const warnings = lintBoardText({
+        ...board(`password: "${value}"`),
+        sources: [
+          { id: "s", kind: "code", path: "src/a.ts", line: 1, quote: `secret = "${value}"` },
+        ],
+      });
+      expect(warnings).toHaveLength(2);
+      for (const w of warnings) {
+        expect(w).not.toContain(value);
+        expect(w).not.toContain(value.slice(4, 16));
+      }
+    }
+  });
+
+  test("checks link URLs and edge labels for secrets", () => {
+    const b: Board = {
+      ...board("Pay"),
+      edges: [{ id: "e", from: "n", to: "n", kind: "flow", label: FAKE.slack, sourceIds: [] }],
+      sources: [
+        { id: "s", kind: "link", url: `https://x.example/cb?token=${FAKE.jwt}`, title: "cb" },
+      ],
+    };
+    const warnings = lintBoardText(b);
+    expect(warnings.find((w) => w.startsWith("edges[0].label"))).toContain("a Slack token");
+    expect(warnings.find((w) => w.startsWith("sources[0].url"))).toContain("a JWT");
+  });
+
+  test("still reports a long mixed token with no vendor prefix as an access token", () => {
+    expect(warn(`key ${body(40)}`)[0]).toContain("an access token");
+  });
+});
