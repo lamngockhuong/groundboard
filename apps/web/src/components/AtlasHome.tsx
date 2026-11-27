@@ -12,12 +12,16 @@ function Stat({
   label,
   tone,
   onClick,
+  controls,
+  expanded,
 }: {
   value: number;
   label: string;
   tone?: string;
-  /** The figure opens the list behind it. */
+  /** The figure opens the list behind it: the list's id and whether it is open. */
   onClick?: () => void;
+  controls?: string;
+  expanded?: boolean;
 }) {
   const className = tone ? `stat stat-${tone}` : "stat";
   const body = (
@@ -27,7 +31,13 @@ function Stat({
     </>
   );
   return onClick ? (
-    <button type="button" className={`${className} stat-button`} onClick={onClick}>
+    <button
+      type="button"
+      className={`${className} stat-button`}
+      onClick={onClick}
+      aria-controls={controls}
+      aria-expanded={expanded}
+    >
       {body}
     </button>
   ) : (
@@ -129,11 +139,13 @@ function Attention({ atlas, library }: { atlas: AtlasIndex; library: boolean }) 
  * opens the board with that element selected, where the source panel offers the request to copy.
  */
 function MissingFlows({
+  id,
   groups,
   open,
   onToggle,
   ref,
 }: {
+  id: string;
   groups: MissingFlowGroup[];
   open: boolean;
   onToggle: (open: boolean) => void;
@@ -142,13 +154,14 @@ function MissingFlows({
   const total = groups.reduce((sum, g) => sum + g.items.length, 0);
   return (
     <details
+      id={id}
       ref={ref}
       className="card missing-flows"
       open={open}
       onToggle={(e) => onToggle(e.currentTarget.open)}
     >
-      <summary className="card-head">
-        <h3>{tn("home.missingFlowsTitle", total)}</h3>
+      <summary className="card-head missing-flows-summary">
+        <span className="missing-flows-title">{tn("home.missingFlowsTitle", total)}</span>
         <span className="count">{total}</span>
       </summary>
       <p className="missing-flows-hint muted">{t("home.missingFlowsHint")}</p>
@@ -181,6 +194,7 @@ export function AtlasHome({ atlas, library }: { atlas: AtlasIndex; library?: Lib
   const missingCount = missingGroups.reduce((sum, g) => sum + g.items.length, 0);
   const [missingOpen, setMissingOpen] = useState(false);
   const missingRef = useRef<HTMLDetailsElement>(null);
+  const missingId = useId();
 
   return (
     <section className="atlas-home" aria-labelledby={titleId}>
@@ -246,9 +260,13 @@ export function AtlasHome({ atlas, library }: { atlas: AtlasIndex; library?: Lib
                 value={missingCount}
                 label={t("home.missingFlows")}
                 tone="stale"
+                controls={missingId}
+                expanded={missingOpen}
                 onClick={() => {
                   setMissingOpen(true);
                   missingRef.current?.scrollIntoView({ block: "start" });
+                  // Keyboard and screen reader users land on the list that just opened.
+                  missingRef.current?.querySelector("summary")?.focus();
                 }}
               />
             ) : null}
@@ -257,6 +275,7 @@ export function AtlasHome({ atlas, library }: { atlas: AtlasIndex; library?: Lib
           <Attention atlas={atlas} library={library !== undefined} />
           {missingCount > 0 ? (
             <MissingFlows
+              id={missingId}
               ref={missingRef}
               groups={missingGroups}
               open={missingOpen}

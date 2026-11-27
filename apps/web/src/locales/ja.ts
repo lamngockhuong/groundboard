@@ -299,6 +299,7 @@ export const ja: Messages = {
   "flowHint.explain":
     "この要素は API を呼ぶか状態を変えますが、それを説明するフローがまだありません。",
   "flowHint.copy": "開発者への依頼をコピー",
+  "flowHint.text": "開発者への依頼",
   "flowHint.copied": "コピーしました",
   "flowHint.copyFailed": "コピーできませんでした。下のテキストを選択してコピーしてください。",
   "flowHint.prompt":

@@ -309,6 +309,7 @@ export const en = {
   "flowHint.missing": "No flow yet",
   "flowHint.explain": "This element calls an API or changes state, but no flow describes it yet.",
   "flowHint.copy": "Copy the request for a developer",
+  "flowHint.text": "Request for a developer",
   "flowHint.copied": "Copied",
   "flowHint.copyFailed": "Could not copy; select the text below and copy it.",
   "flowHint.prompt":

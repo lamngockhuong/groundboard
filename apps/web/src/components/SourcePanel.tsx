@@ -320,7 +320,7 @@ function FlowHint({
           className="flow-hint-text"
           readOnly
           value={prompt}
-          aria-label={t("flowHint.copy")}
+          aria-label={t("flowHint.text")}
           onFocus={(e) => e.currentTarget.select()}
         />
       ) : null}
