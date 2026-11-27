@@ -82,7 +82,7 @@
     {
       "type": "text",
       "angle": 0,
-      "strokeColor": "#e8590c",
+      "strokeColor": "#c44b0a",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
       "strokeWidth": 1,
@@ -117,7 +117,7 @@
     {
       "type": "rectangle",
       "angle": 0,
-      "strokeColor": "#adb5bd",
+      "strokeColor": "#7d848b",
       "backgroundColor": "#f8f9fa",
       "fillStyle": "solid",
       "strokeWidth": 1,
@@ -189,7 +189,7 @@
     {
       "type": "rectangle",
       "angle": 0,
-      "strokeColor": "#adb5bd",
+      "strokeColor": "#7d848b",
       "backgroundColor": "#f8f9fa",
       "fillStyle": "solid",
       "strokeWidth": 1,
@@ -261,7 +261,7 @@
     {
       "type": "rectangle",
       "angle": 0,
-      "strokeColor": "#adb5bd",
+      "strokeColor": "#7d848b",
       "backgroundColor": "#f8f9fa",
       "fillStyle": "solid",
       "strokeWidth": 1,
@@ -1176,7 +1176,7 @@
     {
       "type": "rectangle",
       "angle": 0,
-      "strokeColor": "#868e96",
+      "strokeColor": "#7d848b",
       "backgroundColor": "#f1f3f5",
       "fillStyle": "solid",
       "strokeWidth": 1,
@@ -1226,7 +1226,7 @@
     {
       "type": "text",
       "angle": 0,
-      "strokeColor": "#868e96",
+      "strokeColor": "#646a70",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
       "strokeWidth": 1,
@@ -2143,7 +2143,7 @@
     {
       "type": "arrow",
       "angle": 0,
-      "strokeColor": "#868e96",
+      "strokeColor": "#7d848b",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
       "strokeWidth": 1,
@@ -2520,7 +2520,7 @@
     {
       "type": "rectangle",
       "angle": 0,
-      "strokeColor": "#868e96",
+      "strokeColor": "#7d848b",
       "backgroundColor": "#f1f3f5",
       "fillStyle": "solid",
       "strokeWidth": 1,
@@ -2646,7 +2646,7 @@
     {
       "type": "rectangle",
       "angle": 0,
-      "strokeColor": "#f08c00",
+      "strokeColor": "#bd6e00",
       "backgroundColor": "#fff3bf",
       "fillStyle": "solid",
       "strokeWidth": 1,

@@ -25,68 +25,47 @@ const FRAME_STROKE = "#bbbbbb";
 const FRAME_NAME = { light: "#999999", dark: "#7a7a7a" } as const;
 
 /**
- * Pairs below the threshold today, by "theme | subject", with the ratio measured when the entry
- * was written. The palette is shared with the viewer, so a change to it is a decision of its
- * own; until then these stay listed, and the test fails when one gets worse, when a new pair
- * falls short, or when a listed pair starts passing (remove it then).
+ * Pairs below the threshold, by "theme | subject", with the ratio measured when the entry was
+ * written. Empty while every pair passes. The test fails when a listed pair gets worse, when a
+ * pair not listed falls short, and when a listed pair starts passing (remove it then).
  */
-const KNOWN_SHORTFALLS: Record<string, number> = {
-  "dark | element bar: stroke": 1.33,
-  "dark | element container: stroke": 2.42,
-  "dark | element container: text": 4.02,
-  "dark | element image: stroke": 1.52,
-  "dark | element image: text": 3.83,
-  "dark | element input: text": 4.02,
-  "dark | group depth 1: frame outline": 2.2,
-  "dark | group depth 2: stroke": 2.42,
-  "dark | group depth 3: stroke": 2.31,
-  "dark | group depth 4: stroke": 2.19,
-  "dark | job node: frame outline": 2.2,
-  "dark | job node: stroke": 1.59,
-  "dark | legend: frame outline": 2.2,
-  "dark | rejected node: text": 3.63,
-  "dark | relates edge: label": 3.38,
-  "dark | resource node: frame outline": 2.2,
-  "dark | screen node: frame outline": 2.2,
-  "dark | screen node: text": 4.02,
-  "dark | table column: stroke": 1.59,
-  "dark | table node: frame outline": 2.2,
-  "dark | unresolved marker: text": 3.57,
-  "light | element bar: stroke": 1.3,
-  "light | element container: stroke": 2.07,
-  "light | element container: text": 3.32,
-  "light | element image: stroke": 1.42,
-  "light | element image: text": 3.15,
-  "light | element input: text": 3.32,
-  "light | group depth 1: frame name": 2.85,
-  "light | group depth 1: frame outline": 1.92,
-  "light | group depth 2: stroke": 2.07,
-  "light | group depth 3: stroke": 1.97,
-  "light | group depth 4: stroke": 1.87,
-  "light | job node: frame name": 2.85,
-  "light | job node: frame outline": 1.92,
-  "light | job node: stroke": 1.49,
-  "light | legend: frame name": 2.85,
-  "light | legend: frame outline": 1.92,
-  "light | legend: stroke": 2.48,
-  "light | question node: stroke": 2.09,
-  "light | rejected node: stroke": 2.8,
-  "light | rejected node: text": 2.99,
-  "light | relates edge: label": 2.8,
-  "light | relates edge: stroke": 2.8,
-  "light | resource node: frame name": 2.85,
-  "light | resource node: frame outline": 1.92,
-  "light | screen node: frame name": 2.85,
-  "light | screen node: frame outline": 1.92,
-  "light | screen node: text": 3.32,
-  "light | spec tag: text": 4.23,
-  "light | table column: stroke": 1.49,
-  "light | table node: frame name": 2.85,
-  "light | table node: frame outline": 1.92,
-  "light | title-figma: text": 3.58,
-  "light | title-grounding: text": 3.58,
-  "light | title-status: text": 3.45,
-  "light | unresolved marker: text": 2.09,
+const KNOWN_SHORTFALLS: Record<string, number> = {};
+
+interface Accepted {
+  ratio: number;
+  reason: string;
+}
+
+/**
+ * Lines kept light on purpose: they divide or decorate a shape that is already told apart by its
+ * text and its outline, and a darker line would make wireframes and cards read as heavier than
+ * the content in them. Guarded like `KNOWN_SHORTFALLS`.
+ */
+const DECORATIVE: Record<string, Accepted> = {
+  "light | element bar: stroke": { ratio: 1.3, reason: "a bar is told apart by its fill" },
+  "dark | element bar: stroke": { ratio: 1.33, reason: "a bar is told apart by its fill" },
+  "light | table column: stroke": { ratio: 1.49, reason: "row rules inside a framed table" },
+  "dark | table column: stroke": { ratio: 1.59, reason: "row rules inside a framed table" },
+  "light | job row: stroke": { ratio: 1.49, reason: "row rules inside a framed job card" },
+  "dark | job row: stroke": { ratio: 1.59, reason: "row rules inside a framed job card" },
+  "light | image placeholder: stroke": {
+    ratio: 1.42,
+    reason: "the cross inside an image's outlined box only says 'picture here'",
+  },
+  "dark | image placeholder: stroke": {
+    ratio: 1.52,
+    reason: "the cross inside an image's outlined box only says 'picture here'",
+  },
+};
+
+/**
+ * Drawn by Excalidraw itself (`FRAME_STYLE`), not by the board palette: the viewer draws frames
+ * with the same constants, and the PNG must match the viewer.
+ */
+const EXCALIDRAW_DRAWN: Record<string, Accepted> = {
+  "light | excalidraw frame: name": { ratio: 2.85, reason: "Excalidraw's frame name colour" },
+  "light | excalidraw frame: outline": { ratio: 1.92, reason: "Excalidraw's frame border" },
+  "dark | excalidraw frame: outline": { ratio: 2.2, reason: "Excalidraw's frame border" },
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -209,12 +188,14 @@ function subjectOf(el: El, byId: Map<string, El>): string {
   if (prefix === "ref-line") return "ref line";
   if (el.id.endsWith("/unresolved")) return "unresolved marker";
   if (el.id.endsWith("/action")) return "action marker";
+  if (/\/diag[12]$/.test(el.id)) return "image placeholder";
   if (prefix?.startsWith("legend") || el.id.includes("legend")) return "legend";
   if (prefix?.startsWith("title")) return el.id;
   if (el.type === "frame" && gb.groupId !== undefined) return "group depth 1";
   if (el.type === "arrow" && typeof gb.kind === "string") return `${gb.kind} edge`;
   if (gb.kind === "element") return `element ${String(gb.role)}`;
   if (gb.column !== undefined) return "table column";
+  if (gb.kind === "job" && el.type !== "frame") return "job row";
   if (typeof gb.kind === "string") return `${gb.kind} node`;
   if (el.containerId) {
     const container = byId.get(el.containerId);
@@ -224,7 +205,8 @@ function subjectOf(el: El, byId: Map<string, El>): string {
   return el.id;
 }
 
-function pairsOf(board: string, scene: Scene): Pair[] {
+/** The colour pairs of a scene; adds the subject of every element to `drawn`. */
+function pairsOf(board: string, scene: Scene, drawn: Set<string>): Pair[] {
   const pairs: Pair[] = [];
   const byId = new Map(scene.elements.map((e) => [e.id, e]));
   const add = (subject: string, as: Pair["as"], fg: Rgb, bg: Rgb, theme: Theme, label = "") => {
@@ -242,14 +224,16 @@ function pairsOf(board: string, scene: Scene): Pair[] {
   scene.elements.forEach((el, index) => {
     if (el.isDeleted) return;
     const subject = subjectOf(el, byId);
+    drawn.add(subject);
     if (el.type === "frame") {
-      // Frames sit on the canvas; Excalidraw draws their outline and name in its own colours.
+      // Frames sit on the canvas; Excalidraw draws their outline and name in its own colours,
+      // whatever the frame stands for.
       const canvas = surface(scene, index, [el.x, el.y, el.x + el.width, el.y + el.height]);
       for (const theme of THEMES) {
-        add(subject, "mark", parse(FRAME_STROKE) as Rgb, canvas, theme, "frame outline");
+        add("excalidraw frame", "mark", parse(FRAME_STROKE) as Rgb, canvas, theme, "outline");
         // The dark export draws the name in its dark colour, and the filter still applies.
         const name = parse(FRAME_NAME[theme]) as Rgb;
-        if (el.name) add(subject, "text", name, canvas, theme, "frame name");
+        if (el.name) add("excalidraw frame", "text", name, canvas, theme, "name");
       }
       return;
     }
@@ -398,6 +382,8 @@ const dataCoverageBoard = {
 
 let boards: { name: string; scene: Scene }[] = [];
 let pairs: Pair[] = [];
+/** Every subject the boards draw, with or without a colour pair to check. */
+const drawn = new Set<string>();
 
 const key = (p: Pair) => `${p.theme} | ${p.subject}`;
 const minimum = (p: Pair) => (p.as === "text" ? MIN_TEXT : MIN_MARK);
@@ -419,7 +405,7 @@ beforeAll(async () => {
     if (!result.scene) throw new Error(`${name}: ${JSON.stringify(result.issues)}`);
     boards.push({ name, scene: result.scene as unknown as Scene });
   }
-  pairs = boards.flatMap((b) => pairsOf(b.name, b.scene));
+  pairs = boards.flatMap((b) => pairsOf(b.name, b.scene, drawn));
 }, 120_000);
 
 describe("legibility of board colours in the PNG", () => {
@@ -471,7 +457,6 @@ describe("legibility of board colours in the PNG", () => {
   });
 
   test("the boards draw every node kind, edge kind, element role and group depth", () => {
-    const seen = new Set(pairs.map((p) => p.subject.split(":")[0]));
     const want = [
       ...NODE_KINDS.filter((k) => k !== "element").map((k) => `${k} node`),
       ...EDGE_KINDS.map((k) => `${k} edge`),
@@ -482,7 +467,7 @@ describe("legibility of board colours in the PNG", () => {
       "legend",
     ];
     expect(
-      want.filter((s) => !seen.has(s)),
+      want.filter((s) => !drawn.has(s)),
       "kinds no board draws",
     ).toEqual([]);
   });
@@ -494,13 +479,23 @@ describe("legibility of board colours in the PNG", () => {
       const prev = worst.get(key(p));
       if (!prev || p.ratio / minimum(p) < prev.ratio / minimum(prev)) worst.set(key(p), p);
     }
+    const ratios = (list: Record<string, Accepted>) =>
+      Object.fromEntries(Object.entries(list).map(([k, v]) => [k, v.ratio]));
+    const lists: Record<string, Record<string, number>> = {
+      KNOWN_SHORTFALLS,
+      DECORATIVE: ratios(DECORATIVE),
+      EXCALIDRAW_DRAWN: ratios(EXCALIDRAW_DRAWN),
+    };
+    const listed = (k: string) => Object.keys(lists).find((name) => lists[name]?.[k] !== undefined);
     if (process.env.LEGIBILITY_TABLE) {
       const rows = [...worst.values()].sort((a, b) => key(a).localeCompare(key(b)));
+      const result = (p: Pair) =>
+        p.ratio >= minimum(p) ? "pass" : `below, ${listed(key(p)) ?? "not listed"}`;
       console.log(
         rows
           .map(
             (p) =>
-              `| ${p.subject} | ${p.theme} | ${p.fg} on ${p.bg} | ${p.ratio.toFixed(2)} | ${minimum(p)} | ${p.ratio >= minimum(p) ? "pass" : "FAIL"} |`,
+              `| ${p.subject} | ${p.theme} | ${p.fg} on ${p.bg} | ${p.ratio.toFixed(2)} | ${minimum(p)} | ${result(p)} |`,
           )
           .join("\n"),
       );
@@ -510,12 +505,17 @@ describe("legibility of board colours in the PNG", () => {
     const failing = [...worst.values()].filter((p) => p.ratio < minimum(p));
     const unexpected = failing
       .filter((p) => {
-        const known = KNOWN_SHORTFALLS[key(p)];
-        return known === undefined || p.ratio < known - 0.005;
+        const name = listed(key(p));
+        const allowed = name ? lists[name]?.[key(p)] : undefined;
+        return allowed === undefined || p.ratio < allowed - 0.005;
       })
       .map(describePair);
-    const fixed = Object.keys(KNOWN_SHORTFALLS).filter((k) => !failing.some((p) => key(p) === k));
+    const stale = Object.entries(lists).flatMap(([name, list]) =>
+      Object.keys(list)
+        .filter((k) => !failing.some((p) => key(p) === k))
+        .map((k) => `${name}: ${k}`),
+    );
     expect(unexpected, "colour pairs below the WCAG threshold").toEqual([]);
-    expect(fixed, "listed in KNOWN_SHORTFALLS but now legible or no longer drawn").toEqual([]);
+    expect(stale, "listed as below the threshold but now legible or no longer drawn").toEqual([]);
   });
 });

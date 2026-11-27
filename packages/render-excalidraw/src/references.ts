@@ -8,7 +8,7 @@ import {
   INTERACTIVE_ROLES,
 } from "@groundboard/schema";
 import { type BinaryFile, type ExcalidrawElement, image, shape, text } from "./elements.ts";
-import { ACCENT, LINK_COLOR, MUTED, UNRESOLVED_COLOR } from "./styles.ts";
+import { ACCENT, LINK_COLOR, MUTED, MUTED_TEXT, UNRESOLVED_COLOR, WARNING_TEXT } from "./styles.ts";
 
 /**
  * Prefix of every element and file id a reference image adds, so a viewer can hide them. Parts
@@ -49,7 +49,6 @@ export function referenceCaption(
   return parts.join(" · ");
 }
 
-const CHANGED_COLOR = "#e8590c";
 const interactive = new Set<string>(INTERACTIVE_ROLES);
 const round = (n: number) => Math.round(n * 100) / 100;
 
@@ -156,7 +155,7 @@ function frameImage(
       fontSize: caption.fontSize,
       textAlign: "left",
       verticalAlign: "top",
-      strokeColor: loaded.designChanged ? CHANGED_COLOR : MUTED,
+      strokeColor: loaded.designChanged ? WARNING_TEXT : MUTED_TEXT,
       ...common,
     }),
   ];

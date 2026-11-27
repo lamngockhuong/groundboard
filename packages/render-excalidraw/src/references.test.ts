@@ -196,8 +196,8 @@ describe("reference images", () => {
     const heading = get(byId, "refimg/users/node/heading");
     const search = get(byId, "refimg/users/node/search");
     expect([add.strokeColor, add.strokeStyle]).toEqual(["#1971c2", "solid"]);
-    expect([heading.strokeColor, heading.strokeStyle]).toEqual(["#868e96", "dashed"]);
-    expect(search.strokeColor).toBe("#f08c00");
+    expect([heading.strokeColor, heading.strokeStyle]).toEqual(["#7d848b", "dashed"]);
+    expect(search.strokeColor).toBe("#bd6e00");
   });
 
   test("the action dot for elements with an action, none for an unresolved one", async () => {
@@ -259,7 +259,7 @@ describe("reference images", () => {
     const { byId } = await render(true);
     const caption = get(byId, "refimg/confirm/caption");
     expect(caption.type === "text" && caption.text).toContain("design changed since fetch");
-    expect(caption.strokeColor).toBe("#e8590c");
+    expect(caption.strokeColor).toBe("#c44b0a");
     const users = get(byId, "refimg/users/caption");
     expect(users.type === "text" && users.text).not.toContain("design changed");
   });

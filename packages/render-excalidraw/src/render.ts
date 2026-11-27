@@ -38,6 +38,7 @@ import { renderNotes } from "./notes.ts";
 import { REFERENCE_PREFIX, type ReferenceImage, renderReferences } from "./references.ts";
 import {
   ACCENT,
+  CHECKED_TEXT,
   COLUMN_STYLE,
   EDGE_STYLES,
   FLOW_KINDS,
@@ -46,12 +47,15 @@ import {
   KIND_LABELS,
   LINK_COLOR,
   MUTED,
+  MUTED_TEXT,
   NODE_STYLES,
   type NodeStyle,
   ROLE_STYLES,
   SPEC_COLOR,
   SPEC_STROKE,
   UNRESOLVED_COLOR,
+  UNRESOLVED_TEXT,
+  WARNING_TEXT,
 } from "./styles.ts";
 
 export const SCENE_SOURCE = "https://github.com/lamngockhuong/groundboard";
@@ -433,7 +437,7 @@ export function renderExcalidraw(
         text: edge.label.text,
         fontSize: edge.label.fontSize,
         containerId: id,
-        strokeColor: style.strokeColor === MUTED ? MUTED : INK,
+        strokeColor: style.strokeColor === MUTED ? MUTED_TEXT : INK,
         frameId,
       });
       el.boundElements = [{ type: "text", id: label.id }];
@@ -465,7 +469,7 @@ export function renderExcalidraw(
         width: group.width,
         height: group.height,
         backgroundColor: GROUP_TINTS[Math.min(group.depth - 2, GROUP_TINTS.length - 1)],
-        strokeColor: "#adb5bd",
+        strokeColor: MUTED,
         strokeStyle: "dashed",
         roundness: { type: 3 },
         groupIds,
@@ -1008,7 +1012,7 @@ function renderWire(
         textAlign: "left",
         verticalAlign: "top",
         ...decoration,
-        strokeColor: UNRESOLVED_COLOR,
+        strokeColor: UNRESOLVED_TEXT,
       }),
     );
   } else if (source.action !== undefined) {
@@ -1371,7 +1375,7 @@ function renderTitle(
       fontSize: FONT_SIZE,
       textAlign: "left",
       verticalAlign: "top",
-      strokeColor: "#e8590c",
+      strokeColor: WARNING_TEXT,
     });
     noteY += size.height + 4;
     return el;
@@ -1417,7 +1421,7 @@ function renderTitle(
       fontSize: FONT_SIZE,
       textAlign: "left",
       verticalAlign: "top",
-      strokeColor: sourcesChecked ? "#2f9e44" : "#e8590c",
+      strokeColor: sourcesChecked ? CHECKED_TEXT : WARNING_TEXT,
     }),
     ...noteElements,
   ];
