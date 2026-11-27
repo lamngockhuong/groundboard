@@ -23,7 +23,40 @@ first board in a session (or call `get_board_schema`, which returns the same gui
 
 ### 1. Frame the question
 
-Restate the question as one sentence. Pick the board shape that answers it:
+Restate the question as one sentence.
+
+**Name the reader first.** A board can cite every line correctly and still teach nothing to the
+person who opens it. Ask the person who gave the task who will read the board, with three
+answers:
+
+| Reader | Words the board can use as they are |
+|---|---|
+| A developer on this project | The project's own module, table and endpoint names, and general programming terms |
+| A developer new to the project | General programming terms; every project-specific name needs a few words on what it is |
+| A PM, BA, QA or client who does not read code | Everyday words and the product's own vocabulary (screens, orders, roles) |
+
+When nobody can be asked, infer the level from the question and where it came from (a code
+review comment, a bug report from QA, a client's "how does checkout work"), and record the
+level as an assumption for the report.
+
+Then write down what this reader **surely knows**: three to eight items, each saying what the
+reader does with the thing, in words from their own work, for example "uses the checkout
+screen and knows an order can be paid, refunded or cancelled", or "calls `stripe.charges.create`
+from the order service". The board may lean on this list without explaining it, and on nothing
+else. Having called something is not knowing how it works inside: a developer who calls a
+payment library every day may not know that authorize and capture are two separate calls, so
+"how it works inside" never makes the list for anything the reader only calls.
+
+Then make a **term list** in your working notes: every term the board will use that this reader
+may not know (a class name, `idempotency key`, `webhook`, `JWT`). For each term, choose one:
+
+- explain it in a few plain words in the `detail` of the node that uses it;
+- replace it with the everyday word, when the term itself is not what the board is about;
+- leave it as it is, only when it is on the "surely knows" list.
+
+A term the board uses and the reader does not know is a hole, the same as a missing step.
+
+Pick the board shape that answers the question:
 
 | Question looks like | Shape | Main node kinds | Edge kinds |
 |---|---|---|---|
@@ -66,6 +99,20 @@ Pick the mode:
   cites at least one source with a quote. Keep labels short; put the rest in `detail`.
 - What the code cannot answer becomes a `question` node that names who must answer it
   (for example "Is guest checkout allowed? (Product)"). Never invent an answer.
+- Make a **premise list**. The term list catches the board's words; it does not catch what the
+  board never says. Walk the nodes in reading order and ask of each: what must the reader
+  already accept for this node to make sense? A cause tree for "why is an order declined after
+  the card was authorized" assumes the reader knows that authorize and capture are separate
+  calls. Each premise that is not on the "surely knows" list goes on the board, citing the line
+  it rests on: as a `fact` node next to the node that needs it, or as one line in that node's
+  `detail` when the reader can follow the board without it (the `detail` shows only once the
+  node is selected). A premise that cannot be said in one line is a detail the board can drop,
+  or a board of its own linked by `ref`.
+- When the thing happens inside something the reader only calls (a library, a framework, a
+  payment gateway, the database), show the normal case first and the failure after it, so the
+  reader sees what "working" looks like before what breaks.
+- Follow the content rules in the guide's "Writing for the reader": real values over generic
+  names, branch labels in the source's wording, no actor or step the source does not name.
 - Group related nodes; nest groups only when it helps (at most 4 levels).
 - When a node is about a screen or an element the screen atlas already has (see
   `.groundboard/overview-*.board.json` and the screen boards), set its `ref` to that screen's
@@ -127,7 +174,12 @@ Tell the user, briefly:
 - the answer to the question in two or three sentences, citing the key `path:line`s;
 - how many claims are grounded in code and how many in the requirements only, and the open
   `question` nodes with who must answer them;
-- whether sources were checked (the board's title line says so too).
+- whether sources were checked (the board's title line says so too);
+- the reader level you chose and the "surely knows" list, saying whether the person who gave
+  the task picked the level or you inferred it, so they can correct it;
+- the premises you put on the board (as `fact` nodes or in a `detail`), and the ones you left
+  out on purpose with why (on the "surely knows" list, or a detail the question does not need);
+- every actor, step or receiver you assumed that no source names, or "none".
 
 ## Rules
 
