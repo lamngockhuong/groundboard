@@ -364,6 +364,7 @@ python3 -m http.server -d site 8000               # or any static host: GitHub P
 | `--title <text>`    | Title of the page, in the browser tab and an Artifact gallery (default `groundboard`).             |
 | `--no-references`   | Leave the cached Figma images out of the boards (they are in by default, as with `serve`).         |
 | `--skip-cjk-fonts`  | Leave out the whole Chinese, Japanese and Korean handwriting font; such text uses a system font.   |
+| `--previous <file>` | The paths published last time, one per line (that export's `manifest.txt`): also write `publish-remove.json`, the paths to remove, and print the order to publish in. |
 
 The handwriting font for Chinese, Japanese and Korean comes in 209 files, each covering a range
 of characters. `export` writes only the files that cover characters in the exported boards and
@@ -376,7 +377,8 @@ An atlas directory that is a symlink, such as `.groundboard` in a git worktree l
 checkout's, is read where it points; the cited sources are still checked against `--root`.
 
 The pages are a snapshot: the atlas home and every board say when the sources were checked,
-at which commit, and whether the working tree had uncommitted changes. Stale and invalid
+at which commit, and whether the working tree had uncommitted changes (changes inside the atlas
+directory, or a `.groundboard` symlink, are not counted: the boards are not their own sources). Stale and invalid
 boards are exported as they are and shown as such; the command warns about them and still
 exits 0. A board larger than 15 MB with its Figma images is exported without them. Each
 board's JSON also carries its board file and layout overlay as written (`source`, `overlay`), so
@@ -392,7 +394,13 @@ once you share it from the Artifact's Share menu, and a link ending in `#<board-
 that board. An Artifact holds at most 511 files and 256 MB, and takes at most 255 files and 64 MB
 per publish, so `export` also writes `publish-batch-<n>.json`, the files to send in each publish
 call (at most 250 files and 60 MB, leaving room for the page), and warns when an export does not
-fit one Artifact at all.
+fit one Artifact at all. An update publishes the first batch with the new page, then removes the
+published files the export no longer has, then sends the other batches; the removals go first
+when the first batch would not fit beside the old files, since one version holds at most 512
+files while it is updated. The skill keeps the list it last published in
+`.groundboard/.cache/publish/` (never committed) and passes it as `--previous`, so an update
+needs no listing of every published file; when the Artifact has changed since (someone else
+published), it lists them instead.
 
 ## Docker
 

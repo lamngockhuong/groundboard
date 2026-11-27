@@ -36,6 +36,10 @@ Options:
       --root <path>        Project root sources are checked against (default .)
       --atlas-dir <path>   Directory of *.board.json inside the root (default <root>/${OUTPUT_DIR})
       --title <text>       Title of the page (default: the viewer's, "groundboard")
+      --previous <file>    The paths the Artifact held after the last publish, one per line
+                           (that export's manifest.txt): also write publish-remove.json, the
+                           paths to remove as a {"<path>": null} map, and print the order to
+                           publish in
       --no-references      Leave the cached Figma images out of the boards
       --skip-cjk-fonts     Leave out the whole Chinese, Japanese and Korean handwriting font
                            (fonts/Xiaolai); text in those scripts then draws with a system
@@ -54,6 +58,11 @@ export const MANIFEST_FILE = "manifest.txt";
  * Artifact publish sends, every manifest path but `index.html` (the page is sent apart).
  */
 export const PUBLISH_BATCH_PREFIX = "publish-batch";
+/**
+ * Written only with `--previous`: a `{"<path>": null}` map of the previously published paths
+ * this export no longer has, ready to pass as an Artifact publish's `files` to remove them.
+ */
+export const PUBLISH_REMOVE_FILE = "publish-remove.json";
 /** Meta tag that tells the viewer to read `data/` instead of the API. */
 export const STATIC_MODE_META = '<meta name="groundboard:mode" content="static" />';
 /** Largest data file the export writes; a Claude Artifact takes text files up to 16 MB. */
@@ -87,12 +96,24 @@ export interface ExportStamp {
 
 /**
  * The commit of `root` and whether it has uncommitted changes: `null` and false outside git,
- * `null` and the real state in a repository with no commit yet.
+ * `null` and the real state in a repository with no commit yet. Changes under `ignore` (paths
+ * inside the root, such as the atlas directory, whose boards are not the sources they cite)
+ * do not count; a symlink there is ignored as the entry it is, wherever it points.
  */
-export async function gitState(root: string): Promise<{ commit: string | null; dirty: boolean }> {
+export async function gitState(
+  root: string,
+  ignore: string[] = [],
+): Promise<{ commit: string | null; dirty: boolean }> {
+  const excluded = ignore
+    .map((entry) => path.relative(root, entry))
+    .filter(
+      (rel) =>
+        rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel),
+    )
+    .map((rel) => `:(exclude,literal)${rel.split(path.sep).join("/")}`);
   let dirty: boolean;
   try {
-    const status = await run("git", ["status", "--porcelain", "--", "."], {
+    const status = await run("git", ["status", "--porcelain", "--", ".", ...excluded], {
       cwd: root,
       maxBuffer: 16 * 1024 * 1024,
     });
@@ -120,6 +141,13 @@ export interface ExportOptions {
   title?: string;
   /** Board JSON larger than this is rendered again without Figma images. */
   maxFileBytes?: number;
+  /**
+   * The atlas directory as named inside the root (a symlink unresolved); its changes are not
+   * counted as uncommitted. Defaults to `dir`.
+   */
+  atlasEntry?: string;
+  /** Paths the Artifact held after the last publish, one per manifest line; see `--previous`. */
+  previous?: string[];
   /** Size caps of the Figma images, for tests. */
   referenceLimits?: { maxImageBytes?: number; maxBoardBytes?: number };
   now?: () => Date;
@@ -138,7 +166,57 @@ export interface ExportSummary {
   cjkFonts: { written: number; total: number };
   /** Batch files written for the Artifact publish, in order. */
   batches: string[];
+  /** With `previous`: what an update has to remove, and in which order to publish. */
+  removal?: PublishRemoval;
   stamp: ExportStamp;
+}
+
+/** How an update of a published Artifact removes the paths the export no longer has. */
+export interface PublishRemoval {
+  /** Previously published paths beside the page. */
+  previous: number;
+  /** Previously published paths this export no longer has, written to `PUBLISH_REMOVE_FILE`. */
+  stale: string[];
+  /** Paths of the first batch not published before. */
+  newInFirstBatch: number;
+  /**
+   * The version would pass `ARTIFACT_LIMITS.files` with the first batch added to what it
+   * holds, so the removals go first.
+   */
+  removeFirst: boolean;
+}
+
+/**
+ * What an update removes: every previously published path but the page that the export does
+ * not have, and whether the first batch fits beside what the version already holds.
+ */
+export function publishRemoval(
+  previous: string[],
+  manifest: string[],
+  firstBatch: string[],
+): PublishRemoval {
+  const before = new Set(previous.filter((p) => p !== "index.html"));
+  const now = new Set(manifest);
+  const stale = [...before].filter((p) => !now.has(p));
+  const newInFirstBatch = firstBatch.filter((p) => !before.has(p)).length;
+  return {
+    previous: before.size,
+    stale,
+    newInFirstBatch,
+    removeFirst: before.size + newInFirstBatch > ARTIFACT_LIMITS.files,
+  };
+}
+
+/** The lines of a `--previous` file: trimmed, blank lines and repeats dropped. */
+export function parsePrevious(text: string): string[] {
+  return [
+    ...new Set(
+      text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== ""),
+    ),
+  ];
 }
 
 const megabytes = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -310,7 +388,11 @@ export async function exportAtlas(
     const code = (error as NodeJS.ErrnoException).code ?? "error";
     throw new CliError(EXIT.io, `cannot read the atlas directory: ${code}`);
   }
-  const stamp: ExportStamp = { checkedAt, ...(await gitState(options.root)), version: VERSION };
+  const stamp: ExportStamp = {
+    checkedAt,
+    ...(await gitState(options.root, [options.atlasEntry ?? options.dir])),
+    version: VERSION,
+  };
 
   const boards = new Map<string, string>();
   const withoutReferences: string[] = [];
@@ -391,6 +473,7 @@ export async function exportAtlas(
   };
   const posix = (rel: string) => rel.split(path.sep).join("/");
   const batchNames: string[] = [];
+  let removal: PublishRemoval | undefined;
   const existed = existsSync(out);
   try {
     await mkdir(out, { recursive: true });
@@ -418,6 +501,14 @@ export async function exportAtlas(
       await writeFile(path.join(out, name), `[\n${list}\n]\n`);
       batchNames.push(name);
     }
+    if (options.previous !== undefined) {
+      removal = publishRemoval(options.previous, written.map(posix), batches[0] ?? []);
+      const lines = removal.stale.map((p) => `  ${JSON.stringify(p)}: null`).join(",\n");
+      await writeFile(
+        path.join(out, PUBLISH_REMOVE_FILE),
+        removal.stale.length === 0 ? "{}\n" : `{\n${lines}\n}\n`,
+      );
+    }
   } catch (error) {
     // `out` was empty or missing: put it back that way, so the next run is not refused.
     await rm(out, { recursive: true, force: true }).catch(() => {});
@@ -436,8 +527,28 @@ export async function exportAtlas(
     withoutReferences,
     cjkFonts: { written: cjkWritten, total: cjkTotal },
     batches: batchNames,
+    ...(removal !== undefined ? { removal } : {}),
     stamp,
   };
+}
+
+/** What `export --previous` prints: the paths to remove and the order to publish in. */
+function removalLines(removal: PublishRemoval, batches: string[]): string {
+  const [first, ...rest] = batches;
+  const order =
+    removal.stale.length === 0
+      ? batches
+      : removal.removeFirst
+        ? [PUBLISH_REMOVE_FILE, ...batches]
+        : [first ?? "", PUBLISH_REMOVE_FILE, ...rest];
+  return (
+    `previously published: ${removal.previous} file(s) beside the page; ${removal.stale.length} no longer exported, listed in ${PUBLISH_REMOVE_FILE}; ${removal.newInFirstBatch} of ${first} not published before\n` +
+    `publish order: ${order.filter((name) => name !== "").join(", ")}` +
+    (removal.removeFirst
+      ? ` (removals first: ${removal.previous} + ${removal.newInFirstBatch} would pass ${ARTIFACT_LIMITS.files} files)`
+      : "") +
+    "\n"
+  );
 }
 
 export async function exportCommand(args: string[], io: CliIO): Promise<number> {
@@ -450,6 +561,7 @@ export async function exportCommand(args: string[], io: CliIO): Promise<number> 
       title: { type: "string" },
       references: { type: "boolean", default: true },
       "skip-cjk-fonts": { type: "boolean" },
+      previous: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
     allowNegative: true,
@@ -465,18 +577,30 @@ export async function exportCommand(args: string[], io: CliIO): Promise<number> 
   if (values.out === undefined || values.out === "") {
     throw new CliError(EXIT.usage, `--out is required\n\n${exportHelp}`);
   }
-  const { root, dir } = await resolveAtlasPaths(
+  const { root, dir, entry } = await resolveAtlasPaths(
     io.cwd,
     values.root,
     values["atlas-dir"],
     "--atlas-dir",
   );
   const out = path.resolve(io.cwd, values.out);
+  let previous: string[] | undefined;
+  if (values.previous !== undefined) {
+    if (values.previous === "") throw new CliError(EXIT.usage, "--previous needs a file");
+    try {
+      previous = parsePrevious(await readFile(path.resolve(io.cwd, values.previous), "utf8"));
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? "error";
+      throw new CliError(EXIT.io, `cannot read --previous: ${code}`);
+    }
+  }
   const summary = await exportAtlas(
     {
       dir,
       root,
+      atlasEntry: entry,
       out,
+      ...(previous !== undefined ? { previous } : {}),
       references: values.references,
       skipCjkFonts: values["skip-cjk-fonts"] ?? false,
       ...(values.title !== undefined ? { title: values.title } : {}),
@@ -514,6 +638,7 @@ export async function exportCommand(args: string[], io: CliIO): Promise<number> 
           ? "CJK handwriting font: left out (--skip-cjk-fonts); Chinese, Japanese and Korean text draws with a system font\n"
           : `CJK handwriting font: ${cjkFonts.written} of ${cjkFonts.total} file(s), for the characters the boards use\n`) +
       `Artifact publish batches (at most ${ARTIFACT_LIMITS.filesPerPublish} files and ${megabytes(ARTIFACT_LIMITS.bytesPerPublish)} each): ${summary.batches.join(", ")}\n` +
+      (summary.removal === undefined ? "" : removalLines(summary.removal, summary.batches)) +
       `sources checked ${stamp.checkedAt}${stamp.commit ? ` at commit ${stamp.commit}${stamp.dirty ? " with uncommitted changes" : ""}` : " (not a git repository)"}\n`,
   );
   return EXIT.ok;
