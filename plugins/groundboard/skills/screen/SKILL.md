@@ -92,6 +92,28 @@ elements other boards may point at: actions, key fields. An element that calls a
 state (a `calls` or `transition` edge) always gets one: without a ref no flow can point at it, and
 `atlas check` warns about it.
 
+### 3L. Shared layout: header, footer, sidebar
+
+Find the layout that wraps the screen: the layout route it sits under (`<Route element={<AppLayout />}>`,
+`_authenticated.tsx`, `app/(admin)/layout.tsx`) or the layout component its page renders. When
+that layout draws controls of its own (Log out, Switch role, the menu links, Privacy policy):
+
+1. If `.groundboard/<platform>--<layout-slug>.board.json` does not exist yet, draw it first, as
+   this skill draws a screen: one `screen` node with `"layout": true`, a ref such as `web:layout`
+   (one per layout: `web:layout-admin`, `web:layout-office`), `layoutFrom` and a source citing
+   the layout component; its elements with refs `web:layout/header-logout`, their handlers and
+   their `calls`, `navigates` and `enqueues` edges. Do not add it to the overview.
+2. On the screen node, list it: `"layouts": ["web:layout"]` (several when layouts nest).
+3. Draw the layout's controls on this screen too, so the wireframe stays whole, but give each the
+   layout's ref (`web:layout/header-logout`), never a ref under the screen's own. Keep their
+   handlers and edges as the layout board has them. The screen's own elements keep refs under
+   the screen's ref.
+
+An existing screen board whose header elements carry per-screen refs (`web:cart/header-logout`)
+moves to the layout's refs on its next update: add `layouts`, change each shared element's
+`ref` and keep its `id`. Say in the report which refs changed, since flows that pointed at the
+old per-screen refs must follow.
+
 ### 3S. Decide whether the screen has states
 
 Read how the screen's component returns its markup before drawing it. Draw **one state frame
@@ -168,7 +190,8 @@ guide says, or take it from the resource's board when `/groundboard:api` has dra
 ### 5U. Update: the code has arrived
 
 1. Copy the atlas first: `cp -R .groundboard .groundboard-baseline`.
-2. Keep every element's and state's `id`, every `ref` and the order, and the screen's `layoutFrom` unless the user
+2. Keep every element's and state's `id`, every `ref` (except a move to a shared layout's ref,
+   step 3L) and the order, and the screen's `layoutFrom` unless the user
    asks to redraw it from code. Keep every Figma source of an element; on a board drawn from
    Figma before elements cited their layers, add each element's layer source (step 3) without
    changing any id.
