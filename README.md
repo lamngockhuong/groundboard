@@ -366,8 +366,11 @@ python3 -m http.server -d site 8000               # or any static host: GitHub P
 | `--skip-cjk-fonts`  | Leave out the whole Chinese, Japanese and Korean handwriting font; such text uses a system font.   |
 
 The handwriting font for Chinese, Japanese and Korean comes in 209 files, each covering a range
-of characters. `export` writes only the files that cover characters the exported boards use:
-none for an atlas without such text, about 70 for 75 Japanese boards.
+of characters. `export` writes only the files that cover characters in the exported boards and
+their layout overlays: none for an atlas without such text, about 70 for 75 Japanese boards.
+A reader's edits and notes on the exported page stay in that browser (until downloaded as a
+zip) and never reach the published files, so Chinese, Japanese or Korean characters typed there
+that no board used may show in a system font.
 
 An atlas directory that is a symlink, such as `.groundboard` in a git worktree linked to the main
 checkout's, is read where it points; the cited sources are still checked against `--root`.

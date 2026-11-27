@@ -59,7 +59,10 @@ the current directory. Exit code 2 is a bad argument (fix it and run again), 1 a
   and ask whether to go on. The page shows them as well.
 - A board exported without its Figma images because it was too large: tell the user.
 - The `CJK handwriting font` line: `export` writes only the parts of the Chinese, Japanese and
-  Korean handwriting font that the boards' characters need, none for an atlas without them.
+  Korean handwriting font that cover characters in the boards and their overlays, none for an
+  atlas without them. A reader's edits and notes on the published page stay in their own
+  browser and are never published, so Chinese, Japanese or Korean characters a reader types
+  there that no board used may show in a system font.
 - A warning that the export does not fit one Artifact (more than 511 files or 256 MB): stop,
   tell the user which limit it passes, and offer what fixes that limit, then export again into
   a new directory:
