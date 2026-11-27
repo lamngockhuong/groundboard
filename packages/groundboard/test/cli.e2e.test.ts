@@ -6,8 +6,10 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -169,6 +171,51 @@ describe("groundboard CLI", () => {
     }
     // A second export into the same, now full, directory is refused.
     expect(run(["export", "--root", "examples/fixtures", "--out", out]).status).toBe(2);
+  });
+
+  test("export from a worktree whose .groundboard is a symlink: only the CJK fonts the text uses", () => {
+    const main = path.join(tmp, "main-checkout");
+    const atlas = path.join(main, ".groundboard");
+    cpSync(path.join(repoRoot, "examples/fixtures/.groundboard"), atlas, { recursive: true });
+    const board = path.join(atlas, "web--checkout.board.json");
+    writeFileSync(
+      board,
+      readFileSync(board, "utf8").replace(/"title": "([^"]*)"/, '"title": "$1 お支払い"'),
+    );
+    const worktree = path.join(tmp, "worktree");
+    mkdirSync(worktree);
+    symlinkSync(atlas, path.join(worktree, ".groundboard"));
+
+    const out = path.join(tmp, "export-symlink");
+    const result = run(
+      ["export", "--out", out, "--title", "Shop screen atlas"],
+      undefined,
+      worktree,
+    );
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("exported 8 board(s)");
+    expect(readFileSync(path.join(out, "index.html"), "utf8")).toContain(
+      "<title>Shop screen atlas</title>",
+    );
+    const fonts = readdirSync(path.join(out, "fonts", "Xiaolai"));
+    const ranges = JSON.parse(
+      readFileSync(path.join(packageDir, "dist", "web", "fonts", "xiaolai-ranges.json"), "utf8"),
+    );
+    expect(fonts.length).toBeGreaterThan(0);
+    expect(fonts.length).toBeLessThan(Object.keys(ranges).length);
+    expect(result.stdout).toContain(
+      `CJK handwriting font: ${fonts.length} of ${Object.keys(ranges).length} file(s)`,
+    );
+    expect(existsSync(path.join(out, "fonts", "xiaolai-ranges.json"))).toBe(false);
+    // The batches, in order, list every manifest path but index.html, 250 at most each.
+    const manifest = readFileSync(path.join(out, "manifest.txt"), "utf8").trim().split("\n");
+    const batches = readdirSync(out)
+      .filter((f) => f.startsWith("publish-batch-"))
+      .sort((a, b) => Number.parseInt(a.slice(14), 10) - Number.parseInt(b.slice(14), 10))
+      .map((f) => JSON.parse(readFileSync(path.join(out, f), "utf8")) as { path: string }[]);
+    expect(batches.length).toBe(Math.ceil((manifest.length - 1) / 250));
+    for (const batch of batches) expect(batch.length).toBeLessThanOrEqual(250);
+    expect(batches.flat().map((f) => f.path)).toEqual(manifest.filter((p) => p !== "index.html"));
   });
 
   test("reads the board from stdin", () => {

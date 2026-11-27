@@ -361,8 +361,16 @@ python3 -m http.server -d site 8000               # or any static host: GitHub P
 | ------------------- | -------------------------------------------------------------------------------------------------- |
 | `--out <dir>`       | Required. Must be empty or not exist, and neither inside the atlas directory nor around it.        |
 | `--root`, `--atlas-dir` | As for `atlas check` and `serve --atlas`.                                                      |
+| `--title <text>`    | Title of the page, in the browser tab and an Artifact gallery (default `groundboard`).             |
 | `--no-references`   | Leave the cached Figma images out of the boards (they are in by default, as with `serve`).         |
-| `--skip-cjk-fonts`  | Leave out the Chinese, Japanese and Korean handwriting font, about half the files.                 |
+| `--skip-cjk-fonts`  | Leave out the whole Chinese, Japanese and Korean handwriting font; such text uses a system font.   |
+
+The handwriting font for Chinese, Japanese and Korean comes in 209 files, each covering a range
+of characters. `export` writes only the files that cover characters the exported boards use:
+none for an atlas without such text, about 70 for 75 Japanese boards.
+
+An atlas directory that is a symlink, such as `.groundboard` in a git worktree linked to the main
+checkout's, is read where it points; the cited sources are still checked against `--root`.
 
 The pages are a snapshot: the atlas home and every board say when the sources were checked,
 at which commit, and whether the working tree had uncommitted changes. Stale and invalid
@@ -378,9 +386,10 @@ From Claude Code, `/groundboard:publish` runs the export and posts it as a priva
 Figma images may leave the machine. It keeps the Artifact's URL in `.groundboard/publish.json`;
 commit that file so the next publish, by anyone, updates the same link. Others see the page
 once you share it from the Artifact's Share menu, and a link ending in `#<board-name>` opens
-that board. An Artifact holds at most 511 files and 256 MB, and takes at most 255 files per
-publish, so the skill posts larger exports in several calls; `export` says when an export
-needs that, or does not fit at all.
+that board. An Artifact holds at most 511 files and 256 MB, and takes at most 255 files and 64 MB
+per publish, so `export` also writes `publish-batch-<n>.json`, the files to send in each publish
+call (at most 250 files and 60 MB, leaving room for the page), and warns when an export does not
+fit one Artifact at all.
 
 ## Docker
 
