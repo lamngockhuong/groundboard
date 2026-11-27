@@ -6,6 +6,7 @@ import {
   boardClaims,
   boardKindOf,
   countGrounding,
+  type ElementRole,
   type Grounding,
   type Issue,
   isCheckable,
@@ -95,8 +96,14 @@ export interface AtlasPlace {
 
 export interface AtlasRef {
   ref: string;
-  /** `layout` marks a screen drawn as a shared layout (`layout: true`). */
-  definedIn: Array<AtlasPlace & { kind: NodeKind; layout?: true }>;
+  /**
+   * `label` is the text the defining node shows and `role` what an element is drawn as, so a
+   * reader can name the control without knowing its ref. `layout` marks a screen drawn as a
+   * shared layout (`layout: true`).
+   */
+  definedIn: Array<
+    AtlasPlace & { kind: NodeKind; label?: string; role?: ElementRole; layout?: true }
+  >;
   /**
    * Nodes that carry the ref without defining it (an element of a shared layout among them),
    * `toRef` edges (their `from` node), and screens that list the ref in `layouts` (`asLayout`).
@@ -322,6 +329,8 @@ export async function buildAtlas(
         slug,
         nodeId: place.nodeId,
         kind: place.kind as NodeKind,
+        ...(place.label !== undefined ? { label: place.label } : {}),
+        ...(place.role !== undefined ? { role: place.role } : {}),
         ...(place.layout ? { layout: true as const } : {}),
       });
       if (place.needsFlow) refEntry(place.ref).needsFlow = true;

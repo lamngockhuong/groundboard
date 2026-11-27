@@ -143,7 +143,11 @@ describe("buildAtlas", () => {
     const pay = atlas.refs.find((r) => r.ref === "web:checkout/pay-button");
     expect(pay).toEqual({
       ref: "web:checkout/pay-button",
-      definedIn: [{ slug: "web--checkout", nodeId: "pay", kind: "element" }],
+      // The definition names the control as a reader sees it; a flow step that points at it
+      // carries neither.
+      definedIn: [
+        { slug: "web--checkout", nodeId: "pay", kind: "element", label: "Pay", role: "button" },
+      ],
       usedIn: [{ slug: "place-order", nodeId: "click" }],
     });
     // A screen defined on the overview and on its own board is not a duplicate.
@@ -627,12 +631,14 @@ describe("shared layouts", () => {
     const atlas = await buildAtlas(dir, root);
     expect(layoutProblems(atlas.problems)).toEqual([]);
     const entry = atlas.refs.find((r) => r.ref === "web:layout/header-logout");
-    expect(entry?.definedIn).toEqual([{ slug: "web--layout", nodeId: "logout", kind: "element" }]);
+    expect(entry?.definedIn).toEqual([
+      { slug: "web--layout", nodeId: "logout", kind: "element", label: "Log out", role: "button" },
+    ]);
     expect(entry?.usedIn.map((u) => u.slug)).toEqual(["web--cart", "web--checkout"]);
     expect(entry?.needsFlow).toBe(true);
     const layout = atlas.refs.find((r) => r.ref === "web:layout");
     expect(layout?.definedIn).toEqual([
-      { slug: "web--layout", nodeId: "layout", kind: "screen", layout: true },
+      { slug: "web--layout", nodeId: "layout", kind: "screen", label: "layout", layout: true },
     ]);
     expect(layout?.usedIn).toEqual([
       { slug: "web--cart", nodeId: "cart", asLayout: true },

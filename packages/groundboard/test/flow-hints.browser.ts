@@ -1,10 +1,19 @@
 // Missing-flow hints in the built viewer: marks on the elements that call an API or change state
 // with no flow yet, the "No flow yet" line with its request to copy in the source panel, the
 // Layers entry that hides the marks, and the count with its list on the atlas home (one closed
-// group per screen board, open when it is the only one). Checked on `groundboard serve` and on a
+// group per screen board, open when it is the only one; each element named by its role and
+// label, its short ref after them, or by the ref alone in an index without labels). Checked on `groundboard serve` and on a
 // static `groundboard export`. Needs `pnpm -r build` and
 // `pnpm exec playwright install --only-shell chromium` first.
-import { cpSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -29,6 +38,8 @@ const SCREEN = "web--users-upload";
 const MISSING = 8;
 const IMPORT_NODE = "confirm-import";
 const IMPORT_REF = "web:users-upload/import";
+/** The list line's accessible name: the role tag, the button's text, then its short ref. */
+const IMPORT_NAME = "Button Import import";
 
 interface Running {
   origin: string;
@@ -117,6 +128,8 @@ interface Seen {
   homeCount: string;
   groupsOpen: number;
   listedLabel: string;
+  listedRole: string;
+  listedRef: string;
   listedTitle: string | null;
   listedUrl: string;
   errors: string[];
@@ -170,8 +183,12 @@ async function walk(origin: string): Promise<Seen> {
     await page.locator(".missing-flows[open]").waitFor();
     // The only screen board with missing flows: its group starts open.
     const groupsOpen = await page.locator(".missing-flows-board[open]").count();
-    const listed = page.locator(".missing-flows").getByRole("link", { name: IMPORT_REF });
-    const listedLabel = (await listed.textContent()) ?? "";
+    const listed = page
+      .locator(".missing-flows")
+      .getByRole("link", { name: IMPORT_NAME, exact: true });
+    const listedLabel = (await listed.locator(".missing-flows-label").textContent()) ?? "";
+    const listedRole = (await listed.locator(".missing-flows-role").textContent()) ?? "";
+    const listedRef = (await listed.locator(".missing-flows-ref").textContent()) ?? "";
     const listedTitle = await listed.getAttribute("title");
     await listed.click();
     await waitForBoard(page);
@@ -186,6 +203,8 @@ async function walk(origin: string): Promise<Seen> {
       homeCount,
       groupsOpen,
       listedLabel,
+      listedRole,
+      listedRef,
       listedTitle,
       listedUrl,
       errors,
@@ -202,9 +221,11 @@ function expectHints(seen: Seen) {
     marksPresenting: 0,
     homeCount: String(MISSING),
     groupsOpen: 1,
-    // The group names the screen, so the line shows the element part; the full ref stays in
-    // the link's title and accessible name.
-    listedLabel: "import",
+    // The line names the button as a reader sees it; the ref follows without the screen part
+    // the group already names, and the full ref stays in the link's title.
+    listedLabel: "Import",
+    listedRole: "Button",
+    listedRef: "import",
     listedTitle: IMPORT_REF,
     errors: [],
   });
@@ -306,7 +327,7 @@ describe("missing-flow hints", () => {
         has: page.locator(".missing-flows-open[href$='#/board/web--users-upload']"),
       });
       expect(await upload.locator("summary .count").textContent()).toBe(String(MISSING));
-      const listed = upload.getByRole("link", { name: IMPORT_REF });
+      const listed = upload.getByRole("link", { name: IMPORT_NAME, exact: true });
       expect(await listed.isVisible()).toBe(false);
 
       // The board link works while the group is closed.
@@ -315,7 +336,8 @@ describe("missing-flow hints", () => {
 
       await upload.locator("summary").click();
       await listed.waitFor();
-      expect(await listed.textContent()).toBe("import");
+      expect(await listed.locator(".missing-flows-label").textContent()).toBe("Import");
+      expect(await listed.locator(".missing-flows-ref").textContent()).toBe("import");
       expect(await listed.getAttribute("title")).toBe(IMPORT_REF);
       const layout = page.locator(".missing-flows-group").filter({
         has: page.locator(".missing-flows-open[href$='#/board/web--layout']"),
@@ -330,6 +352,62 @@ describe("missing-flow hints", () => {
       await context.close();
       await server.close();
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test("fall back to the ref on an older export, and wrap a long label on a phone", async () => {
+    // A copy of the export whose index carries no label or role, as one written before they
+    // were carried, except for the Import button, which gets a label too long for one line.
+    const older = realpathSync(mkdtempSync(path.join(tmpdir(), "groundboard-flow-older-")));
+    cpSync(exported, older, { recursive: true });
+    const file = path.join(older, "data", "atlas.json");
+    const index = JSON.parse(readFileSync(file, "utf8")) as {
+      refs: Array<{ ref: string; definedIn: Array<Record<string, unknown>> }>;
+    };
+    const long = `Import every user listed in the uploaded file ${"and notify them ".repeat(6)}`;
+    for (const entry of index.refs) {
+      for (const place of entry.definedIn) {
+        delete place.label;
+        delete place.role;
+        if (entry.ref === IMPORT_REF) place.label = long;
+      }
+    }
+    writeFileSync(file, JSON.stringify(index));
+    const server = await startStatic(older);
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => localStorage.setItem("groundboard.locale", "en"));
+      await page.goto(`${server.origin}/#/`);
+      const stat = page.locator(".stat-button");
+      await stat.waitFor({ timeout: 10_000 });
+      expect(await stat.locator(".stat-value").textContent()).toBe(String(MISSING));
+      await stat.click();
+      await page.locator(".missing-flows[open]").waitFor();
+
+      const pick = page.locator(".missing-flows li a[href$='node=pick']");
+      expect(await pick.locator(".missing-flows-label").textContent()).toBe("choose-file");
+      expect(await pick.locator(".missing-flows-role").count()).toBe(0);
+      expect(await pick.locator(".missing-flows-ref").count()).toBe(0);
+      expect(await pick.getAttribute("title")).toBe("web:users-upload/choose-file");
+
+      const item = page.getByRole("link", { name: `${long.trim()} import`, exact: true });
+      const box = await item.locator(".missing-flows-label").boundingBox();
+      const line = await page.locator(".missing-flows-ref").first().boundingBox();
+      // The label wraps over several lines rather than pushing the page sideways.
+      expect(box?.height ?? 0).toBeGreaterThan((line?.height ?? 0) * 2);
+      expect(await page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")).toBe(
+        true,
+      );
+
+      await pick.click();
+      await waitForBoard(page);
+      expect(page.url()).toContain(`?node=pick`);
+      await page.locator(".source-panel .flow-hint").waitFor({ timeout: 10_000 });
+    } finally {
+      await context.close();
+      await server.close();
+      rmSync(older, { recursive: true, force: true });
     }
   });
 

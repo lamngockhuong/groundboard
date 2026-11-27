@@ -38,6 +38,7 @@ describe("links across boards in the library", () => {
     expect(boardDefiningRef(buildLibraryIndex(entries), ref as string)).toEqual({
       slug: "api--orders",
       nodeId: "create-order",
+      label: "Place an order",
     });
   });
 
@@ -52,6 +53,7 @@ describe("links across boards in the library", () => {
     expect(boardDefiningRef(buildLibraryIndex(entries), ref as string)).toEqual({
       slug: "overview-db",
       nodeId: "orders",
+      label: "orders",
     });
   });
 
@@ -85,14 +87,17 @@ describe("links across boards in the library", () => {
     expect(await follow("web--checkout", "pay-orders")).toEqual({
       slug: "api--orders",
       nodeId: "create-order",
+      label: "Place an order",
     });
     expect(await follow("api--orders", "create-writes")).toEqual({
       slug: "overview-db",
       nodeId: "orders",
+      label: "orders",
     });
     expect(await follow("api--orders", "create-enqueues")).toEqual({
       slug: "overview-batch",
       nodeId: "send-receipt",
+      label: "Send the receipt",
     });
   });
 

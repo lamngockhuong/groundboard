@@ -3247,12 +3247,44 @@ dialog::backdrop {
 }
 
 .missing-flows-group ul {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.75rem;
+  display: grid;
+  gap: 0.3rem;
   margin: 0.45rem 0 0.15rem;
   padding: 0 0 0 1.05rem;
   list-style: none;
+}
+
+/*
+ * One element per line: its role, the text it shows, then its ref, muted. The line flows as
+ * text, so a long label wraps beside its role tag. Only the label is underlined.
+ */
+.missing-flows-item {
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.missing-flows-role {
+  display: inline-block;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.missing-flows-label {
+  text-decoration: underline;
+}
+
+.missing-flows-item:hover .missing-flows-label {
+  text-decoration-thickness: 2px;
+}
+
+.missing-flows-ref {
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .attention-clear {

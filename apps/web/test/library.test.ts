@@ -113,11 +113,23 @@ describe("missing flows in the library index", () => {
       {
         slug: "web--layout",
         title: "Shared layout",
-        items: [{ ref: "web:layout/header-logout", nodeId: "logout", label: "header-logout" }],
+        items: [
+          {
+            ref: "web:layout/header-logout",
+            nodeId: "logout",
+            shortRef: "header-logout",
+            label: "Log out",
+            role: "button",
+          },
+        ],
       },
     ]);
     const entry = index.refs.find((r) => r.ref === "web:layout/header-logout");
-    expect(entry?.definedIn).toEqual([{ slug: "web--layout", nodeId: "logout" }]);
+    // The definition carries what the button shows; the screens' copies only point at it.
+    expect(entry?.definedIn).toEqual([
+      { slug: "web--layout", nodeId: "logout", label: "Log out", role: "button" },
+    ]);
+    expect(entry?.usedIn.every((u) => u.label === undefined && u.role === undefined)).toBe(true);
     expect(entry?.usedIn.map((u) => u.slug)).toEqual(["web--cart", "web--orders"]);
   });
 

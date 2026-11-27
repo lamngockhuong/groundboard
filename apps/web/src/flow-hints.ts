@@ -1,5 +1,5 @@
-import { missingFlowRefs, parseRef } from "@groundboard/schema";
-import type { AtlasIndex } from "./api.ts";
+import { type ElementRole, missingFlowRefs, parseRef } from "@groundboard/schema";
+import type { AtlasIndex, AtlasPlace } from "./api.ts";
 import { orderedBoards } from "./atlas-nav.ts";
 import { t } from "./i18n.ts";
 
@@ -26,12 +26,22 @@ export function missingFlowSet(atlas: AtlasIndex | null): ReadonlySet<string> {
 export interface MissingFlowGroup {
   slug: string;
   title: string;
+  items: MissingFlowItem[];
+}
+
+/** One element with no flow yet, as the atlas home lists it. */
+export interface MissingFlowItem {
+  ref: string;
+  nodeId: string;
   /**
-   * Each element's ref, its node on the board, and the label the list shows: the ref without
-   * the screen part the group already names (`import` for `web:upload/import` under
-   * `web--upload`), or the full ref when it belongs to another screen.
+   * The ref without the screen part the group already names (`import` for `web:upload/import`
+   * under `web--upload`), or the full ref when it belongs to another screen.
    */
-  items: Array<{ ref: string; nodeId: string; label: string }>;
+  shortRef: string;
+  /** The text the element shows, when the index carries it. */
+  label?: string;
+  /** What the element is drawn as, when the index carries it. */
+  role?: ElementRole;
 }
 
 /** The screen ref a screen board defines (`web:upload` on `web--upload`), when it has one. */
@@ -74,27 +84,31 @@ export function missingFlowPlaces(atlas: AtlasIndex | null): MissingFlowGroup[] 
   const screens = new Set(
     atlas.boards.filter((b) => b.kind === "screen" && b.status !== "invalid").map((b) => b.slug),
   );
-  const bySlug = new Map<string, Array<{ ref: string; nodeId: string }>>();
+  const bySlug = new Map<string, Array<{ ref: string; place: AtlasPlace }>>();
   for (const entry of atlas.refs) {
     if (!missing.has(entry.ref)) continue;
     const place = entry.definedIn.find((p) => screens.has(p.slug));
     if (place === undefined) continue;
     const items = bySlug.get(place.slug) ?? [];
-    items.push({ ref: entry.ref, nodeId: place.nodeId });
+    items.push({ ref: entry.ref, place });
     bySlug.set(place.slug, items);
   }
   return orderedBoards(atlas).flatMap((board) => {
     const items = bySlug.get(board.slug);
     if (!items) return [];
     const prefix = groupPrefix(atlas, board.slug, items);
-    const labelled = items.map((item) => ({
-      ...item,
-      label:
-        prefix !== undefined && item.ref.startsWith(`${prefix}/`)
-          ? item.ref.slice(prefix.length + 1)
-          : item.ref,
-    }));
-    return [{ slug: board.slug, title: board.title, items: labelled }];
+    const listed = items.map(({ ref, place }): MissingFlowItem => {
+      const label = place.label?.replace(/\s+/g, " ").trim();
+      return {
+        ref,
+        nodeId: place.nodeId,
+        shortRef:
+          prefix !== undefined && ref.startsWith(`${prefix}/`) ? ref.slice(prefix.length + 1) : ref,
+        ...(label ? { label } : {}),
+        ...(place.role !== undefined ? { role: place.role } : {}),
+      };
+    });
+    return [{ slug: board.slug, title: board.title, items: listed }];
   });
 }
 

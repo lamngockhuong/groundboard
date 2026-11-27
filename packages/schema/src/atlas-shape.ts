@@ -1,4 +1,4 @@
-import type { Board, BoardEdge, BoardNode, NodeKind } from "./board.ts";
+import type { Board, BoardEdge, BoardNode, ElementRole, NodeKind } from "./board.ts";
 import { FLOW_EDGE_KINDS } from "./edges.ts";
 import { parseRef, type RefNamespace, rootRefOf } from "./ref.ts";
 import { familyOf, stateRoots } from "./states.ts";
@@ -62,6 +62,14 @@ export interface RefPlace {
   edgeId?: string;
   /** The kind of the node that defines the ref, for a definition. */
   kind?: NodeKind;
+  /**
+   * For a definition: the text the defining node shows (a button's caption), so a reader who
+   * does not know the ref can tell which control it is. Not set on refs a node derives, such as
+   * a table's columns.
+   */
+  label?: string;
+  /** For the definition of an element that has one: what it is drawn as (button, link, ...). */
+  role?: ElementRole;
   /** On an element: it calls an API or changes state, so a flow should cover its ref. */
   needsFlow?: true;
   /** On the definition of a screen marked `layout: true`. */
@@ -128,6 +136,8 @@ export function refsOf(board: Pick<Board, "nodes" | "edges">): {
       if (node.kind === "element" && sources.has(node.id)) place.needsFlow = true;
       if (definesRef(node) && !pointers.has(node.id)) {
         place.kind = node.kind;
+        if (node.label !== undefined) place.label = node.label;
+        if (node.role !== undefined) place.role = node.role;
         if (node.kind === "screen" && node.layout === true) place.layout = true;
         defined.push(place);
       } else used.push(place);

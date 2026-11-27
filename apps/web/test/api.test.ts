@@ -286,6 +286,50 @@ describe("needsFlow", () => {
   });
 });
 
+describe("label and role of a place", () => {
+  it("keeps a label and a known role, and loads an index written without them", () => {
+    const index = toAtlas({
+      boards: [],
+      refs: [
+        {
+          ref: "web:layout-header/header-logout",
+          definedIn: [
+            {
+              slug: "web--layout-header",
+              nodeId: "logout",
+              label: "ログアウト (Đăng xuất)",
+              role: "button",
+            },
+          ],
+          usedIn: [],
+        },
+        {
+          ref: "web:a/b",
+          definedIn: [
+            { slug: "web--a", nodeId: "b", label: 3, role: "slider" },
+            { slug: "web--a", nodeId: "c", label: "   " },
+            { slug: "web--a", nodeId: "d" },
+          ],
+          usedIn: [],
+        },
+      ],
+    });
+    expect(index?.refs[0]?.definedIn).toEqual([
+      {
+        slug: "web--layout-header",
+        nodeId: "logout",
+        label: "ログアウト (Đăng xuất)",
+        role: "button",
+      },
+    ]);
+    expect(index?.refs[1]?.definedIn).toEqual([
+      { slug: "web--a", nodeId: "b" },
+      { slug: "web--a", nodeId: "c" },
+      { slug: "web--a", nodeId: "d" },
+    ]);
+  });
+});
+
 describe("export stamp", () => {
   const stamp = {
     checkedAt: "2026-11-20T07:00:00.000Z",

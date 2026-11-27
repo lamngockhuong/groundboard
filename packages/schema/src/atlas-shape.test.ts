@@ -72,6 +72,45 @@ describe("refsOf needsFlow", () => {
   });
 });
 
+describe("refsOf label and role", () => {
+  const labelled = board(
+    [
+      { id: "cart", kind: "screen", ref: "web:cart", label: "Cart" },
+      { id: "pay", kind: "element", ref: "web:cart/pay", label: "Pay now", role: "button" },
+      { id: "note", kind: "element", ref: "web:cart/note", label: "Delivery note" },
+      { id: "orders", kind: "table", ref: "db:orders", label: "orders", columns: [{ name: "id" }] },
+      { id: "click", kind: "step", ref: "web:cart/pay", label: "Press Pay" },
+    ],
+    [{ id: "e1", kind: "calls", from: "pay", toRef: "api:orders/create", label: "POST" }],
+  );
+  const { defined, used } = refsOf(labelled);
+  const at = (ref: string) => defined.find((d) => d.ref === ref);
+
+  test("a definition carries the text its node shows, and an element's role", () => {
+    expect(at("web:cart")).toMatchObject({ label: "Cart" });
+    expect(at("web:cart")).not.toHaveProperty("role");
+    expect(at("web:cart/pay")).toMatchObject({ label: "Pay now", role: "button" });
+  });
+
+  test("an element without a role carries its label alone", () => {
+    expect(at("web:cart/note")).toMatchObject({ label: "Delivery note" });
+    expect(at("web:cart/note")).not.toHaveProperty("role");
+  });
+
+  test("a derived column ref and every use carry neither", () => {
+    expect(at("db:orders")).toMatchObject({ label: "orders" });
+    expect(at("db:orders/id")).toEqual({ ref: "db:orders/id", nodeId: "orders", kind: "table" });
+    for (const place of used) {
+      expect(place).not.toHaveProperty("label");
+      expect(place).not.toHaveProperty("role");
+    }
+  });
+
+  test("a node without a label defines a ref without one", () => {
+    expect(refsOf(screenBoard).defined.some((d) => "label" in d)).toBe(false);
+  });
+});
+
 describe("unlinkedFlowElements", () => {
   test("lists elements without a ref that call or change state, in board order", () => {
     const b = board(

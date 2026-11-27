@@ -180,12 +180,28 @@ function MissingFlows({
             <ul>
               {group.items.map((item) => (
                 <li key={item.ref}>
+                  {/* The whole line is the link, so its name reads role, label and ref in the
+                      order they show, and two buttons both labelled Cancel stay apart. */}
                   <a
+                    className="missing-flows-item"
                     href={formatRoute({ view: "board", slug: group.slug, node: item.nodeId })}
                     title={item.ref}
-                    aria-label={item.ref}
                   >
-                    <code>{item.label}</code>
+                    {item.role ? (
+                      <>
+                        <span className="missing-flows-role">
+                          {t(`elementRole.${item.role}`)}
+                        </span>{" "}
+                      </>
+                    ) : null}
+                    {item.label ? (
+                      <>
+                        <span className="missing-flows-label">{item.label}</span>{" "}
+                        <code className="missing-flows-ref">{item.shortRef}</code>
+                      </>
+                    ) : (
+                      <code className="missing-flows-label">{item.shortRef}</code>
+                    )}
                   </a>
                 </li>
               ))}

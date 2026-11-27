@@ -122,7 +122,12 @@ export function buildLibraryIndex(entries: readonly LibraryEntry[]): AtlasIndex 
     kinds.set(slug, boardKindOf(board));
     const { defined, used } = refsOf(board);
     for (const place of defined) {
-      refEntry(place.ref).definedIn.push({ slug, nodeId: place.nodeId });
+      refEntry(place.ref).definedIn.push({
+        slug,
+        nodeId: place.nodeId,
+        ...(place.label !== undefined ? { label: place.label } : {}),
+        ...(place.role !== undefined ? { role: place.role } : {}),
+      });
       definerKinds.set(`${place.ref} ${slug} ${place.nodeId}`, place.kind);
       if (place.layout) layoutDefs.add(`${place.ref} ${slug} ${place.nodeId}`);
       if (place.needsFlow) refEntry(place.ref).needsFlow = true;

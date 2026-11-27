@@ -174,19 +174,19 @@ describe("missingFlowPlaces", () => {
         slug: "web--upload",
         title: "web--upload",
         items: [
-          { ref: "web:upload/import", nodeId: "import", label: "import" },
-          { ref: "web:upload/pick", nodeId: "pick", label: "pick" },
+          { ref: "web:upload/import", nodeId: "import", shortRef: "import" },
+          { ref: "web:upload/pick", nodeId: "pick", shortRef: "pick" },
         ],
       },
       {
         slug: "web--cart",
         title: "web--cart",
-        items: [{ ref: "web:cart/pay", nodeId: "pay", label: "pay" }],
+        items: [{ ref: "web:cart/pay", nodeId: "pay", shortRef: "pay" }],
       },
     ]);
   });
 
-  it("labels each element without the screen ref its board defines, and keeps any other ref whole", () => {
+  it("shortens each ref by the screen ref its board defines, and keeps any other ref whole", () => {
     // A layout board defines `web:layout`; one of its elements carries the ref of another
     // screen, which the list shows in full rather than cut to a misleading tail.
     const layout = {
@@ -199,8 +199,8 @@ describe("missingFlowPlaces", () => {
       problems: [],
     } as unknown as AtlasIndex;
     expect(missingFlowPlaces(layout)[0]?.items).toEqual([
-      { ref: "web:layout/header-logout", nodeId: "logout", label: "header-logout" },
-      { ref: "web:other/stray", nodeId: "stray", label: "web:other/stray" },
+      { ref: "web:layout/header-logout", nodeId: "logout", shortRef: "header-logout" },
+      { ref: "web:other/stray", nodeId: "stray", shortRef: "web:other/stray" },
     ]);
   });
 
@@ -210,9 +210,52 @@ describe("missingFlowPlaces", () => {
       refs: [ref("web:a/one", "web--mixed", "one"), ref("web:b/two", "web--mixed", "two")],
       problems: [],
     } as unknown as AtlasIndex;
-    expect(missingFlowPlaces(mixed)[0]?.items.map((i) => i.label)).toEqual([
+    expect(missingFlowPlaces(mixed)[0]?.items.map((i) => i.shortRef)).toEqual([
       "web:a/one",
       "web:b/two",
+    ]);
+  });
+
+  it("carries the text and role each element shows, and leaves them out where the index has none", () => {
+    const labelled = {
+      boards: [board("web--layout", "screen")],
+      refs: [
+        { ref: "web:layout", definedIn: [{ slug: "web--layout", nodeId: "root" }], usedIn: [] },
+        {
+          ref: "web:layout/header-logout",
+          definedIn: [
+            {
+              slug: "web--layout",
+              nodeId: "logout",
+              label: "ログアウト\n (Đăng xuất)",
+              role: "button",
+            },
+          ],
+          usedIn: [],
+          needsFlow: true,
+        },
+        // An index written before labels were carried.
+        ref("web:layout/footer-help", "web--layout", "help"),
+        // Only blanks, as a hand-edited index might hold.
+        {
+          ref: "web:layout/footer-terms",
+          definedIn: [{ slug: "web--layout", nodeId: "terms", label: "  " }],
+          usedIn: [],
+          needsFlow: true,
+        },
+      ],
+      problems: [],
+    } as unknown as AtlasIndex;
+    expect(missingFlowPlaces(labelled)[0]?.items).toEqual([
+      {
+        ref: "web:layout/header-logout",
+        nodeId: "logout",
+        shortRef: "header-logout",
+        label: "ログアウト (Đăng xuất)",
+        role: "button",
+      },
+      { ref: "web:layout/footer-help", nodeId: "help", shortRef: "footer-help" },
+      { ref: "web:layout/footer-terms", nodeId: "terms", shortRef: "footer-terms" },
     ]);
   });
 
