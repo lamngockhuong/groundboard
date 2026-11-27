@@ -303,3 +303,38 @@ describe("lintBoardText on secrets", () => {
     expect(warn(`key ${body(40)}`)[0]).toContain("an access token");
   });
 });
+
+describe("lintBoardText on long text", () => {
+  // Shapes that made a pattern rescan a long run from every start position. Built at runtime.
+  const N = 40_000;
+  const rep = (unit: string) => unit.repeat(Math.ceil(N / unit.length)).slice(0, N);
+  test.each([
+    ["letters", rep("a")],
+    ["digits", rep("1")],
+    ["dashes", rep("-")],
+    ["digit and dash runs", rep("1-")],
+    ["word characters with underscores", rep("ab_")],
+    ["a repeated AWS prefix", rep("AKIA")],
+    ["a repeated GitHub prefix", rep(["gh", "p_"].join(""))],
+    ["a repeated keyword in one name", rep("token")],
+    ["repeated api-key names", rep("x-api-key-")],
+    ["an assignment chain", rep("a=")],
+    ["repeated scheme separators", rep("a://")],
+    ["repeated at signs", rep("a@b.")],
+  ])("lints %s quickly", (_, label) => {
+    const started = performance.now();
+    lintBoardText(board(label));
+    expect(performance.now() - started).toBeLessThan(200);
+  });
+
+  test("still reads a secret assigned to an api-key name", () => {
+    const value = ["Fake0", "Value1", "Not2"].join("");
+    expect(lintBoardText(board(`x-api-key: "${value}"`))[0]).toContain("a password or secret");
+  });
+
+  test("does not let a plain assignment hide a secret one after it", () => {
+    const value = ["Fake0", "Value1", "Not2"].join("");
+    const label = `mode: process.env.X1private_key: "${value}"`;
+    expect(lintBoardText(board(label))[0]).toContain("a password or secret");
+  });
+});
