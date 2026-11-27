@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { AtlasBoard, AtlasIndex } from "../src/api.ts";
-import { PALETTE_LIMIT, type PaletteGroup, searchPalette } from "../src/palette.ts";
+import {
+  PALETTE_LIMIT,
+  type PaletteGroup,
+  paletteCommands,
+  searchPalette,
+} from "../src/palette.ts";
 import type { BoardNode } from "../src/sources.ts";
 
 const board = (slug: string, title: string, kind: AtlasBoard["kind"] = "screen"): AtlasBoard => ({
@@ -45,7 +50,9 @@ const names = (group: PaletteGroup | undefined) =>
       ? item.board.slug
       : item.type === "node"
         ? item.node.nodeId
-        : item.ref.ref,
+        : item.type === "ref"
+          ? item.ref.ref
+          : item.command.id,
   );
 
 describe("searchPalette", () => {
@@ -88,5 +95,22 @@ describe("searchPalette", () => {
     const [boards] = searchPalette("board", { atlas: { ...atlas, boards: many }, nodes: [] });
     expect(boards?.items).toHaveLength(PALETTE_LIMIT);
     expect(searchPalette("zzz", { atlas, nodes })).toEqual([]);
+  });
+
+  it("offers to open the board on screen beside it, by its title or the word split", () => {
+    const commands = paletteCommands({ boardCount: 4, boardOnScreen: true, twoPanes: true });
+    expect(commands.map((c) => c.id)).toEqual(["openBeside"]);
+    expect(names(searchPalette("beside", { atlas, nodes, commands })[0])).toEqual(["openBeside"]);
+    expect(titles(searchPalette("split", { atlas, nodes, commands }))).toEqual(["Commands"]);
+    // Places come first: an empty query still opens the first board on Enter.
+    expect(titles(searchPalette("", { atlas, nodes, commands })).at(-1)).toBe("Commands");
+  });
+});
+
+describe("paletteCommands", () => {
+  it("has no command to open beside on a narrow screen, with one board, or with none on screen", () => {
+    expect(paletteCommands({ boardCount: 4, boardOnScreen: true, twoPanes: false })).toEqual([]);
+    expect(paletteCommands({ boardCount: 1, boardOnScreen: true, twoPanes: true })).toEqual([]);
+    expect(paletteCommands({ boardCount: 4, boardOnScreen: false, twoPanes: true })).toEqual([]);
   });
 });

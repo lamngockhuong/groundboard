@@ -1,13 +1,14 @@
 import { currentEntry, NAV_LIMIT, type NavEntry, type ViewState } from "./nav-history.ts";
 import { NODE_ID_PATTERN, type Route, SLUG_PATTERN } from "./route.ts";
-import { TAB_LIMIT, type Tab, type TabsState } from "./tabs.ts";
+import { type Group, groupOf, settle, TAB_LIMIT, type Tab, type TabsState } from "./tabs.ts";
 import { readPrefs, type ViewPrefs } from "./view-prefs.ts";
 
 /**
  * The open tabs, kept in `sessionStorage` so a reload brings them back: per browser tab, never
- * in the address. Only what names a place, and how each tab shows its board, is stored, never a
- * rendered board; a pasted board has no place to name and is left out. Anything that does not read back exactly as written
- * is dropped, so a stale or hand-edited value never reaches the server.
+ * in the address. Only what names a place, how each tab shows its board and the group it sits
+ * in are stored, never a rendered board; a pasted board has no place to name and is left out.
+ * Anything that does not read back exactly as written is dropped, so a stale or hand-edited
+ * value never reaches the server. A list stored before there were two groups reads as one.
  */
 
 /** The storage key: one list per atlas, and one for the library kept in this browser. */
@@ -26,8 +27,12 @@ interface StoredTabs {
     preview: boolean;
     history: { entries: NavEntry[]; index: number };
     prefs?: ViewPrefs;
+    /** Absent for the left group. */
+    group?: 1;
   }[];
   activeIndex: number;
+  /** The tab on screen in the other pane, with two groups; absent otherwise. */
+  otherIndex?: number;
 }
 
 export function saveTabs(key: string, state: TabsState): void {
@@ -45,9 +50,12 @@ export function saveTabs(key: string, state: TabsState): void {
         index: tab.history.index,
       },
       ...(tab.prefs ? { prefs: tab.prefs } : {}),
+      ...(groupOf(tab) === 1 ? { group: 1 as const } : {}),
     })),
     activeIndex: tabs.findIndex((tab) => tab.id === state.activeId),
   };
+  const other = tabs.findIndex((tab) => tab.id === state.otherId);
+  if (other >= 0) value.otherIndex = other;
   try {
     sessionStorage.setItem(key, JSON.stringify(value));
   } catch {
@@ -111,12 +119,15 @@ function readTab(value: unknown, now: number): Tab | null {
   const stack = { entries, index };
   const route = currentEntry(stack)?.route;
   if (route?.view !== "board") return null;
+  // A group that does not read back puts the tab in the left one.
+  const group: Group = value.group === 1 ? 1 : 0;
   const tab: Tab = {
     id: value.id,
     slug: route.slug,
     preview: value.preview,
     history: stack,
     lastUsed: now,
+    ...(group === 1 ? { group } : {}),
   };
   // Choices that do not read back are left out: the tab starts with the ones made last.
   const prefs = readPrefs(value.prefs);
@@ -143,26 +154,41 @@ export function loadTabs(key: string, now: number = Date.now()): TabsState {
   }
   if (!isRecord(value) || !Array.isArray(value.tabs)) return { tabs: [], activeId: null };
   const active = typeof value.activeIndex === "number" ? value.activeIndex : -1;
+  const other = typeof value.otherIndex === "number" ? value.otherIndex : -1;
   const tabs: Tab[] = [];
   const seen = new Set<string>();
   let activeId: string | null = null;
+  let otherId: string | undefined;
   value.tabs.forEach((raw, i) => {
     const tab = readTab(raw, now);
-    // Two tabs of one id or one board: only the first is kept.
-    if (!tab || seen.has(tab.id) || tabs.some((t) => t.slug === tab.slug)) return;
+    // Two tabs of one id, or of one board in one group: only the first is kept.
+    if (!tab || seen.has(tab.id)) return;
+    if (tabs.some((t) => t.slug === tab.slug && groupOf(t) === groupOf(tab))) return;
     if (tabs.length >= TAB_LIMIT) return;
     seen.add(tab.id);
-    // The tab on screen counts as the one used last, so it stays when room is made.
-    tabs.push(i === active ? { ...tab, lastUsed: now + 1 } : tab);
+    // The tabs on screen count as the ones used last, so they stay when room is made.
+    tabs.push(
+      i === active
+        ? { ...tab, lastUsed: now + 2 }
+        : i === other
+          ? { ...tab, lastUsed: now + 1 }
+          : tab,
+    );
     if (i === active) activeId = tab.id;
+    if (i === other) otherId = tab.id;
   });
-  // At most one preview tab: the rest are pinned.
-  let previewSeen = false;
+  // At most one preview tab per group: the rest are pinned.
+  const previewSeen = new Set<Group>();
   const single = tabs.map((tab) => {
     if (!tab.preview) return tab;
-    if (previewSeen) return { ...tab, preview: false };
-    previewSeen = true;
+    if (previewSeen.has(groupOf(tab))) return { ...tab, preview: false };
+    previewSeen.add(groupOf(tab));
     return tab;
   });
-  return { tabs: single, activeId };
+  // Without a tab on screen (the home), the focus stays with the left pane.
+  return settle({
+    tabs: single,
+    activeId,
+    ...(otherId !== undefined ? { otherId } : {}),
+  });
 }

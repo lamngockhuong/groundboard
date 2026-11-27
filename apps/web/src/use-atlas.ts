@@ -32,6 +32,12 @@ import {
   type ViewState,
 } from "./nav-history.ts";
 import { formatRoute, parseRoute, type Route } from "./route.ts";
+import {
+  focusGroup,
+  moveToOtherGroup,
+  openBeside as openBesideIn,
+  visibleTabIds,
+} from "./split.ts";
 import { loadTabs, saveTabs, tabStorageKey } from "./tab-storage.ts";
 import {
   activate,
@@ -40,6 +46,9 @@ import {
   close,
   emptyTabs,
   fillPrefs,
+  focusedGroup,
+  type Group,
+  isSplit,
   type Opened,
   openNew,
   openPasted,
@@ -47,6 +56,7 @@ import {
   pin,
   saveTabView,
   setTabError,
+  settle,
   TAB_LIMIT,
   type Tab,
   type TabsState,
@@ -129,21 +139,23 @@ export interface AtlasHost {
   setIssues: (issues: Issue[]) => void;
   setWarnings: (warnings: string[]) => void;
   askToken: (rejected: boolean, retry: () => Promise<void>) => void;
-  /** Puts a board on screen, in place of whatever was there. */
-  showBoard: (board: ShownBoard) => void;
-  /** Takes the board off screen: the tab on screen has none to show yet, or none at all. */
-  closeScene: () => void;
-  /** Back to the atlas home: the board leaves the screen, its tab stays open. */
+  /** Puts a board on screen for its tab, in place of whatever that tab showed. */
+  showBoard: (board: ShownBoard, tabId: string) => void;
+  /** Takes a tab's board off screen: it has none to show yet, or left the screen. */
+  closeScene: (tabId: string) => void;
+  /** Back to the atlas home: every board leaves the screen, the tabs stay open. */
   closeAtlasBoard: () => void;
   /** A short notice for the status line: every tab was pinned, so no tab could be added. */
   notify?: (message: string) => void;
   /**
-   * Whether replacing the board on screen would lose work: edits not saved, or a change made
-   * on the canvas outside edit mode. A board loaded again in the background then waits.
+   * Whether replacing a tab's board on screen would lose work: edits not saved, or a change
+   * made on the canvas outside edit mode. A board loaded again in the background then waits.
    */
-  hasUnsavedWork?: () => boolean;
+  hasUnsavedWork?: (tabId: string) => boolean;
   /** The toolbar choices made last, which a new tab starts with. */
   defaultPrefs?: () => ViewPrefs;
+  /** The screen is wide enough to show two groups of tabs side by side. */
+  twoPanes?: boolean;
 }
 
 /**
@@ -268,23 +280,40 @@ function addressOf(state: TabsState): string {
   return tab && tab.slug !== null ? formatRoute(tabRoute(tab)) : formatRoute({ view: "home" });
 }
 
-/** What a change of tabs costs the board on screen: nothing, a move within it, or the board. */
-function leaving(from: TabsState, to: TabsState): LeaveKind | null {
-  const before = activeTab(from);
-  if (!before) return null;
-  const after = activeTab(to);
-  if (!after || after.id !== before.id || after.slug !== before.slug) return "tab";
-  const a = currentEntry(before.history)?.id;
-  const b = currentEntry(after.history)?.id;
-  return a === b ? null : "nav";
+/** What leaving costs, and the tab whose board is left. */
+export interface Leave {
+  kind: LeaveKind;
+  tabId: string;
 }
 
 /**
- * Whether a pasted board is replaced in its tab by another board or paste. Closing its tab is
- * not asked about here: that asks only when the board holds unsaved work, as any tab does.
+ * What a change of tabs costs each board on screen: a move within it, or the board leaving the
+ * screen (its tab closed, put away, or showing another board); boards that stay as they are
+ * cost nothing, so moving the focus to the other pane asks nothing. With two panes both boards
+ * may leave at once (the atlas home): each is asked about.
  */
-function losesPasted(from: TabsState, to: TabsState): boolean {
-  return from.tabs.some((tab) => {
+function leaving(from: TabsState, to: TabsState): Leave[] {
+  const after = new Set(visibleTabIds(to));
+  const leaves: Leave[] = [];
+  for (const id of visibleTabIds(from)) {
+    const before = tabById(from, id);
+    if (!before) continue;
+    const now = tabById(to, id);
+    if (!now || !after.has(id) || now.slug !== before.slug) {
+      leaves.push({ kind: "tab", tabId: id });
+    } else if (currentEntry(before.history)?.id !== currentEntry(now.history)?.id) {
+      leaves.push({ kind: "nav", tabId: id });
+    }
+  }
+  return leaves;
+}
+
+/**
+ * The pasted board replaced in its tab by another board or paste, if one is. Closing its tab
+ * is not asked about here: that asks only when the board holds unsaved work, as any tab does.
+ */
+function losesPasted(from: TabsState, to: TabsState): string | null {
+  const lost = from.tabs.find((tab) => {
     if (tab.slug !== null) return false;
     const after = to.tabs.find((t) => t.id === tab.id);
     return (
@@ -292,11 +321,15 @@ function losesPasted(from: TabsState, to: TabsState): boolean {
       (after.slug !== null || currentEntry(after.history)?.id !== currentEntry(tab.history)?.id)
     );
   });
+  return lost?.id ?? null;
 }
 
-/** What to ask before the tabs change from one state to the other; null when nothing. */
-function guardKind(from: TabsState, to: TabsState): LeaveKind | null {
-  return losesPasted(from, to) ? "pasted" : leaving(from, to);
+/** What to ask before the tabs change from one state to the other; empty when nothing. */
+function guardKind(from: TabsState, to: TabsState): Leave[] {
+  const pasted = losesPasted(from, to);
+  const leaves = leaving(from, to);
+  if (pasted === null) return leaves;
+  return [{ kind: "pasted", tabId: pasted }, ...leaves.filter((l) => l.tabId !== pasted)];
 }
 
 /** A board asked for on behalf of a tab; `background` checks a board already on screen. */
@@ -327,7 +360,8 @@ export function useAtlas(host: AtlasHost) {
   /** The server said whether it serves an atlas and, when it does, the index load ended. */
   const [checked, setChecked] = useState(false);
   const [atlas, setAtlas] = useState<AtlasIndex | null>(null);
-  const [focus, setFocus] = useState<NodeFocus | null>(null);
+  /** Where each tab's board on screen should look, by tab. */
+  const [focuses, setFocuses] = useState<Readonly<Record<string, NodeFocus>>>({});
   const focusSeq = useRef(0);
   // Kept in a ref so opening a board does not wait for the page to render the new index.
   const atlasRef = useRef<AtlasIndex | null>(null);
@@ -337,11 +371,11 @@ export function useAtlas(host: AtlasHost) {
     null,
   );
   /**
-   * Asked before the board on screen is left with work that would be lost; false keeps it.
+   * Asked before a board on screen is left with work that would be lost; false keeps it.
    * `kind` says whether the tab changes or its board is replaced ("tab"), or the reader only
-   * moves within it ("nav").
+   * moves within it ("nav"); `tabId` is the tab whose board is left.
    */
-  const leaveGuard = useRef<((kind: LeaveKind) => boolean) | null>(null);
+  const leaveGuard = useRef<((kind: LeaveKind, tabId?: string) => boolean) | null>(null);
   const lastHash = useRef(typeof window === "undefined" ? "" : window.location.hash);
   /** Drafts cannot be stored in this browser: they last until the page is closed. */
   const [draftsVolatile, setDraftsVolatile] = useState(false);
@@ -356,9 +390,14 @@ export function useAtlas(host: AtlasHost) {
   const storageKey = useRef<string | null>(null);
   /** Boards rendered for their tabs, kept for the tabs `cachePlan` names. */
   const cache = useRef(new Map<string, CachedBoard>());
-  /** The tab and board on screen now. */
-  const shown = useRef<{ tabId: string; slug: string | null } | null>(null);
-  /** The tab last put on screen; null on the home. */
+  /** The boards on screen now: the board (null: pasted) each tab shows. */
+  const shown = useRef(new Map<string, string | null>());
+  /**
+   * Whether the window is wide enough to show both panes; a narrow one shows the focused pane
+   * only (the other pane's board stays on the page, hidden). Read by the keys and the focus.
+   */
+  const twoPanes = useRef(host.twoPanes === true);
+  /** The focused pane's tab last put on screen; null on the home. */
   const presented = useRef<string | null>(null);
   /** The entry of the atlas home the browser is on, when it is. */
   const homeId = useRef<string>(newEntryId());
@@ -371,10 +410,13 @@ export function useAtlas(host: AtlasHost) {
   const reverting = useRef<number | null>(null);
   const [navState, setNavState] = useState({ canBack: false, canForward: false });
   /**
-   * Reads where the canvas stands when the board of that slug (null: a pasted board) is the
-   * one on screen; null when another board is or there is nothing to keep.
+   * Reads where a tab's canvas stands when the board of that slug (null: a pasted board) is the
+   * one it shows; null when it shows another board or there is nothing to keep. Without a tab,
+   * the focused pane's.
    */
-  const viewReader = useRef<((slug: string | null) => ViewState | null) | null>(null);
+  const viewReader = useRef<((slug: string | null, tabId?: string) => ViewState | null) | null>(
+    null,
+  );
 
   const queue = useRef<BoardRequest[]>([]);
   /** Queues a request again, once a token was given for it. */
@@ -386,9 +428,25 @@ export function useAtlas(host: AtlasHost) {
     setAtlas(value);
   }, []);
 
+  /** Where a tab's board should look; null fits the whole board. `seq` makes it apply again. */
+  const putFocus = useCallback((tabId: string, target: Omit<NodeFocus, "seq"> | null) => {
+    focusSeq.current += 1;
+    const seq = focusSeq.current;
+    setFocuses((previous) => {
+      if (target === null && !(tabId in previous)) return previous;
+      const next = { ...previous };
+      if (target === null) delete next[tabId];
+      else next[tabId] = { ...target, seq };
+      return next;
+    });
+  }, []);
+
+  /** The tabs whose boards are on screen now. */
+  const visible = useCallback((state: TabsState): string[] => visibleTabIds(state), []);
+
   const commit = useCallback((state: TabsState) => {
     const defaults = hostRef.current.defaultPrefs;
-    const next = defaults ? fillPrefs(state, defaults()) : state;
+    const next = settle(defaults ? fillPrefs(state, defaults()) : state);
     tabsRef.current = next;
     setTabs(next);
     const keep = cachePlan(next);
@@ -402,14 +460,20 @@ export function useAtlas(host: AtlasHost) {
     );
   }, []);
 
-  /** Keeps the view of the board on screen on its tab's current entry. */
-  const keepView = useCallback((state: TabsState): TabsState => {
-    const tab = activeTab(state);
-    const on = shown.current;
-    if (!tab || !on || on.tabId !== tab.id || on.slug !== tab.slug) return state;
-    const view = viewReader.current?.(tab.slug);
-    return view ? saveTabView(state, tab.id, view) : state;
-  }, []);
+  /** Keeps the view of each board on screen on its tab's current entry. */
+  const keepView = useCallback(
+    (state: TabsState): TabsState => {
+      let next = state;
+      for (const id of visible(state)) {
+        const tab = tabById(state, id);
+        if (!tab || !shown.current.has(id) || shown.current.get(id) !== tab.slug) continue;
+        const view = viewReader.current?.(tab.slug, id);
+        if (view) next = saveTabView(next, id, view);
+      }
+      return next;
+    },
+    [visible],
+  );
 
   /**
    * Writes the tab on screen into the browser's history: as a new entry ("push") or in place
@@ -434,8 +498,14 @@ export function useAtlas(host: AtlasHost) {
   }, []);
 
   const show = useCallback((tabId: string, board: CachedBoard) => {
-    shown.current = { tabId, slug: board.slug };
-    hostRef.current.showBoard(board);
+    shown.current.set(tabId, board.slug);
+    hostRef.current.showBoard(board, tabId);
+  }, []);
+
+  /** Takes a tab's board off screen. */
+  const hide = useCallback((tabId: string) => {
+    if (!shown.current.delete(tabId)) return;
+    hostRef.current.closeScene(tabId);
   }, []);
 
   /** Reads the stored boards (or the samples when there are none) and indexes them. */
@@ -509,7 +579,9 @@ export function useAtlas(host: AtlasHost) {
       const tab = tabById(state, request.tabId);
       // The tab was closed, or moved on to another board, while this one loaded.
       if (!tab || tab.slug !== request.slug) return;
-      const onScreen = state.activeId === tab.id;
+      const onScreen = visible(state).includes(tab.id);
+      // The focused pane's board: messages about a board are about that one.
+      const focused = state.activeId === tab.id;
       const { slug } = request;
       switch (result.status) {
         case "ok": {
@@ -536,19 +608,18 @@ export function useAtlas(host: AtlasHost) {
               return;
             }
             // Never under the reader's hands: unsaved work keeps the board as it is.
-            if (host.hasUnsavedWork?.()) return;
-            const view = viewReader.current?.(slug) ?? undefined;
+            if (host.hasUnsavedWork?.(tab.id)) return;
+            const view = viewReader.current?.(slug, tab.id) ?? undefined;
             cache.current.set(tab.id, board);
-            focusSeq.current += 1;
-            setFocus(view ? { view, seq: focusSeq.current } : null);
-            host.setWarnings(board.warnings);
+            putFocus(tab.id, view ? { view } : null);
+            if (focused) host.setWarnings(board.warnings);
             show(tab.id, board);
             return;
           }
           if (tab.error !== undefined) commit(setTabError(tabsRef.current, tab.id, undefined));
           if (cachePlan(tabsRef.current).has(tab.id)) cache.current.set(tab.id, board);
           if (onScreen) {
-            host.setWarnings(board.warnings);
+            if (focused) host.setWarnings(board.warnings);
             show(tab.id, board);
           }
           break;
@@ -556,7 +627,7 @@ export function useAtlas(host: AtlasHost) {
         case "invalid":
         case "not-found": {
           // A check in the background never takes the board away from unsaved work.
-          if (request.background && (!onScreen || host.hasUnsavedWork?.())) return;
+          if (request.background && (!onScreen || host.hasUnsavedWork?.(tab.id))) return;
           const message =
             result.status === "invalid"
               ? t("atlas.boardInvalid", { slug })
@@ -564,9 +635,9 @@ export function useAtlas(host: AtlasHost) {
           cache.current.delete(tab.id);
           commit(setTabError(tabsRef.current, tab.id, message));
           if (onScreen) {
-            shown.current = null;
-            host.closeScene();
-            if (result.status === "invalid") {
+            shown.current.delete(tab.id);
+            host.closeScene(tab.id);
+            if (focused && result.status === "invalid") {
               host.setIssues(result.issues);
               host.setWarnings(result.warnings);
             }
@@ -580,11 +651,14 @@ export function useAtlas(host: AtlasHost) {
           });
           break;
         case "error":
-          if (onScreen && !request.background) host.setError(result.message);
+          if (request.background) break;
+          // The focused pane's error is the page's; the other pane says it in its own place.
+          if (focused) host.setError(result.message);
+          else if (onScreen) commit(setTabError(tabsRef.current, tab.id, result.message));
           break;
       }
     },
-    [commit, show],
+    [commit, putFocus, show, visible],
   );
 
   /** Sends the next board request once the one running has been answered. */
@@ -601,7 +675,8 @@ export function useAtlas(host: AtlasHost) {
       running.current = request;
       if (!request.background) {
         host.setBusy(true);
-        host.clearMessages();
+        // A board for the other pane leaves the focused pane's messages alone.
+        if (request.tabId === tabsRef.current.activeId) host.clearMessages();
       }
       const attempt = async (): Promise<Awaited<ReturnType<typeof loadBoard>>> => {
         try {
@@ -677,43 +752,21 @@ export function useAtlas(host: AtlasHost) {
   );
 
   /**
-   * Puts the tab now chosen on screen, at the place its history is on: its board from memory
-   * when kept (checked again in the background on a server), else asked for. `view` is where
-   * the canvas stood when the reader left that place; without one, the node the place names.
+   * Puts a tab's board on screen: from memory when kept (checked again in the background on a
+   * server), else asked for. Its last board stays until the new one is there. `focused`: the
+   * focused pane's tab, whose board the messages are about; `switched`: it just took the screen.
    */
-  const present = useCallback(
-    (view?: ViewState) => {
+  const presentTab = useCallback(
+    (tab: Tab, focused: boolean, switched: boolean) => {
       const host = hostRef.current;
-      const tab = activeTab(tabsRef.current);
-      if (!tab) {
-        // Back to the list (also by the browser's Back button): the board leaves the screen,
-        // and the index is loaded again.
-        if (presented.current !== null || shown.current !== null) {
-          presented.current = null;
-          shown.current = null;
-          host.closeAtlasBoard();
-          void loadAtlas();
-        }
-        return;
-      }
-      const switched = presented.current !== tab.id;
-      presented.current = tab.id;
-      const route = tabRoute(tab);
-      focusSeq.current += 1;
-      setFocus(
-        view
-          ? { view, seq: focusSeq.current }
-          : route.view === "board" && route.node
-            ? { nodeId: route.node, seq: focusSeq.current }
-            : null,
-      );
-      const on = shown.current;
       // The same board stays on screen: only the focus moves.
-      if (on?.tabId === tab.id && on.slug === tab.slug) return;
+      if (shown.current.has(tab.id) && shown.current.get(tab.id) === tab.slug) return;
       const kept = cache.current.get(tab.id);
       if (kept && kept.slug === tab.slug) {
-        if (switched) host.clearMessages();
-        host.setWarnings(kept.warnings);
+        if (focused) {
+          if (switched) host.clearMessages();
+          host.setWarnings(kept.warnings);
+        }
         show(tab.id, kept);
         // A server may have changed the board since; an exported page or the library cannot.
         if (tab.slug !== null && !isStaticMode() && !libraryRef.current) {
@@ -722,22 +775,89 @@ export function useAtlas(host: AtlasHost) {
         return;
       }
       if (tab.slug === null) return;
-      // Another tab's board must not stand in while this one loads.
-      if (on && on.tabId !== tab.id) {
-        shown.current = null;
-        host.closeScene();
-      }
-      if (switched) host.clearMessages();
+      if (focused && switched) host.clearMessages();
       void request(tab.id, tab.slug, false);
     },
-    [loadAtlas, request, show],
+    [request, show],
   );
 
-  /** Asks before the board on screen is left; true when the reader may go on. */
+  /**
+   * Brings the boards on screen in line with the tabs, leaving the focused pane's focus alone:
+   * boards of tabs no longer on screen leave it, and the other pane shows its tab where it was
+   * left.
+   */
+  const syncPanes = useCallback(() => {
+    const state = tabsRef.current;
+    const ids = visible(state);
+    for (const id of [...shown.current.keys()]) if (!ids.includes(id)) hide(id);
+    for (const id of ids) {
+      if (id === state.activeId) continue;
+      const tab = tabById(state, id);
+      if (!tab || (shown.current.has(id) && shown.current.get(id) === tab.slug)) continue;
+      const entry = currentEntry(tab.history);
+      const route = tabRoute(tab);
+      putFocus(
+        id,
+        entry?.view
+          ? { view: entry.view }
+          : route.view === "board" && route.node
+            ? { nodeId: route.node }
+            : null,
+      );
+      presentTab(tab, false, false);
+    }
+  }, [hide, presentTab, putFocus, visible]);
+
+  /**
+   * Puts the tab now chosen on screen, at the place its history is on, and the other pane's
+   * beside it. `view` is where the canvas stood when the reader left that place; without one,
+   * the node the place names. The atlas home takes the focused pane only: with two panes the
+   * other pane keeps its board beside it.
+   */
+  const present = useCallback(
+    (view?: ViewState) => {
+      const host = hostRef.current;
+      const state = tabsRef.current;
+      const tab = activeTab(state);
+      if (!tab) {
+        // Back to the list (also by the browser's Back button): the focused pane's board leaves
+        // the screen, and the index is loaded again.
+        if (presented.current !== null || shown.current.size > 0) {
+          presented.current = null;
+          if (visible(state).length === 0) {
+            shown.current.clear();
+            host.closeAtlasBoard();
+          } else {
+            syncPanes();
+          }
+          void loadAtlas();
+        } else {
+          syncPanes();
+        }
+        return;
+      }
+      const switched = presented.current !== tab.id;
+      presented.current = tab.id;
+      const route = tabRoute(tab);
+      putFocus(
+        tab.id,
+        view ? { view } : route.view === "board" && route.node ? { nodeId: route.node } : null,
+      );
+      syncPanes();
+      presentTab(tab, true, switched);
+    },
+    [loadAtlas, presentTab, putFocus, syncPanes, visible],
+  );
+
+  /** Asks before a board on screen is left; true when the reader may go on. */
   const mayLeave = useCallback(
-    (kind: LeaveKind): boolean => leaveGuard.current?.(kind) !== false,
+    (leaves: readonly Leave[]): boolean =>
+      leaves.every((leave) => leaveGuard.current?.(leave.kind, leave.tabId) !== false),
     [],
   );
+
+  /** What to ask before the tabs change from one state to the other. */
+  const guard = useCallback((from: TabsState, to: TabsState): Leave[] => guardKind(from, to), []);
 
   const setNotice = useCallback((opened: Opened) => {
     if (opened.full) hostRef.current.notify?.(t("tabs.full", { count: TAB_LIMIT }));
@@ -779,26 +899,19 @@ export function useAtlas(host: AtlasHost) {
         // Back or Forward, to an entry of this tab, of another tab, or of a tab since closed.
         const tab = mark.tab === null ? undefined : tabById(state, mark.tab);
         const known = tab !== undefined && indexOf(tab.history, mark.gb) >= 0;
-        const target =
-          tab && known ? tab.history.entries[indexOf(tab.history, mark.gb)] : undefined;
-        const sameBoard =
-          mark.tab === here?.id &&
-          target?.route.view === "board" &&
-          target.route.slug === here.slug;
         // An entry no tab has any more opens its board again, which may replace a paste.
         const route = currentRoute();
         const reopened =
           !known && mark.tab !== null && route.view === "board"
             ? openPreview(state, { id: newEntryId(), route }, tab ? newTabId() : mark.tab, now)
             : null;
-        const kind: LeaveKind | null = reopened
-          ? guardKind(state, reopened.state)
-          : here
-            ? sameBoard
-              ? "nav"
-              : "tab"
-            : null;
-        if (kind && !mayLeave(kind)) {
+        const target: TabsState =
+          tab && known
+            ? activate(traverseTab(state, tab.id, mark.gb), tab.id, now)
+            : reopened
+              ? reopened.state
+              : { ...state, activeId: null };
+        if (!mayLeave(guard(state, target))) {
           // Refused: step back the other way, onto the entry still current.
           if (mark.pos !== null && mark.pos !== position.current) {
             reverting.current = position.current;
@@ -852,13 +965,11 @@ export function useAtlas(host: AtlasHost) {
       }
       const route = currentRoute();
       const entry: NavEntry = { id: newEntryId(), route };
-      const kind =
+      const target =
         route.view === "home"
-          ? here
-            ? "tab"
-            : null
-          : guardKind(state, openPreview(state, entry, "probe", now).state);
-      if (kind && !mayLeave(kind)) {
+          ? { ...state, activeId: null }
+          : openPreview(state, entry, "probe", now).state;
+      if (!mayLeave(guard(state, target))) {
         // The reader stays: the address goes back to the board on screen.
         writeHistory("replace");
         return;
@@ -892,7 +1003,7 @@ export function useAtlas(host: AtlasHost) {
       window.removeEventListener("popstate", onNavigate);
       window.removeEventListener("pagehide", onHide);
     };
-  }, [commit, keepView, mayLeave, present, setNotice, writeHistory]);
+  }, [commit, guard, keepView, mayLeave, present, setNotice, writeHistory]);
 
   /**
    * Reads the tabs kept for this atlas back, then follows the address: a board it names is
@@ -989,61 +1100,133 @@ export function useAtlas(host: AtlasHost) {
         else window.history.forward();
         return;
       }
-      const sameBoard = target.route.view === "board" && target.route.slug === tab.slug;
-      if (!mayLeave(sameBoard ? "nav" : "tab")) return;
+      if (!mayLeave(guard(state, traverseTab(state, tab.id, target.id)))) return;
       const next = traverseTab(keepView(state), tab.id, target.id);
       commit(next);
       writeHistory("push");
       present(target.view);
     },
-    [commit, keepView, mayLeave, present, writeHistory],
+    [commit, guard, keepView, mayLeave, present, writeHistory],
   );
   const back = useCallback(() => step(-1), [step]);
   const forward = useCallback(() => step(1), [step]);
 
-  /** Puts a tab on screen, where it was left. */
+  /**
+   * Moves the focus to the pane of that group, as a click or the keyboard in it does: its tab
+   * becomes the one the address, the keys and the palette are about. Nothing moves on screen.
+   */
+  const focusPane = useCallback(
+    (group: Group) => {
+      const state = tabsRef.current;
+      if (!twoPanes.current || state.activeId === null) return;
+      const next = focusGroup(keepView(state), group, Date.now());
+      if (focusedGroup(next) === focusedGroup(state)) return;
+      commit(next);
+      presented.current = next.activeId;
+      writeHistory("replace");
+      // The messages stay as they are: they sit above both panes, and changing them here would
+      // move the pane under the pointer before its click lands.
+      const tab = activeTab(next);
+      if (!tab) return;
+      // Its board failed to load: choosing the pane asks for it again.
+      if (!shown.current.has(tab.id)) presentTab(tab, true, false);
+    },
+    [commit, keepView, presentTab, writeHistory],
+  );
+
+  /** Puts a tab on screen in its pane, where it was left; its pane takes the focus. */
   const selectTab = useCallback(
     (id: string) => {
       const state = tabsRef.current;
       if (state.activeId === id || !tabById(state, id)) return;
-      if (state.activeId !== null && !mayLeave("tab")) return;
+      if (!mayLeave(guard(state, activate(state, id, Date.now())))) return;
       const next = activate(keepView(state), id, Date.now());
       commit(next);
       writeHistory("replace");
       const tab = activeTab(next);
       present(tab ? currentEntry(tab.history)?.view : undefined);
     },
-    [commit, keepView, mayLeave, present, writeHistory],
+    [commit, guard, keepView, mayLeave, present, writeHistory],
   );
 
-  /** `Alt+n`: the nth tab, the last for 9. */
+  /** `Alt+n`: the nth tab of the focused pane (of the one row on a narrow screen), the last for 9. */
   const selectTabAt = useCallback(
     (n: number) => {
-      const id = tabAtIndex(tabsRef.current, n);
+      const state = tabsRef.current;
+      const group = twoPanes.current && isSplit(state) ? focusedGroup(state) : undefined;
+      const id = tabAtIndex(state, n, group);
       if (id !== null) selectTab(id);
     },
     [selectTab],
   );
 
-  /** Closes a tab; closing the one on screen asks first when its board holds unsaved work. */
+  /** Closes a tab; closing one on screen asks first when its board holds unsaved work. */
   const closeTab = useCallback(
     (id: string) => {
       const state = tabsRef.current;
       if (!tabById(state, id)) return;
-      if (state.activeId !== id) {
-        commit(close(state, id));
+      if (!mayLeave(guard(state, close(state, id)))) return;
+      const next = close(keepView(state), id);
+      commit(next);
+      if (next.activeId === state.activeId) {
+        // The focused pane keeps its board: only the other pane may change.
+        syncPanes();
         return;
       }
-      if (!mayLeave("tab")) return;
-      const next = close(state, id);
       if (next.activeId === null) homeId.current = newEntryId();
-      commit(next);
       writeHistory("replace");
-      const tab = activeTab(next);
+      const tab = activeTab(tabsRef.current);
       present(tab ? currentEntry(tab.history)?.view : undefined);
     },
-    [commit, mayLeave, present, writeHistory],
+    [commit, guard, keepView, mayLeave, present, syncPanes, writeHistory],
   );
+
+  /**
+   * Opens a tab's board beside it, in the other pane (the focused pane's tab on screen unless
+   * `tabId` names another), where the reader is on it; the focus goes there.
+   */
+  const openBeside = useCallback(
+    (tabId?: string) => {
+      const state = keepView(tabsRef.current);
+      const now = Date.now();
+      const opened = openBesideIn(state, newTabId(), now, tabId);
+      if (!opened) {
+        if (state.tabs.length >= TAB_LIMIT) {
+          hostRef.current.notify?.(t("tabs.full", { count: TAB_LIMIT }));
+        }
+        return;
+      }
+      if (!mayLeave(guard(tabsRef.current, opened.state))) return;
+      const source = tabById(state, tabId ?? state.activeId ?? "");
+      const kept = source ? cache.current.get(source.id) : undefined;
+      // The same board: no need to load it again.
+      if (kept && !cache.current.has(opened.tabId)) cache.current.set(opened.tabId, kept);
+      commit(opened.state);
+      writeHistory("push");
+      const tab = activeTab(tabsRef.current);
+      present(tab ? currentEntry(tab.history)?.view : undefined);
+    },
+    [commit, guard, keepView, mayLeave, present, writeHistory],
+  );
+
+  /** Moves a tab to the other pane, where it goes on screen and takes the focus. */
+  const moveTab = useCallback(
+    (id: string) => {
+      const state = tabsRef.current;
+      if (!tabById(state, id)) return;
+      const now = Date.now();
+      if (!mayLeave(guard(state, moveToOtherGroup(state, id, now)))) return;
+      const next = moveToOtherGroup(keepView(state), id, now);
+      commit(next);
+      writeHistory("replace");
+      const tab = activeTab(tabsRef.current);
+      present(tab ? currentEntry(tab.history)?.view : undefined);
+    },
+    [commit, guard, keepView, mayLeave, present, writeHistory],
+  );
+
+  // A narrow window only hides the other pane: its board stays on the page as it is.
+  twoPanes.current = host.twoPanes === true;
 
   /** Keeps a tab open: the next board opened with an ordinary click goes elsewhere. */
   const pinTab = useCallback(
@@ -1066,21 +1249,20 @@ export function useAtlas(host: AtlasHost) {
       const entry: NavEntry = { id: newEntryId(), route };
       const now = Date.now();
       const probe = openNew(state, entry, "probe", now).state;
-      const kind = guardKind(state, probe);
-      if (kind === null && probe.activeId === state.activeId) {
+      const leave = guard(state, probe);
+      if (leave.length === 0 && probe.activeId === state.activeId && state.activeId !== null) {
         // Already there: focus the node again.
-        focusSeq.current += 1;
-        setFocus(place.nodeId ? { nodeId: place.nodeId, seq: focusSeq.current } : null);
+        putFocus(state.activeId, place.nodeId ? { nodeId: place.nodeId } : null);
         return;
       }
-      if (kind && !mayLeave(kind)) return;
+      if (!mayLeave(leave)) return;
       const opened = openNew(keepView(state), entry, newTabId(), now);
       commit(opened.state);
       writeHistory("push");
       setNotice(opened);
       present();
     },
-    [commit, keepView, mayLeave, present, setNotice, writeHistory],
+    [commit, guard, keepView, mayLeave, present, putFocus, setNotice, writeHistory],
   );
 
   /**
@@ -1103,13 +1285,13 @@ export function useAtlas(host: AtlasHost) {
         ...(place.nodeId ? { node: place.nodeId } : {}),
       });
       if (window.location.hash === hash) {
-        focusSeq.current += 1;
-        setFocus(place.nodeId ? { nodeId: place.nodeId, seq: focusSeq.current } : null);
+        const id = tabsRef.current.activeId;
+        if (id !== null) putFocus(id, place.nodeId ? { nodeId: place.nodeId } : null);
         return;
       }
       window.location.hash = hash;
     },
-    [openInNewTab],
+    [openInNewTab, putFocus],
   );
 
   /**
@@ -1120,8 +1302,12 @@ export function useAtlas(host: AtlasHost) {
     (board: { scene: Scene; title: string; fileName: string }): boolean => {
       const state = tabsRef.current;
       const probe = openPasted(state, { id: "probe", route: { view: "home" } }, "probe", 0).state;
-      const kind = guardKind(state, probe) ?? (state.activeId !== null ? "tab" : null);
-      if (kind && !mayLeave(kind)) return false;
+      const found = guard(state, probe);
+      const leave: Leave[] =
+        found.length > 0 || state.activeId === null
+          ? found
+          : [{ kind: "tab", tabId: state.activeId }];
+      if (!mayLeave(leave)) return false;
       const opened = openPasted(
         keepView(state),
         { id: newEntryId(), route: { view: "home" } },
@@ -1129,14 +1315,14 @@ export function useAtlas(host: AtlasHost) {
         Date.now(),
       );
       cache.current.set(opened.tabId, { ...board, slug: null, check: NO_CHECK, warnings: [] });
-      shown.current = null;
+      shown.current.delete(opened.tabId);
       commit(opened.state);
       writeHistory("push");
       setNotice(opened);
       present();
       return true;
     },
-    [commit, keepView, mayLeave, present, setNotice, writeHistory],
+    [commit, guard, keepView, mayLeave, present, setNotice, writeHistory],
   );
 
   /** Keeps how a tab shows its board: the toolbar choices made in it. */
@@ -1180,7 +1366,7 @@ export function useAtlas(host: AtlasHost) {
           state = close(state, tab.id);
         } else if (replaced.has(tab.slug)) {
           cache.current.delete(tab.id);
-          if (shown.current?.tabId === tab.id) shown.current = null;
+          shown.current.delete(tab.id);
         }
       }
       if (state !== tabsRef.current) commit(state);
@@ -1211,9 +1397,11 @@ export function useAtlas(host: AtlasHost) {
         homeId.current = newEntryId();
         present();
         if (currentRoute().view !== "home") window.location.hash = formatRoute({ view: "home" });
+      } else if (state.activeId !== null) {
+        syncPanes();
       }
     },
-    [commit, present],
+    [commit, present, syncPanes],
   );
 
   const removeFromLibrary = useCallback(
@@ -1228,13 +1416,25 @@ export function useAtlas(host: AtlasHost) {
   );
 
   /** Renders the board on screen again, after a save changed what it is made of. */
+  /**
+   * Renders a board again after a save changed what it is made of: in the tab that saved it
+   * (the focused pane's unless `tabId` names another). Another pane showing the same board
+   * loads it again in the background, where it stands; other tabs of it load it when chosen.
+   */
   const reloadBoard = useCallback(
-    async (slug: string): Promise<void> => {
-      const tab = activeTab(tabsRef.current);
+    async (slug: string, tabId?: string): Promise<void> => {
+      const state = tabsRef.current;
+      const tab = tabId === undefined ? activeTab(state) : tabById(state, tabId);
+      const ids = visible(state);
+      for (const other of state.tabs) {
+        if (other.slug !== slug || other.id === tab?.id) continue;
+        if (ids.includes(other.id)) void request(other.id, slug, true);
+        else cache.current.delete(other.id);
+      }
       if (tab?.slug !== slug) return;
       await request(tab.id, slug, false);
     },
-    [request],
+    [request, visible],
   );
 
   /** Goes to the atlas home; the tabs stay open. */
@@ -1245,12 +1445,12 @@ export function useAtlas(host: AtlasHost) {
     }
     // The address names the home already (a pasted board is on screen): leave it in place.
     const state = tabsRef.current;
-    if (state.activeId === null || !mayLeave("tab")) return;
+    if (state.activeId === null || !mayLeave(guard(state, { ...state, activeId: null }))) return;
     homeId.current = newEntryId();
     commit({ ...keepView(state), activeId: null });
     writeHistory("push");
     present();
-  }, [commit, keepView, mayLeave, present, writeHistory]);
+  }, [commit, guard, keepView, mayLeave, present, writeHistory]);
 
   /** Opens a board for editing: reads what it is made of now and where its saves go. */
   const startEditing = useCallback(
@@ -1410,13 +1610,20 @@ export function useAtlas(host: AtlasHost) {
 
   const active = activeTab(tabs);
   const route: Route = active?.slug != null ? tabRoute(active) : { view: "home" };
+  /** Where a tab's board on screen should look; null fits the whole board. */
+  const focusOf = useCallback(
+    (tabId: string): NodeFocus | null => focuses[tabId] ?? null,
+    [focuses],
+  );
 
   return {
     checked,
     atlasEnabled,
     atlas,
     route,
-    focus,
+    /** The focused pane's. */
+    focus: tabs.activeId === null ? null : focusOf(tabs.activeId),
+    focusOf,
     loadAtlas,
     openPlace,
     goHome,
@@ -1443,5 +1650,8 @@ export function useAtlas(host: AtlasHost) {
     pinTab,
     showPastedBoard,
     setTabPrefs,
+    focusPane,
+    openBeside,
+    moveTab,
   };
 }

@@ -20,6 +20,7 @@ import { Modal } from "./components/Modal.tsx";
 import { SettingsMenu } from "./components/SettingsMenu.tsx";
 import { SIDEBAR_WIDTH, Sidebar } from "./components/Sidebar.tsx";
 import { SourcePanel } from "./components/SourcePanel.tsx";
+import { SplitHandle } from "./components/SplitHandle.tsx";
 import { TabBar } from "./components/TabBar.tsx";
 import { TokenForm } from "./components/TokenForm.tsx";
 import { ZipDialog } from "./components/ZipDialog.tsx";
@@ -29,13 +30,15 @@ import { parseInput, type Scene } from "./input.ts";
 import type { LayerId } from "./layers.ts";
 import type { LibraryEntry } from "./library.ts";
 import { isStaticMode } from "./mode.ts";
-import type { PaletteItem } from "./palette.ts";
+import { canBack as hasBack, canForward as hasForward } from "./nav-history.ts";
+import { type PaletteItem, paletteCommands } from "./palette.ts";
 import {
   MOTION_ALL_KEY,
   readFlag,
   readNumber,
   SIDEBAR_COLLAPSED_KEY,
   SIDEBAR_WIDTH_KEY,
+  SPLIT_RATIO_KEY,
   saveFlag,
   saveValue,
 } from "./prefs.ts";
@@ -50,8 +53,9 @@ import {
   isViewerKey,
 } from "./shortcuts.ts";
 import type { BoardNode, NodeCitations } from "./sources.ts";
+import { groupView, narrowView, SPLIT_NARROW, SPLIT_RATIO, showsTwoPanes } from "./split.ts";
 import { describeStamp } from "./stamp.ts";
-import { activeTab } from "./tabs.ts";
+import { focusedGroup, type Group, isSplit, tabById } from "./tabs.ts";
 import {
   applyStyle,
   applyTheme,
@@ -110,6 +114,24 @@ interface LoadedScene {
   draft: boolean;
 }
 
+/** Where the board shown with no tab goes (no atlas): the page has one board at a time. */
+const SOLO = "";
+
+/** The record without that key; the same record when it has none. */
+function without<T>(record: Readonly<Record<string, T>>, key: string): Readonly<Record<string, T>> {
+  if (!(key in record)) return record;
+  const { [key]: _gone, ...rest } = record;
+  return rest;
+}
+
+/** Callbacks a board's editor hands its findings back through, made once per tab. */
+interface TabHandlers {
+  onSelectionChange: (citations: NodeCitations[]) => void;
+  onNodes: (nodes: BoardNode[]) => void;
+  registerCanvas: (reader: CanvasReader | null) => void;
+  onPresentingChange: (presenting: boolean) => void;
+}
+
 /** Requests that hit a 401, kept so the token form can send them again once, in order. */
 interface TokenPrompt {
   rejected: boolean;
@@ -152,21 +174,37 @@ export function App() {
   const staticMode = isStaticMode();
   // Every component below renders again in the new language when the reader switches it.
   const locale = useLocale();
-  const [loaded, setLoaded] = useState<LoadedScene | null>(null);
+  /**
+   * The boards on screen, by the tab that shows them: one, or two side by side. Without an
+   * atlas the one board shown sits under `SOLO`.
+   */
+  const [boards, setBoards] = useState<Readonly<Record<string, LoadedScene>>>({});
+  const boardsRef = useRef(boards);
+  boardsRef.current = boards;
+  const boardKey = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [tokenPrompt, setTokenPrompt] = useState<TokenPrompt | null>(null);
-  const [citations, setCitations] = useState<NodeCitations[]>([]);
-  const [nodes, setNodes] = useState<BoardNode[]>([]);
-  /** Focus asked for on a pasted board, which has no deep link. */
-  const [localFocus, setLocalFocus] = useState<NodeFocus | null>(null);
+  /** The citations of what is selected on each board on screen, by tab. */
+  const [citations, setCitations] = useState<Readonly<Record<string, NodeCitations[]>>>({});
+  /** The nodes of each board on screen, for the palette, by tab. */
+  const [nodes, setNodes] = useState<Readonly<Record<string, BoardNode[]>>>({});
+  /** Focus asked for on a pasted board, which has no deep link, by tab. */
+  const [localFocus, setLocalFocus] = useState<Readonly<Record<string, NodeFocus>>>({});
   const [themePreference, setThemePreference] = useState<ThemePreference>(readThemePreference);
   const systemDark = useMedia("(prefers-color-scheme: dark)");
   const theme = resolveTheme(themePreference, systemDark);
   const [themeStyle, setThemeStyle] = useState<ThemeStyle>(readStylePreference);
   const narrow = useMedia(NARROW);
+  /** Too narrow for two boards side by side: the panes share one row of tabs. */
+  const narrowSplit = useMedia(SPLIT_NARROW);
+  const [splitRatio, setSplitRatio] = useState(() =>
+    readNumber(SPLIT_RATIO_KEY, SPLIT_RATIO.initial, SPLIT_RATIO.min, SPLIT_RATIO.max),
+  );
+  /** The tab whose board is presenting; another pane does not start a presentation beside it. */
+  const [presentingId, setPresentingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(() => readFlag(SIDEBAR_COLLAPSED_KEY, false));
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     readNumber(SIDEBAR_WIDTH_KEY, SIDEBAR_WIDTH.initial, SIDEBAR_WIDTH.min, SIDEBAR_WIDTH.max),
@@ -179,16 +217,28 @@ export function App() {
   const [fileOpen, setFileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [zipOpen, setZipOpen] = useState(false);
-  /** The board being edited, as last saved; one object per save, which the editor keys on. */
+  /**
+   * The board being edited, in the tab that edits it, as last saved; one object per save, which
+   * the editor keys on. One board at a time is edited, whichever pane it is in.
+   */
   const [editSession, setEditSession] = useState<{
+    tabId: string;
     slug: string;
     board: Record<string, unknown>;
     overlay: Overlay;
   } | null>(null);
-  /** Asks the editor whether the board has unsaved changes. */
-  const dirtyCheck = useRef<(() => boolean) | null>(null);
-  /** Reads the canvas of the board on screen: its view, and what is selected. */
-  const canvasReader = useRef<CanvasReader | null>(null);
+  /** Asks the editor of the tab being edited whether the board has unsaved changes. */
+  const dirtyCheck = useRef<{ tabId: string; check: () => boolean } | null>(null);
+  /** Read the canvas of each board on screen, by tab: its view, and what is selected. */
+  const canvasReaders = useRef(new Map<string, CanvasReader>());
+  /** The callbacks of each tab's editor, made once so the editor does not render again. */
+  const handlers = useRef(new Map<string, TabHandlers>());
+  /** Edits not saved on the board of that tab. */
+  const hasDirtyEdits = (tabId: string) =>
+    dirtyCheck.current?.tabId === tabId && dirtyCheck.current.check();
+  /** Work the board of that tab would lose if it left the screen. */
+  const unsavedIn = (tabId: string) =>
+    hasDirtyEdits(tabId) || canvasReaders.current.get(tabId)?.unsaved() === true;
   const filterRef = useRef<HTMLInputElement>(null);
   const [focusFilter, setFocusFilter] = useState(0);
   /** A short notice about the tabs, such as every tab being pinned; it clears itself. */
@@ -253,29 +303,46 @@ export function App() {
       title: string,
       slug: string | null,
       check: BoardCheck = NO_CHECK,
+      tabId: string = SOLO,
     ) => {
-      setCitations([]);
-      setNodes([]);
-      setLocalFocus(null);
-      setLoaded((previous) => ({
-        scene,
-        fileName,
-        title,
-        slug,
-        stale: check.stale,
-        staleSourceIds: check.staleSourceIds,
-        references: check.references,
-        draft: check.draft === true,
-        key: (previous?.key ?? 0) + 1,
+      setCitations((previous) => without(previous, tabId));
+      setNodes((previous) => without(previous, tabId));
+      setLocalFocus((previous) => without(previous, tabId));
+      boardKey.current += 1;
+      const key = boardKey.current;
+      setBoards((previous) => ({
+        ...previous,
+        [tabId]: {
+          scene,
+          fileName,
+          title,
+          slug,
+          stale: check.stale,
+          staleSourceIds: check.staleSourceIds,
+          references: check.references,
+          draft: check.draft === true,
+          key,
+        },
       }));
     },
     [],
   );
 
-  const closeScene = useCallback(() => {
-    setLoaded(null);
-    setCitations([]);
-    setNodes([]);
+  /** Takes a tab's board off screen; every board without a tab named. */
+  const closeScene = useCallback((tabId?: string) => {
+    if (tabId === undefined) {
+      handlers.current.clear();
+      setBoards({});
+      setCitations({});
+      setNodes({});
+      setLocalFocus({});
+      return;
+    }
+    setBoards((previous) => without(previous, tabId));
+    handlers.current.delete(tabId);
+    setCitations((previous) => without(previous, tabId));
+    setNodes((previous) => without(previous, tabId));
+    setLocalFocus((previous) => without(previous, tabId));
   }, []);
 
   const {
@@ -283,7 +350,7 @@ export function App() {
     atlasEnabled,
     atlas,
     route,
-    focus,
+    focusOf,
     loadAtlas,
     openPlace,
     goHome,
@@ -310,6 +377,9 @@ export function App() {
     pinTab,
     showPastedBoard,
     setTabPrefs,
+    focusPane,
+    openBeside,
+    moveTab,
   } = useAtlas({
     setBusy,
     clearMessages,
@@ -317,14 +387,14 @@ export function App() {
     setIssues,
     setWarnings,
     askToken,
-    showBoard: (board) =>
-      showScene(board.scene, board.fileName, board.title, board.slug, board.check),
-    closeScene,
-    closeAtlasBoard: closeScene,
+    showBoard: (board, tabId) =>
+      showScene(board.scene, board.fileName, board.title, board.slug, board.check, tabId),
+    closeScene: (tabId) => closeScene(tabId),
+    closeAtlasBoard: () => closeScene(),
     notify: setNotice,
-    hasUnsavedWork: () =>
-      dirtyCheck.current?.() === true || canvasReader.current?.unsaved() === true,
+    hasUnsavedWork: unsavedIn,
     defaultPrefs: () => lastPrefsRef.current,
+    twoPanes: !narrowSplit,
   });
 
   /** Tabs show where the source has more than one board to keep open. */
@@ -332,31 +402,53 @@ export function App() {
   /** Back and Forward sit at the start of the tab bar when it shows, else in the toolbar. */
   const tabBarShown = tabsShown && tabs.tabs.length > 0;
   const boardHistory = { canBack, canForward, onBack: back, onForward: forward };
+  /** Two boards side by side: two groups of tabs, a board on screen, and room for both. */
+  const split = tabsShown && showsTwoPanes(tabs, !narrowSplit);
+
+  /** The focused pane's tab, whose board the keys, the palette and the source panel follow. */
+  const focusedId = atlasEnabled ? tabs.activeId : SOLO;
+  const focusedIdRef = useRef(focusedId);
+  focusedIdRef.current = focusedId;
+  /** The focused pane's board; null while its tab waits for it, or on the home. */
+  const loaded = focusedId === null ? null : (boards[focusedId] ?? null);
 
   /**
-   * The tab whose board is on screen, which keeps the toolbar choices made on it. None for a
-   * board shown with no tab (no atlas), or while the tab on screen waits for its board.
+   * The tab of a board on screen, which keeps the toolbar choices made on it. None for a board
+   * shown with no tab (no atlas), or while the tab waits for its board.
    */
-  const prefsTab = (() => {
-    const tab = loaded ? activeTab(tabs) : undefined;
-    return tab && tab.slug === loaded?.slug ? tab : undefined;
-  })();
-  const viewPrefs = prefsTab?.prefs ?? lastPrefs;
+  const prefsTabOf = (id: string) => {
+    const board = boards[id];
+    const tab = atlasEnabled && board ? tabById(tabs, id) : undefined;
+    return tab && tab.slug === board?.slug ? tab : undefined;
+  };
+  const prefsOf = (id: string) => prefsTabOf(id)?.prefs ?? lastPrefs;
+  const viewPrefs = focusedId === null ? lastPrefs : prefsOf(focusedId);
   const { sourcesOpen } = viewPrefs;
 
-  /** A choice made on the toolbar: kept by the tab on screen, and as the one made last. */
-  const changePrefs = (change: PrefChange) => {
+  /** A choice made on a board's toolbar: kept by its tab, and as the one made last. */
+  const changePrefs = (id: string, change: PrefChange) => {
     storeChange(change);
     lastPrefsRef.current = applyChange(lastPrefsRef.current, change);
     setLastPrefs(lastPrefsRef.current);
-    if (prefsTab) setTabPrefs(prefsTab.id, applyChange(viewPrefs, change));
+    // One source panel serves both panes: opening or closing it from either pane does it for
+    // the boards of both, so moving the focus never makes it come or go (and the panes jump).
+    const ids =
+      split && "sourcesOpen" in change
+        ? [groupView(tabs, 0).activeId, groupView(tabs, 1).activeId]
+        : [id];
+    for (const each of ids) {
+      const tab = each === null ? undefined : prefsTabOf(each);
+      if (tab) setTabPrefs(tab.id, applyChange(prefsOf(tab.id), change));
+    }
   };
 
-  /** The board on screen has these layers: its tab keeps hidden only those of them. */
-  const presentLayersShown = (present: readonly LayerId[]) => {
-    if (!prefsTab) return;
-    const kept = keepLayers(viewPrefs, present);
-    if (kept !== viewPrefs) setTabPrefs(prefsTab.id, kept);
+  /** A board on screen has these layers: its tab keeps hidden only those of them. */
+  const presentLayersShown = (id: string, present: readonly LayerId[]) => {
+    const tab = prefsTabOf(id);
+    if (!tab) return;
+    const prefs = prefsOf(id);
+    const kept = keepLayers(prefs, present);
+    if (kept !== prefs) setTabPrefs(tab.id, kept);
   };
 
   /**
@@ -566,13 +658,27 @@ export function App() {
     if (atlasEnabled) void loadAtlas();
   };
 
-  /** Focuses a node of the board on screen, through its deep link when it has one. */
+  /** Focuses a node of the focused pane's board, through its deep link when it has one. */
   const focusNode = (nodeId: string) => {
     if (loaded?.slug) {
       openPlace({ slug: loaded.slug, nodeId });
       return;
     }
-    setLocalFocus((previous) => ({ nodeId, seq: (previous?.seq ?? 0) + 1 }));
+    if (focusedId === null) return;
+    setLocalFocus((previous) => ({
+      ...previous,
+      [focusedId]: { nodeId, seq: (previous[focusedId]?.seq ?? 0) + 1 },
+    }));
+  };
+
+  /** Opens a board beside the one on screen, then gives the keyboard to its tab. */
+  const openBesideAndFocus = (tabId?: string) => {
+    openBeside(tabId);
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLElement>('.pane-focused [role="tab"][aria-selected="true"]')
+        ?.focus(),
+    );
   };
 
   /** Opens the board that defines a ref; false when there is no atlas or no such board. */
@@ -597,13 +703,12 @@ export function App() {
         if (target) openPlace(target, newTab ? "new" : "preview");
         break;
       }
+      case "command":
+        if (item.command.id === "openBeside") openBesideAndFocus();
+        break;
     }
   };
 
-  // Where the board on screen sits in the atlas: the toolbar's breadcrumb and steps.
-  const atlasBoard =
-    atlas && loaded?.slug ? atlas.boards.find((b) => b.slug === loaded.slug) : undefined;
-  const steps = atlas && atlasBoard ? neighbours(atlas, atlasBoard.slug) : null;
   /** Writes the tags of the board on screen, then reloads the index so the sidebar regroups. */
   const saveTags = useCallback(
     async (slug: string, tags: string[]): Promise<string | null> => {
@@ -631,17 +736,21 @@ export function App() {
           href: formatRoute({ view: "board", slug: board.slug }),
         }
       : null;
-  const context: BoardContext | null =
-    atlasBoard && loaded && steps
+  /** Where a board on screen sits in the atlas: its toolbar's breadcrumb and steps. */
+  const contextOf = (board: LoadedScene | null): BoardContext | null => {
+    const atlasBoard =
+      atlas && board?.slug ? atlas.boards.find((b) => b.slug === board.slug) : undefined;
+    const steps = atlas && atlasBoard ? neighbours(atlas, atlasBoard.slug) : null;
+    return atlasBoard && board && steps
       ? {
           group: groupTitle(atlasBoard.kind),
-          status: loaded.stale ? "stale" : "ok",
-          staleCount: loaded.staleSourceIds.length,
+          status: board.stale ? "stale" : "ok",
+          staleCount: board.staleSourceIds.length,
           layoutFrom: atlasBoard.layoutFrom,
-          references: loaded.references,
+          references: board.references,
           ...(atlas?.exported ? { snapshot: describeStamp(atlas.exported) } : {}),
           ...(library ? { unchecked: true } : {}),
-          ...(loaded.draft ? { draft: true } : {}),
+          ...(board.draft ? { draft: true } : {}),
           prev: stepTo(steps.prev),
           next: stepTo(steps.next),
           position: { index: steps.index, count: steps.count },
@@ -653,6 +762,9 @@ export function App() {
           ...(tabsShown ? { onOpenInTab: (slug: string) => openPlace({ slug }, "new") } : {}),
         }
       : null;
+  };
+  /** The focused pane's: `[` and `]` step through its group. */
+  const context = contextOf(loaded);
 
   // Shortcuts: Ctrl K (Cmd K) opens the palette, even from the canvas, where Excalidraw would
   // otherwise take it for "add a link"; "/" filters the boards; "[" and "]" step between boards.
@@ -703,7 +815,8 @@ export function App() {
       const move = isHistoryKey(event);
       if (move) {
         const current = keys.current;
-        const selected = canvasReader.current?.selectedCount() ?? 0;
+        const reader = canvasReaders.current.get(focusedIdRef.current ?? SOLO);
+        const selected = reader?.selectedCount() ?? 0;
         const possible = move === "back" ? current.canBack : current.canForward;
         if (
           !current.atlas ||
@@ -777,8 +890,6 @@ export function App() {
     if (done) saveValue(SIDEBAR_WIDTH_KEY, width);
   };
 
-  const toggleSources = () => changePrefs({ sourcesOpen: !sourcesOpen });
-
   // Over the board, not above it: a line in the flow would push the page down and back up.
   const loadingBoard =
     busy && atlas ? (
@@ -823,10 +934,13 @@ export function App() {
   // Leaving the board with unsaved edits asks first, whichever way the address changes.
   // Changes made on the canvas outside edit mode are asked about when the board leaves the
   // screen for another tab or another board in its tab; moving within the tab keeps them.
+  // Each pane's board is asked about on its own: the one that leaves the screen.
   useEffect(() => {
-    leaveGuard.current = (kind: LeaveKind) => {
-      if (dirtyCheck.current?.()) return window.confirm(t("edit.leaveConfirm"));
-      if (kind !== "nav" && canvasReader.current?.unsaved()) {
+    leaveGuard.current = (kind: LeaveKind, tabId?: string) => {
+      const id = tabId ?? focusedIdRef.current ?? SOLO;
+      const edits = dirtyCheck.current;
+      if (edits?.tabId === id && edits.check()) return window.confirm(t("edit.leaveConfirm"));
+      if (kind !== "nav" && canvasReaders.current.get(id)?.unsaved()) {
         return window.confirm(t("tabs.leaveCanvasConfirm"));
       }
       // A pasted board has no address to come back to: replacing it always asks.
@@ -834,34 +948,62 @@ export function App() {
       return true;
     };
     const onUnload = (event: BeforeUnloadEvent) => {
-      if (dirtyCheck.current?.()) event.preventDefault();
+      if (dirtyCheck.current?.check()) event.preventDefault();
     };
     window.addEventListener("beforeunload", onUnload);
     return () => window.removeEventListener("beforeunload", onUnload);
   }, [leaveGuard]);
 
-  // The view kept for Back and Forward is an atlas board's; a pasted board has no place to keep.
-  const loadedSlug = loaded?.slug ?? null;
+  // Reads where a tab's canvas stands, while it shows the board of that slug.
   useEffect(() => {
-    viewReader.current = (slug) =>
-      slug === loadedSlug ? (canvasReader.current?.view() ?? null) : null;
-  }, [viewReader, loadedSlug]);
+    viewReader.current = (slug, tabId) => {
+      const id = tabId ?? focusedIdRef.current;
+      if (id === null || boardsRef.current[id]?.slug !== slug) return null;
+      return canvasReaders.current.get(id)?.view() ?? null;
+    };
+  }, [viewReader]);
 
-  // Another board on screen ends editing of the last one.
-  const editedSlug = loaded?.slug ?? null;
+  // The board being edited leaving the screen, or its tab showing another board, ends editing.
   useEffect(() => {
-    setEditSession((current) => (current && current.slug !== editedSlug ? null : current));
-  }, [editedSlug]);
+    setEditSession((current) =>
+      current && boards[current.tabId]?.slug !== current.slug ? null : current,
+    );
+  }, [boards]);
 
-  /** Editing of the board on screen: atlas and library boards, not the samples. */
-  const boardEditing: BoardEditing | undefined =
-    atlas && loaded?.slug && !library?.sample
+  const handlersOf = (id: string): TabHandlers => {
+    let made = handlers.current.get(id);
+    if (!made) {
+      made = {
+        onSelectionChange: (found) => setCitations((previous) => ({ ...previous, [id]: found })),
+        onNodes: (list) => setNodes((previous) => ({ ...previous, [id]: list })),
+        registerCanvas: (reader) => {
+          if (reader) canvasReaders.current.set(id, reader);
+          else canvasReaders.current.delete(id);
+        },
+        onPresentingChange: (presenting) =>
+          setPresentingId((previous) => (presenting ? id : previous === id ? null : previous)),
+      };
+      handlers.current.set(id, made);
+    }
+    return made;
+  };
+
+  /**
+   * Editing of a board on screen: atlas and library boards, not the samples. One board is edited
+   * at a time: while one pane edits, the other cannot start.
+   */
+  const boardEditingOf = (id: string, loaded: LoadedScene): BoardEditing | undefined =>
+    atlas && loaded.slug && !library?.sample
       ? {
-          session: editSession && editSession.slug === loaded.slug ? editSession : null,
+          session:
+            editSession && editSession.tabId === id && editSession.slug === loaded.slug
+              ? editSession
+              : null,
+          ...(editSession && editSession.tabId !== id ? { blocked: t("split.editElsewhere") } : {}),
           onStart: () => {
             const slug = loaded.slug as string;
             // A board being edited stays in its tab: the next ordinary click goes elsewhere.
-            const tab = activeTab(tabs);
+            const tab = tabById(tabs, id);
             if (tab?.slug === slug) pinTab(tab.id);
             void (async () => {
               const started = await startEditing(slug);
@@ -869,7 +1011,7 @@ export function App() {
                 setError(started.error);
                 return;
               }
-              setEditSession({ slug, board: started.board, overlay: started.overlay });
+              setEditSession({ tabId: id, slug, board: started.board, overlay: started.overlay });
             })();
           },
           render: async (board, overlay) => {
@@ -884,24 +1026,31 @@ export function App() {
             const error = await saveEdits(board, overlay);
             if (error !== null) return error;
             // The saved state first, then the board rendered again: the editor that shows it
-            // starts from what was saved.
-            setEditSession({ slug, board, overlay });
-            await reloadBoard(slug);
+            // starts from what was saved. Another pane showing it loads it again too.
+            setEditSession({ tabId: id, slug, board, overlay });
+            await reloadBoard(slug, atlasEnabled ? id : undefined);
             return null;
           },
           onDone: (discard) => {
             const slug = loaded.slug as string;
             setEditSession(null);
             // Unsaved edits are thrown away: render the board as it was saved.
-            if (discard) void reloadBoard(slug);
+            if (discard) void reloadBoard(slug, atlasEnabled ? id : undefined);
           },
           registerDirtyCheck: (check) => {
-            dirtyCheck.current = check;
+            if (check) dirtyCheck.current = { tabId: id, check };
+            else if (dirtyCheck.current?.tabId === id) dirtyCheck.current = null;
           },
         }
       : undefined;
-  const workspace = loaded ? (
-    <main className="workspace">
+  /** The editor of a board on screen; `active`: its pane is the focused one. */
+  const editorOf = (id: string, active: boolean) => {
+    const board = boards[id];
+    if (!board) return null;
+    const prefs = prefsOf(id);
+    const editing = boardEditingOf(id, board);
+    const on = handlersOf(id);
+    return (
       <Suspense
         fallback={
           <div className="loading" role="status">
@@ -911,43 +1060,198 @@ export function App() {
         }
       >
         <Editor
-          key={loaded.key}
-          scene={loaded.scene}
-          title={loaded.title}
-          context={context}
-          sourcesOpen={sourcesOpen}
-          onToggleSources={toggleSources}
-          prefs={viewPrefs}
-          onPrefsChange={changePrefs}
-          onLayers={presentLayersShown}
+          key={board.key}
+          scene={board.scene}
+          title={board.title}
+          context={contextOf(board)}
+          sourcesOpen={prefs.sourcesOpen}
+          onToggleSources={() => changePrefs(id, { sourcesOpen: !prefs.sourcesOpen })}
+          prefs={prefs}
+          onPrefsChange={(change) => changePrefs(id, change)}
+          onLayers={(present) => presentLayersShown(id, present)}
           theme={theme}
           locale={locale}
           motionAll={motionAll}
-          fileName={loaded.fileName}
-          focus={loaded.slug !== null ? focus : (localFocus ?? focus)}
+          fileName={board.fileName}
+          focus={board.slug !== null ? focusOf(id) : (localFocus[id] ?? focusOf(id))}
           {...(atlas && !tabBarShown ? { history: boardHistory } : {})}
-          registerCanvas={(reader) => {
-            canvasReader.current = reader;
-          }}
-          onSelectionChange={setCitations}
-          onNodes={setNodes}
+          registerCanvas={on.registerCanvas}
+          onSelectionChange={on.onSelectionChange}
+          onNodes={on.onNodes}
           onOpenRef={openRef}
-          {...(atlas && loaded.slug !== null ? { onDownloadZip: () => setZipOpen(true) } : {})}
-          {...(boardEditing ? { edit: boardEditing } : {})}
+          {...(atlas && board.slug !== null ? { onDownloadZip: () => setZipOpen(true) } : {})}
+          {...(editing ? { edit: editing } : {})}
           onError={setError}
+          active={active}
+          {...(presentingId !== null && presentingId !== id
+            ? { presentBlocked: t("split.presentElsewhere") }
+            : {})}
+          onPresentingChange={on.onPresentingChange}
         />
       </Suspense>
-      {sourcesOpen ? (
-        <SourcePanel
-          nodes={citations}
-          atlas={atlas}
-          currentSlug={loaded.slug}
-          staleSourceIds={loaded.staleSourceIds}
-          onOpen={(place) => openPlace(place, tabsShown ? "new" : "preview")}
-        />
-      ) : null}
-    </main>
+    );
+  };
+
+  /** One source panel, beside the boards: it follows the focused pane. */
+  const sourcePanel =
+    loaded && focusedId !== null && sourcesOpen ? (
+      <SourcePanel
+        nodes={citations[focusedId] ?? []}
+        atlas={atlas}
+        currentSlug={loaded.slug}
+        staleSourceIds={loaded.staleSourceIds}
+        onOpen={(place) => openPlace(place, tabsShown ? "new" : "preview")}
+      />
+    ) : null;
+
+  const workspace =
+    loaded && focusedId !== null ? (
+      <main className="workspace">
+        {editorOf(focusedId, true)}
+        {sourcePanel}
+      </main>
+    ) : null;
+
+  /** The atlas home: in the page, or in the focused pane beside the other pane's board. */
+  const homeView = atlas ? (
+    <>
+      <AtlasHome
+        atlas={atlas}
+        {...(library
+          ? {
+              library: {
+                ...library,
+                onOpenFile: () => {
+                  setDrawerOpen(false);
+                  setFileOpen(true);
+                },
+                onClear: () => {
+                  if (window.confirm(t("library.clearConfirm"))) void clearLibrary();
+                },
+              },
+            }
+          : {})}
+      />
+      <IssueList issues={issues} />
+    </>
   ) : null;
+
+  /** The tabs sit in two groups, one pane each, whether or not the window shows both. */
+  const grouped =
+    tabsShown && isSplit(tabs) && (tabs.activeId !== null || tabs.otherId !== undefined);
+
+  /**
+   * A pane: its tab bar, and its tab's board (or why there is none yet, or the atlas home).
+   * Panes are keyed by their tab, in one list however many show, so a board on screen keeps its
+   * editor (and the work in it) when a pane comes, goes, moves or is hidden. With one pane
+   * showing, its tab bar holds every tab and the messages sit under it; with two, the messages
+   * sit above both, so moving the focus never moves a pane's content.
+   */
+  const paneOf = (slot: "left" | "right" | "whole", group: Group, hidden = false) => {
+    const id = slot === "whole" ? tabs.activeId : groupView(tabs, group).activeId;
+    const tab = id === null ? undefined : tabById(tabs, id);
+    const focused = slot === "whole" || group === focusedGroup(tabs);
+    const side =
+      split && slot !== "whole" ? t(slot === "left" ? "split.leftPane" : "split.rightPane") : null;
+    const bar =
+      side === null
+        ? {
+            history: boardHistory,
+            tabs: narrowView(tabs),
+            ...(narrowSplit ? {} : { onOpenBeside: openBesideAndFocus }),
+          }
+        : {
+            ...(tab
+              ? {
+                  history: {
+                    canBack: hasBack(tab.history),
+                    canForward: hasForward(tab.history),
+                    onBack: back,
+                    onForward: forward,
+                  },
+                }
+              : {}),
+            tabs: groupView(tabs, group),
+            label: `${t("tabs.label")}, ${side}`,
+            onOpenBeside: openBesideAndFocus,
+            onMove: moveTab,
+          };
+    return (
+      <section
+        key={id ?? "home"}
+        className={side !== null && focused ? "pane pane-focused" : "pane"}
+        hidden={hidden}
+        {...(side === null
+          ? {}
+          : {
+              "aria-label": focused ? `${side}, ${t("split.activePane")}` : side,
+              // A click or the keyboard in a pane makes it the one the keys and the address
+              // follow.
+              onPointerDownCapture: () => focusPane(group),
+              onFocusCapture: () => focusPane(group),
+            })}
+      >
+        {tabBarShown && !hidden ? (
+          <TabBar
+            {...bar}
+            title={tabTitle}
+            onSelect={selectTab}
+            onClose={closeTab}
+            onPin={pinTab}
+          />
+        ) : null}
+        {focused && !split && !fileOpen ? messages : null}
+        {id === null ? (
+          <div className="start pane-home">{homeView}</div>
+        ) : boards[id] ? (
+          editorOf(id, focused && !hidden)
+        ) : (
+          <div className="pane-pending">
+            {tab?.error !== undefined ? (
+              <p className="error" role="alert">
+                {tab.error}
+              </p>
+            ) : null}
+            {focused ? <IssueList issues={issues} /> : null}
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  /**
+   * The tabs' boards: the focused pane's, or two side by side, with the source panel. A narrow
+   * window hides the other pane rather than taking its board off the page.
+   */
+  const atlasWorkspace =
+    atlasEnabled && (tabs.activeId !== null || grouped) ? (
+      <main className="workspace">
+        <div
+          className={split ? "split" : "split split-one"}
+          style={{ "--split": `${splitRatio}%` } as CSSProperties}
+        >
+          {grouped
+            ? [
+                paneOf("left", 0, !split && focusedGroup(tabs) !== 0),
+                ...(split
+                  ? [
+                      <SplitHandle
+                        key="split-handle"
+                        ratio={splitRatio}
+                        onChange={(ratio) => {
+                          setSplitRatio(ratio);
+                          saveValue(SPLIT_RATIO_KEY, ratio);
+                        }}
+                      />,
+                    ]
+                  : []),
+                paneOf("right", 1, !split && focusedGroup(tabs) !== 1),
+              ]
+            : [paneOf("whole", 0)]}
+        </div>
+        {sourcePanel}
+      </main>
+    ) : null;
 
   /** Where a zip of every board comes from: the library, the exported page, or the server. */
   const zipSource = async (): Promise<ZipSource> => {
@@ -973,10 +1277,15 @@ export function App() {
   const palette = paletteOpen ? (
     <CommandPalette
       atlas={atlas}
-      nodes={loaded ? nodes : []}
+      nodes={loaded && focusedId !== null ? (nodes[focusedId] ?? []) : []}
       onPick={pick}
       onClose={() => setPaletteOpen(false)}
       tabs={tabsShown}
+      commands={paletteCommands({
+        boardCount: tabsShown ? (atlas?.boards.length ?? 0) : 0,
+        boardOnScreen: loaded?.slug != null,
+        twoPanes: !narrowSplit,
+      })}
     />
   ) : null;
 
@@ -994,8 +1303,6 @@ export function App() {
   }
 
   if (atlas) {
-    /** The tab on screen while its board is not: still loading, or it cannot be shown. */
-    const onScreenTab = loaded ? undefined : activeTab(tabs);
     const sidebarProps = {
       atlas,
       currentSlug: loaded?.slug ?? null,
@@ -1020,10 +1327,6 @@ export function App() {
         ? { onRemove: (slug: string) => void removeFromLibrary(slug) }
         : {}),
       ...(tabsShown ? { onOpenInTab: (slug: string) => openPlace({ slug }, "new") } : {}),
-    };
-    const openFile = () => {
-      setDrawerOpen(false);
-      setFileOpen(true);
     };
     return (
       <div
@@ -1070,46 +1373,24 @@ export function App() {
               </button>
             </header>
           ) : null}
-          {tabBarShown ? (
-            <TabBar
-              history={boardHistory}
-              tabs={tabs}
-              title={tabTitle}
-              onSelect={selectTab}
-              onClose={closeTab}
-              onPin={pinTab}
-            />
-          ) : null}
-          {fileOpen ? null : messages}
-          {workspace ??
-            (onScreenTab ? (
-              <main className="start tab-pending">
-                {onScreenTab.error !== undefined ? (
-                  <p className="error" role="alert">
-                    {onScreenTab.error}
-                  </p>
-                ) : null}
-                <IssueList issues={issues} />
-              </main>
-            ) : (
-              <main className="start">
-                <AtlasHome
-                  atlas={atlas}
-                  {...(library
-                    ? {
-                        library: {
-                          ...library,
-                          onOpenFile: openFile,
-                          onClear: () => {
-                            if (window.confirm(t("library.clearConfirm"))) void clearLibrary();
-                          },
-                        },
-                      }
-                    : {})}
+          {split && !fileOpen ? messages : null}
+          {atlasWorkspace ?? (
+            <>
+              {/* On the home the tabs stay open in one row; none is on screen. */}
+              {tabBarShown ? (
+                <TabBar
+                  history={boardHistory}
+                  tabs={narrowView(tabs)}
+                  title={tabTitle}
+                  onSelect={selectTab}
+                  onClose={closeTab}
+                  onPin={pinTab}
                 />
-                <IssueList issues={issues} />
-              </main>
-            ))}
+              ) : null}
+              {fileOpen ? null : messages}
+              <main className="start">{homeView}</main>
+            </>
+          )}
         </div>
         {drawerOpen ? (
           <Modal className="drawer" label={t("common.atlas")} onClose={() => setDrawerOpen(false)}>

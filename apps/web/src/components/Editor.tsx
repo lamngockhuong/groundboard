@@ -105,6 +105,8 @@ export interface BoardEditing {
   onDone: (discard: boolean) => void;
   /** Hands over a check of unsaved changes, asked before the viewer leaves the board. */
   registerDirtyCheck: (check: (() => boolean) | null) => void;
+  /** Why editing cannot start here now (another pane is being edited); absent when it can. */
+  blocked?: string;
 }
 
 /** One step of the edit history: the board and its layout, as a whole. */
@@ -209,6 +211,15 @@ interface EditorProps {
   /** Editing of this board; absent where the board cannot be edited. */
   edit?: BoardEditing;
   onError: (message: string) => void;
+  /**
+   * Whether this board is the one the keyboard works on: with two panes, only the focused
+   * pane's board takes the keys of editing and presenting. True when absent.
+   */
+  active?: boolean;
+  /** Why a presentation cannot start here now (another pane presents); absent when it can. */
+  presentBlocked?: string;
+  /** Says when a presentation starts and ends on this board. */
+  onPresentingChange?: (presenting: boolean) => void;
 }
 
 function StatusChip({ context }: { context: BoardContext }) {
@@ -329,7 +340,12 @@ export default function Editor({
   onDownloadZip,
   edit,
   onError,
+  active = true,
+  presentBlocked,
+  onPresentingChange,
 }: EditorProps) {
+  const activeRef = useRef(active);
+  activeRef.current = active;
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const lastSelection = useRef("");
   const [font, setFont] = useState<ReadingFontId>(shownPrefs.font);
@@ -386,6 +402,14 @@ export default function Editor({
   const presentRef = useRef(presentation);
   presentRef.current = presentation;
   const presentButton = useRef<HTMLButtonElement>(null);
+  const onPresentingRef = useRef(onPresentingChange);
+  onPresentingRef.current = onPresentingChange;
+  // The page knows which board presents, so another pane does not start one beside it.
+  useEffect(() => {
+    if (!presenting) return;
+    onPresentingRef.current?.(true);
+    return () => onPresentingRef.current?.(false);
+  }, [presenting]);
   const canvasRef = useRef<HTMLDivElement>(null);
   // Changes made on the canvas outside edit mode, which nothing saves.
   const canvasChanges = useCanvasChanges(api, canvasRef, session === null && !presenting);
@@ -736,6 +760,8 @@ export default function Editor({
   useEffect(() => {
     if (!session) return;
     const onKey = (event: KeyboardEvent) => {
+      // Beside another pane, only the focused one takes the keys.
+      if (!activeRef.current) return;
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
       if (target?.isContentEditable) return;
@@ -773,6 +799,7 @@ export default function Editor({
   useEffect(() => {
     if (!presenting) return;
     const onKey = (event: KeyboardEvent) => {
+      if (!activeRef.current) return;
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
       if (target?.isContentEditable) return;
@@ -1044,8 +1071,8 @@ export default function Editor({
                 type="button"
                 className="ghost"
                 onClick={edit.onStart}
-                disabled={!api || presenting}
-                title={t("edit.startHint")}
+                disabled={!api || presenting || edit.blocked !== undefined}
+                title={edit.blocked ?? t("edit.startHint")}
               >
                 <Icon name="move" />
                 <span className="button-label">{t("edit.start")}</span>
@@ -1058,8 +1085,8 @@ export default function Editor({
                 className={presenting ? "ghost pressed" : "ghost"}
                 onClick={presenting ? exitPresentation : presentation.start}
                 aria-pressed={presenting}
-                disabled={!api || !sceneReady || !hasArrows}
-                title={presenting ? t("present.stop") : t("present.startHint")}
+                disabled={!api || !sceneReady || !hasArrows || (!presenting && !!presentBlocked)}
+                title={presenting ? t("present.stop") : (presentBlocked ?? t("present.startHint"))}
               >
                 <Icon name="present" />
                 <span className="button-label">{t("present.start")}</span>
@@ -1213,7 +1240,7 @@ export default function Editor({
         {canvasChanges.unsaved ? (
           <div className="canvas-unsaved" role="status">
             <span>{t(edit ? "editor.canvasUnsavedEdit" : "editor.canvasUnsaved")}</span>
-            {edit ? (
+            {edit && edit.blocked === undefined ? (
               <button type="button" className="ghost" onClick={edit.onStart}>
                 {t("edit.start")}
               </button>

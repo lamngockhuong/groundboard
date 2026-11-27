@@ -2,7 +2,7 @@ import { type KeyboardEvent, useEffect, useId, useMemo, useState } from "react";
 import type { AtlasIndex } from "../api.ts";
 import { groupSingular, statusLabel } from "../atlas-nav.ts";
 import { t, tn } from "../i18n.ts";
-import { type PaletteItem, searchPalette } from "../palette.ts";
+import { type PaletteCommand, type PaletteItem, searchPalette } from "../palette.ts";
 import { isNewTabEnter, newTabEnterLabel } from "../shortcuts.ts";
 import type { BoardNode } from "../sources.ts";
 import { Icon } from "./Icon.tsx";
@@ -16,6 +16,8 @@ interface CommandPaletteProps {
   onClose: () => void;
   /** Whether Ctrl Enter opens a board or ref in a new tab; false where there are no tabs. */
   tabs?: boolean;
+  /** What the viewer can do from here, besides going somewhere. */
+  commands?: readonly PaletteCommand[];
 }
 
 function ItemText({ item }: { item: PaletteItem }) {
@@ -55,6 +57,8 @@ function ItemText({ item }: { item: PaletteItem }) {
           </span>
         </>
       );
+    case "command":
+      return <span className="palette-main">{item.command.title}</span>;
   }
 }
 
@@ -63,10 +67,12 @@ const itemKey = (item: PaletteItem) =>
     ? `board:${item.board.slug}`
     : item.type === "node"
       ? `node:${item.node.nodeId}`
-      : `ref:${item.ref.ref}`;
+      : item.type === "ref"
+        ? `ref:${item.ref.ref}`
+        : `command:${item.command.id}`;
 
 /**
- * Jump to a board, a node of the board on screen, or a ref. A modal dialog whose input is a
+ * Jump to a board, a node of the board on screen, or a ref, or run a command. A modal dialog whose input is a
  * combobox over one listbox of results; arrows move, Enter opens, Esc closes.
  */
 export function CommandPalette({
@@ -75,11 +81,15 @@ export function CommandPalette({
   onPick,
   onClose,
   tabs = false,
+  commands = [],
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const baseId = useId();
-  const groups = useMemo(() => searchPalette(query, { atlas, nodes }), [query, atlas, nodes]);
+  const groups = useMemo(
+    () => searchPalette(query, { atlas, nodes, commands }),
+    [query, atlas, nodes, commands],
+  );
   const flat = groups.flatMap((g) => g.items);
   const current = Math.min(active, Math.max(0, flat.length - 1));
   const optionId = (index: number) => `${baseId}-option-${index}`;

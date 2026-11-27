@@ -266,7 +266,11 @@ repository to compare quotes with, so each board says "Not checked against code"
 default, or in the font it was drawn with, the hand-drawn font, the system sans or a monospace
 font; the choice is remembered in the browser, and an export carries the font on screen. With
 tabs open, each tab keeps its own font, design images, hidden layers and source panel, and a
-new tab starts with the choices made last. The
+new tab starts with the choices made last. On a window at least 1024px wide, "Open beside" (the
+button at the end of the tab bar, a right click on a tab, or Ctrl K) puts a second board beside
+the first, each pane with its own tabs and the divider between them draggable. "Atlas home"
+then replaces the focused pane only, and a narrower window hides the second pane until it
+widens again, without losing anything on it. The
 settings button in the header (in the sidebar's foot when an atlas is open) picks the
 interface language, English, Japanese or Vietnamese (the browser's language until one is
 picked; board text and the server's messages stay as written), follows the system's light or

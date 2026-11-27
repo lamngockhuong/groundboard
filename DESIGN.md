@@ -249,12 +249,26 @@ the code.
 - **Workspace:** the editor fills the remaining space; the source panel is a 22rem column on
   the right with a sticky header. The panel toggle in the toolbar hides it and widens the
   canvas; each tab keeps its own choice (see Tabs below).
+- **Split view:** two panes side by side in the workspace, the left one `--split` wide (25% to
+  75%, half and half until dragged), each with its own tab bar over its own board, and one
+  source panel to the right of both that shows the focused pane's selection. The panel's
+  toggle in either pane's toolbar opens or closes it for both panes, so moving the focus never
+  makes it come or go. The status and warning lines sit above both panes, under none. Between the panes a
+  hairline handle (a `separator` with an 8px grip) turns indigo on hover, focus and drag; it
+  takes ← and → (Shift for 10%), Home and End, and a double click goes back to half and half.
+  The ratio is kept in `localStorage`. The focused pane carries a 2px indigo line along the top
+  of its tab bar and is named "active pane" to screen readers; the other pane's tab on screen
+  keeps a neutral line under it.
 - **Board toolbar:** the actions sit in three groups parted by a hairline: what the board is
   doing (design, edit, present), how it reads (layers, font), and what leaves it (export,
   source panel). All are ghost controls. When the board column is narrower than 80rem the
   grouped buttons keep only their icons, so the title and the actions share one row; the
   edit-mode Save and Done keep their labels.
 - **Open file:** a modal dialog holding the load panel.
+- **Breakpoint at 1024px:** narrower than this, the two panes fold into one tab bar holding
+  every tab (the left pane's first) and one board, the focused pane's; there is no handle and
+  nothing opens beside. The other pane's board is hidden, not closed: nothing asks, nothing on
+  it is lost, and widening again brings both panes back exactly as they were.
 - **Breakpoint at 760px:** the sidebar becomes a drawer, opened from a menu button in a slim
   header and closed by Esc, the backdrop, or following a board link; focus stays inside while
   it is open. The source panel moves below the canvas (max 40% height); the toolbar title is
@@ -338,7 +352,12 @@ the tab on screen, on hover and on focus. The tab on screen is panel-white, semi
 its title in italics and is named "preview" to screen readers too. A tab whose board cannot
 be shown (missing or invalid) carries the warning icon and the words, never the colour alone.
 It is a WAI-ARIA tablist: arrows, Home and End move the focus, Enter or Space shows the
-focused tab, Delete closes it; a double click pins it.
+focused tab, Delete closes it; a double click pins it. Where two panes fit, the bar ends with
+an "Open beside" icon button. A right click on a tab, or the ContextMenu key or Shift F10 on
+it, opens its menu at the pointer (under the tab from the keyboard): Open beside, Move to the
+other pane (with two panes), Pin tab (a preview tab), Close tab. It follows the export menu's
+pattern; Esc gives the focus back to the tab. The browser's own menu stays closed on tabs
+only, never on board links.
 
 ### Atlas home cards
 Sheet cards, 12px radius, hairline border, no shadow. Stat cards put the label above the
@@ -400,7 +419,9 @@ drawn notes carry over) and "Discard changes".
 Ctrl K (Cmd K on macOS) opens it from anywhere, the canvas included, where it takes the key
 before Excalidraw's "add link". A modal dialog, 40rem wide, 12vh from the top: a borderless
 combobox input with an accent underline, then one listbox in groups (Boards, Nodes on this
-board, Refs), at most 8 results each, prefix matches first. The active option has an indigo
+board, Refs, Commands), at most 8 results each, prefix matches first. Commands come last, so
+Enter on an empty query still opens the first board; the one command, "Open the board on
+screen beside it", shows where two panes fit and the atlas has more than one board. The active option has an indigo
 wash and a 3px indigo bar. A board pasted under an atlas leaves only the nodes group. Enter
 opens a board or ref where an ordinary click would; Ctrl Enter (Cmd Enter on macOS) opens it
 in a new tab, which a muted footer line says where tabs show.
@@ -446,6 +467,21 @@ a new tab that is pinned from the start, so an ordinary click never replaces it 
 asks before it opens; closing it asks only when it holds unsaved changes, as any tab does. Its
 address is the home, and a reload does not bring it back. Only with all ten tabs pinned can a
 board take its place, and that asks first, since the pasted board cannot be opened again.
+
+Split view puts two boards side by side: the tabs then sit in two groups, a left and a right
+pane, each with its tab on screen. "Open beside" (the tab bar's button, a tab's menu, or the
+palette's command) opens a tab's board in the other pane, where the reader is on it, as a
+pinned tab, and moves the focus there; the other group's tab of that board is shown instead
+when it has one. A click or the keyboard in a pane focuses it: the address, Back and Forward,
+`[` and `]`, `Alt+1` to `Alt+9` (within the pane), `Alt+W`, the palette's nodes and the source
+panel follow the focused pane. Closing a pane's last tab leaves one pane. One board is edited
+at a time and one presents at a time: the other pane's Edit or Present button is off and says
+why, and the keys of editing and presenting reach the focused pane's board only. When both
+panes show the same board, a save in one loads it again in the other where it stands. "Atlas
+home" takes the focused pane only: the home shows there, under that pane's tab bar with no tab
+selected, while the other pane keeps its board to compare with; a board chosen from the
+sidebar or the home opens in the pane the home was in. The ten
+tabs count over both panes, and a reload brings both back.
 
 Each tab keeps its own toolbar choices: whether the design images show, the layers hidden, the
 reading font, and whether the source panel is open. Choosing another tab puts its choices back

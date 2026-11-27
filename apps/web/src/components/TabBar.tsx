@@ -1,8 +1,9 @@
-import { type KeyboardEvent, useEffect, useRef } from "react";
+import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
 import { t } from "../i18n.ts";
 import type { Tab, TabsState } from "../tabs.ts";
 import { type BoardHistory, HistoryNav } from "./HistoryNav.tsx";
 import { Icon } from "./Icon.tsx";
+import { isMenuKey, TabMenu, type TabMenuItem, tabMenuLabel } from "./TabMenu.tsx";
 
 interface TabBarProps {
   /** Back and Forward within the tab on screen, at the start of the bar as in a browser. */
@@ -12,17 +13,37 @@ interface TabBarProps {
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
   onPin: (id: string) => void;
+  /** Names the bar: which pane it belongs to, and whether that pane is focused. */
+  label?: string;
+  /** Opens a tab's board in the other pane; absent where two panes cannot show. */
+  onOpenBeside?: (id: string) => void;
+  /** Moves a tab to the other pane; absent with one pane. */
+  onMove?: (id: string) => void;
 }
 
 /**
  * The boards open in the viewer, one tab each, above the board's toolbar. A tablist: the arrow
  * keys, Home and End move between tabs, Enter or Space shows the focused one (Enter on the tab
- * on screen pins it), Delete closes it.
+ * on screen pins it), Delete closes it. A right click on a tab, or the ContextMenu key or
+ * Shift F10 on it, opens its menu: open beside, move to the other pane, pin, close. The bar
+ * ends with a button that opens the board on screen beside it.
  * A preview tab's title is set in italics and named "preview" to screen readers too; a tab
  * whose board cannot be shown carries a warning icon and words, not a colour alone.
  */
-export function TabBar({ history, tabs, title, onSelect, onClose, onPin }: TabBarProps) {
+export function TabBar({
+  history,
+  tabs,
+  title,
+  onSelect,
+  onClose,
+  onPin,
+  label = t("tabs.label"),
+  onOpenBeside,
+  onMove,
+}: TabBarProps) {
   const listRef = useRef<HTMLDivElement>(null);
+  /** The tab whose menu is open, and where. */
+  const [menu, setMenu] = useState<{ tab: Tab; x: number; y: number } | null>(null);
   const focusIndex = tabs.tabs.findIndex((tab) => tab.id === tabs.activeId);
 
   // The tab on screen scrolls into view when it changes, so a long row never hides it.
@@ -74,7 +95,71 @@ export function TabBar({ history, tabs, title, onSelect, onClose, onPin }: TabBa
     buttons[(index + buttons.length) % buttons.length]?.focus();
   };
 
+  /**
+   * Closes a tab from the keyboard. The focused tab may be gone: the focus goes to the tab now
+   * on screen, or to the board area when no tab is left.
+   */
+  const closeAndRefocus = (id: string) => {
+    onClose(id);
+    requestAnimationFrame(() => {
+      const next = listRef.current?.querySelector<HTMLElement>('[role="tab"][tabindex="0"]');
+      if (next) {
+        next.focus();
+        return;
+      }
+      const main = document.querySelector<HTMLElement>(".main-column main");
+      if (main) {
+        main.tabIndex = -1;
+        main.focus();
+      }
+    });
+  };
+
+  const tabButton = (id: string) =>
+    listRef.current?.querySelector<HTMLElement>(`[data-tab-id="${id}"] [role="tab"]`) ?? null;
+
+  /** Opens a tab's menu: at the pointer, or under the tab when the keyboard asked. */
+  const openMenu = (tab: Tab, at?: { x: number; y: number }) => {
+    const box = tabButton(tab.id)?.getBoundingClientRect();
+    const place = at ?? (box ? { x: box.left, y: box.bottom + 4 } : { x: 0, y: 0 });
+    setMenu({ tab, ...place });
+  };
+
+  const onContextMenu = (event: MouseEvent<HTMLButtonElement>, tab: Tab) => {
+    event.preventDefault();
+    // A context menu asked from the keyboard comes without a place on the screen.
+    const fromKeyboard = event.clientX === 0 && event.clientY === 0;
+    openMenu(tab, fromKeyboard ? undefined : { x: event.clientX, y: event.clientY });
+  };
+
+  const menuItems = (tab: Tab): TabMenuItem[] => [
+    ...(onOpenBeside && tab.slug !== null
+      ? [{ label: t("split.openBeside"), icon: "split" as const, run: () => onOpenBeside(tab.id) }]
+      : []),
+    ...(onMove
+      ? [{ label: t("split.moveToOther"), icon: "split" as const, run: () => onMove(tab.id) }]
+      : []),
+    ...(tab.preview
+      ? [
+          {
+            label: t("tabs.pin"),
+            icon: "check" as const,
+            run: () => {
+              onPin(tab.id);
+              tabButton(tab.id)?.focus();
+            },
+          },
+        ]
+      : []),
+    { label: t("tabs.closeTab"), icon: "close" as const, run: () => closeAndRefocus(tab.id) },
+  ];
+
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number, tab: Tab) => {
+    if (isMenuKey(event)) {
+      event.preventDefault();
+      openMenu(tab);
+      return;
+    }
     switch (event.key) {
       case "ArrowRight":
         event.preventDefault();
@@ -97,29 +182,17 @@ export function TabBar({ history, tabs, title, onSelect, onClose, onPin }: TabBa
         return;
       case "Delete":
         event.preventDefault();
-        onClose(tab.id);
-        // The focused tab may be gone: the focus goes to the tab now on screen, or to the
-        // board area when no tab is left.
-        requestAnimationFrame(() => {
-          const next = listRef.current?.querySelector<HTMLElement>('[role="tab"][tabindex="0"]');
-          if (next) {
-            next.focus();
-            return;
-          }
-          const main = document.querySelector<HTMLElement>(".main-column main");
-          if (main) {
-            main.tabIndex = -1;
-            main.focus();
-          }
-        });
+        closeAndRefocus(tab.id);
         return;
     }
   };
 
+  const shown = tabs.tabs.find((tab) => tab.id === tabs.activeId);
+
   return (
     <div className="tab-bar">
       {history ? <HistoryNav history={history} className="tab-history" /> : null}
-      <div ref={listRef} className="tab-list" role="tablist" aria-label={t("tabs.label")}>
+      <div ref={listRef} className="tab-list" role="tablist" aria-label={label}>
         {tabs.tabs.map((tab, index) => {
           const selected = tab.id === tabs.activeId;
           const name = title(tab);
@@ -139,6 +212,7 @@ export function TabBar({ history, tabs, title, onSelect, onClose, onPin }: TabBa
                 title={tab.preview ? `${name}\n${t("tabs.previewHint")}` : name}
                 onClick={() => onSelect(tab.id)}
                 onDoubleClick={() => onPin(tab.id)}
+                onContextMenu={(event) => onContextMenu(event, tab)}
                 onKeyDown={(event) => onKeyDown(event, index, tab)}
               >
                 {tab.error !== undefined ? <Icon name="alert" size={14} /> : null}
@@ -164,6 +238,33 @@ export function TabBar({ history, tabs, title, onSelect, onClose, onPin }: TabBa
           );
         })}
       </div>
+      {onOpenBeside ? (
+        <div className="tab-actions">
+          <button
+            type="button"
+            className="ghost icon-button"
+            onClick={() => shown && onOpenBeside(shown.id)}
+            disabled={!shown || shown.slug === null}
+            aria-label={t("split.openBeside")}
+            title={t("split.openBesideHint")}
+          >
+            <Icon name="split" size={16} />
+          </button>
+        </div>
+      ) : null}
+      {menu ? (
+        <TabMenu
+          label={tabMenuLabel(title(menu.tab))}
+          at={{ x: menu.x, y: menu.y }}
+          items={menuItems(menu.tab)}
+          onClose={(refocus) => {
+            // The focus goes back before the menu leaves the page, never through the body for a
+            // frame, so a key pressed right after Esc (Shift F10 again) still reaches the tab.
+            if (refocus) tabButton(menu.tab.id)?.focus();
+            setMenu(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

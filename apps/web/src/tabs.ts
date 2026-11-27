@@ -12,12 +12,18 @@ import type { Route } from "./route.ts";
 import type { ViewPrefs } from "./view-prefs.ts";
 
 /**
- * The viewer's tabs: boards kept open side by side in one pane, each with its own history of
- * places. One tab at most is a preview: an ordinary click shows its board there, replacing the
+ * The viewer's tabs: boards kept open, each with its own history of places. The tabs sit in one
+ * group, or in two when the reader put a board beside another: a left and a right pane, each
+ * with a tab on screen. The pane the reader works in is the focused one; its tab on screen is
+ * `activeId`, the other pane's is `otherId`.
+ * One tab per group at most is a preview: an ordinary click shows its board there, replacing the
  * last one, until the tab is pinned (opened as a new tab, edited, or its title double-clicked).
  * A board pasted or opened from a file is pinned from the start: it cannot be shown again.
  * Pure functions over an immutable state; `use-atlas.ts` keeps it and the browser in step.
  */
+
+/** A group of tabs, and the pane it shows in: 0 the left (or only) one, 1 the right one. */
+export type Group = 0 | 1;
 
 export interface Tab {
   id: string;
@@ -32,12 +38,19 @@ export interface Tab {
   error?: string;
   /** How its board is shown; absent until `fillPrefs` gives it the choices made last. */
   prefs?: ViewPrefs;
+  /** The group it sits in; absent for the left one. */
+  group?: Group;
 }
 
 export interface TabsState {
+  /** The left group's tabs first, then the right group's, each in the order shown. */
   tabs: readonly Tab[];
-  /** Null on the atlas home: tabs stay open, none is on screen. */
+  /** The focused pane's tab on screen. Null on the atlas home: tabs stay open, none is on screen. */
   activeId: string | null;
+  /** The pane the reader works in; absent for the left one. */
+  focused?: Group;
+  /** The other pane's tab on screen, when the tabs sit in two groups. */
+  otherId?: string;
 }
 
 /** Tabs kept open; opening one more closes the unpinned tab used longest ago. */
@@ -61,6 +74,70 @@ const sameRoute = (a: Route, b: Route): boolean =>
   a.view === b.view &&
   (a.view === "home" || (b.view === "board" && a.slug === b.slug && a.node === b.node));
 
+export const groupOf = (tab: Tab): Group => tab.group ?? 0;
+export const focusedGroup = (state: TabsState): Group => state.focused ?? 0;
+export const otherGroup = (group: Group): Group => (group === 0 ? 1 : 0);
+
+/** The tabs of one group, in order. */
+export function groupTabs(state: TabsState, group: Group): Tab[] {
+  return state.tabs.filter((tab) => groupOf(tab) === group);
+}
+
+/** Whether the tabs sit in two groups. */
+export const isSplit = (state: TabsState): boolean => state.tabs.some((tab) => groupOf(tab) === 1);
+
+/** The tab a group shows: the focused pane's `activeId`, the other's `otherId`. */
+export function groupActiveId(state: TabsState, group: Group): string | null {
+  return group === focusedGroup(state) ? state.activeId : (state.otherId ?? null);
+}
+
+/** The tab, in that group; the field is left out for the left group. */
+function inGroup(tab: Tab, group: Group): Tab {
+  if (groupOf(tab) === group) return tab;
+  const { group: _group, ...rest } = tab;
+  return group === 1 ? { ...rest, group } : rest;
+}
+
+const mostRecent = (tabs: readonly Tab[]): Tab | undefined =>
+  tabs.reduce<Tab | undefined>(
+    (a, b) => (a === undefined || b.lastUsed > a.lastUsed ? b : a),
+    undefined,
+  );
+
+/**
+ * The same tabs, kept consistent: a right group left alone becomes the left one; the left
+ * group's tabs come first; the focused pane is the one of the tab on screen; the other pane
+ * shows one of its tabs (the one it showed, else the one used last), or none with one group.
+ */
+export function settle(state: TabsState): TabsState {
+  let tabs = state.tabs;
+  if (tabs.length > 0 && tabs.every((tab) => groupOf(tab) === 1)) {
+    tabs = tabs.map((tab) => inGroup(tab, 0));
+  }
+  const left = tabs.filter((tab) => groupOf(tab) === 0);
+  const right = tabs.filter((tab) => groupOf(tab) === 1);
+  const ordered = [...left, ...right];
+  if (ordered.every((tab, i) => tab === state.tabs[i]) && ordered.length === state.tabs.length) {
+    tabs = state.tabs;
+  } else {
+    tabs = ordered;
+  }
+  const split = right.length > 0;
+  const active = state.activeId === null ? undefined : tabs.find((t) => t.id === state.activeId);
+  const focused: Group = active ? groupOf(active) : split ? focusedGroup(state) : 0;
+  let otherId: string | undefined;
+  if (split) {
+    const others = tabs.filter((tab) => groupOf(tab) === otherGroup(focused));
+    otherId = (others.find((tab) => tab.id === state.otherId) ?? mostRecent(others))?.id;
+  }
+  return {
+    tabs,
+    activeId: active?.id ?? null,
+    ...(focused === 1 ? { focused } : {}),
+    ...(otherId !== undefined ? { otherId } : {}),
+  };
+}
+
 export function activeTab(state: TabsState): Tab | undefined {
   return state.tabs.find((tab) => tab.id === state.activeId);
 }
@@ -69,9 +146,13 @@ export function tabById(state: TabsState, id: string): Tab | undefined {
   return state.tabs.find((tab) => tab.id === id);
 }
 
-/** The tab showing that board, if one does. */
+/** The tab showing that board, if one does: the focused group's first. */
 export function tabForSlug(state: TabsState, slug: string): Tab | undefined {
-  return state.tabs.find((tab) => tab.slug === slug);
+  const focused = focusedGroup(state);
+  return (
+    state.tabs.find((tab) => tab.slug === slug && groupOf(tab) === focused) ??
+    state.tabs.find((tab) => tab.slug === slug)
+  );
 }
 
 /** The place a tab shows now. */
@@ -83,16 +164,32 @@ function update(state: TabsState, id: string, change: (tab: Tab) => Tab): TabsSt
   return { ...state, tabs: state.tabs.map((tab) => (tab.id === id ? change(tab) : tab)) };
 }
 
-/** Puts a tab on screen. */
+/**
+ * Puts a tab on screen, in its pane, which becomes the focused one. A tab of the other group
+ * moves the focus there: the pane left keeps showing its tab.
+ */
 export function activate(state: TabsState, id: string, now: number): TabsState {
-  if (!tabById(state, id)) return state;
-  return { ...update(state, id, (tab) => ({ ...tab, lastUsed: now })), activeId: id };
+  const tab = tabById(state, id);
+  if (!tab) return state;
+  const touched = update(state, id, (t) => ({ ...t, lastUsed: now }));
+  const kept = groupOf(tab) === focusedGroup(state) ? state.otherId : (state.activeId ?? undefined);
+  const { otherId: _otherId, ...rest } = touched;
+  return settle({
+    ...rest,
+    activeId: id,
+    focused: groupOf(tab),
+    ...(kept !== undefined ? { otherId: kept } : {}),
+  });
 }
 
-/** The 1-based tab of `Alt+n`; 9 is the last tab, as in browsers. Null when there is none. */
-export function tabAtIndex(state: TabsState, n: number): string | null {
-  if (n < 1 || n > 9 || state.tabs.length === 0) return null;
-  const tab = n === 9 ? state.tabs[state.tabs.length - 1] : state.tabs[n - 1];
+/**
+ * The 1-based tab of `Alt+n`, among the tabs of `group` when given; 9 is the last tab, as in
+ * browsers. Null when there is none.
+ */
+export function tabAtIndex(state: TabsState, n: number, group?: Group): string | null {
+  const tabs = group === undefined ? state.tabs : groupTabs(state, group);
+  if (n < 1 || n > 9 || tabs.length === 0) return null;
+  const tab = n === 9 ? tabs[tabs.length - 1] : tabs[n - 1];
   return tab?.id ?? null;
 }
 
@@ -145,36 +242,53 @@ export function pin(state: TabsState, id: string): TabsState {
 }
 
 /**
- * Closes a tab. Closing the tab on screen puts the one to its right there, else the one to its
- * left, else none.
+ * Closes a tab. Closing a tab on screen puts the one to its right in its group there, else the
+ * one to its left; a group left empty goes, and the other pane takes the screen.
  */
 export function close(state: TabsState, id: string): TabsState {
-  const at = state.tabs.findIndex((tab) => tab.id === id);
-  if (at < 0) return state;
+  const closing = tabById(state, id);
+  if (!closing) return state;
   const tabs = state.tabs.filter((tab) => tab.id !== id);
-  if (state.activeId !== id) return { ...state, tabs };
-  const next = tabs[at] ?? tabs[at - 1];
-  return { tabs, activeId: next?.id ?? null };
+  const siblings = groupTabs(state, groupOf(closing));
+  const at = siblings.findIndex((tab) => tab.id === id);
+  const next = siblings[at + 1] ?? siblings[at - 1];
+  if (state.activeId === id) {
+    const { otherId: _otherId, ...rest } = state;
+    return settle(
+      next
+        ? { ...state, tabs, activeId: next.id }
+        : { ...rest, tabs, activeId: state.otherId ?? null },
+    );
+  }
+  if (state.otherId === id) {
+    const { otherId: _otherId, ...rest } = state;
+    return settle(next ? { ...state, tabs, otherId: next.id } : { ...rest, tabs });
+  }
+  return settle({ ...state, tabs });
 }
 
-/** Inserts a tab after the one on screen, or last when none is. */
+/** Inserts a tab into the focused group, after the tab on screen, or last when none is. */
 function insert(state: TabsState, tab: Tab): TabsState {
+  const group = focusedGroup(state);
   const at = state.tabs.findIndex((t) => t.id === state.activeId);
   const tabs = [...state.tabs];
-  tabs.splice(at < 0 ? tabs.length : at + 1, 0, tab);
-  return { tabs, activeId: tab.id };
+  const last = tabs.reduce((end, t, i) => (groupOf(t) === group ? i : end), -1);
+  tabs.splice(at < 0 ? (last < 0 ? tabs.length : last + 1) : at + 1, 0, inGroup(tab, group));
+  return settle({ ...state, tabs, activeId: tab.id, ...(group === 1 ? { focused: group } : {}) });
 }
 
 /**
- * Makes room for one more tab: closes the unpinned tab used longest ago, never the one on
- * screen. Null when every tab is pinned.
+ * Makes room for one more tab: closes the unpinned tab used longest ago, never one on screen.
+ * Null when every tab is pinned.
  */
-function makeRoom(state: TabsState): TabsState | null {
+export function makeRoom(state: TabsState): TabsState | null {
   if (state.tabs.length < TAB_LIMIT) return state;
-  const candidates = state.tabs.filter((tab) => tab.preview && tab.id !== state.activeId);
+  const candidates = state.tabs.filter(
+    (tab) => tab.preview && tab.id !== state.activeId && tab.id !== state.otherId,
+  );
   if (candidates.length === 0) return null;
   const oldest = candidates.reduce((a, b) => (b.lastUsed < a.lastUsed ? b : a));
-  return { ...state, tabs: state.tabs.filter((tab) => tab.id !== oldest.id) };
+  return settle({ ...state, tabs: state.tabs.filter((tab) => tab.id !== oldest.id) });
 }
 
 /** Shows the place in a tab that already has its board, adding the place when it differs. */
@@ -205,12 +319,15 @@ function newTab(id: string, entry: NavEntry, preview: boolean, now: number): Tab
   return { id, slug: slugOf(entry.route), preview, history: startStack(entry), lastUsed: now };
 }
 
-/** The same tab, with a history that starts at the entry; its pin and choices stay. */
+/** The same tab, with a history that starts at the entry; its pin, choices and group stay. */
 function restart(tab: Tab, entry: NavEntry, now: number): Tab {
-  return {
-    ...newTab(tab.id, entry, tab.preview, now),
-    ...(tab.prefs ? { prefs: tab.prefs } : {}),
-  };
+  return inGroup(
+    {
+      ...newTab(tab.id, entry, tab.preview, now),
+      ...(tab.prefs ? { prefs: tab.prefs } : {}),
+    },
+    groupOf(tab),
+  );
 }
 
 /**
@@ -222,7 +339,7 @@ export function openPreview(state: TabsState, entry: NavEntry, tabId: string, no
   const existing = slug === null ? undefined : tabForSlug(state, slug);
   if (existing)
     return { state: reuse(state, existing, entry, now), tabId: existing.id, full: false };
-  const preview = state.tabs.find((tab) => tab.preview);
+  const preview = state.tabs.find((tab) => tab.preview && groupOf(tab) === focusedGroup(state));
   if (preview) {
     const replaced = navigateInTab(state, preview.id, entry);
     return { state: activate(replaced, preview.id, now), tabId: preview.id, full: false };
@@ -269,12 +386,13 @@ export function openPasted(state: TabsState, entry: NavEntry, tabId: string, now
 }
 
 /**
- * The tabs whose rendered board stays in memory: the one on screen, every pasted board (it
+ * The tabs whose rendered board stays in memory: those on screen, every pasted board (it
  * cannot be loaded again), then the most recently used up to `keep` in all.
  */
 export function cachePlan(state: TabsState, keep: number = CACHE_KEEP): Set<string> {
   const kept = new Set<string>();
   if (state.activeId !== null && tabById(state, state.activeId)) kept.add(state.activeId);
+  if (state.otherId !== undefined && tabById(state, state.otherId)) kept.add(state.otherId);
   for (const tab of state.tabs) if (tab.slug === null) kept.add(tab.id);
   const recent = [...state.tabs].sort((a, b) => b.lastUsed - a.lastUsed);
   for (const tab of recent) {
