@@ -13,6 +13,10 @@ questions, each labelled with its citations.
 groundboard itself never calls an LLM and needs no API key. Nothing leaves your machine
 unless you run the server.
 
+To try the viewer without installing anything, open the editor at
+<https://groundboard.ohnice.app/editor/>: it shows an example shop app, and boards you open there
+stay in your browser.
+
 To run it from a clone instead of the published package, see [Run from source](#run-from-source).
 
 ## Use it from Claude Code
@@ -262,7 +266,8 @@ PNG and SVG. Without `--atlas` it looks like the atlas: the boards you opened ar
 sidebar by kind, with the home page, Ctrl K search and the links between their refs, and the
 list is kept in the browser (IndexedDB), so it is still there after a reload. A board opened
 again under the same file name replaces its copy; the sidebar's × removes one and the home page
-clears the list. Until you open one, a small sample atlas is shown. Boards are validated, laid
+clears the list. Until you open one, the list is empty; the example shop app is in the hosted
+editor at <https://groundboard.ohnice.app/editor/>. Boards are validated, laid
 out and rendered in the browser itself, in a Web Worker, and nothing is uploaded; there is no
 repository to compare quotes with, so each board says "Not checked against code" (run
 `groundboard atlas check` for that). The font picker above the canvas shows the board's text in a plain sans (Nunito) by
@@ -469,9 +474,10 @@ groundboard serve                # http://127.0.0.1:8787
 groundboard serve --port 8790    # if 8787 is taken
 ```
 
-Open the address in a browser: a sample atlas is shown until you open board IRs (for example
+Open the address in a browser and open board IRs (for example
 `examples/checkout-flow.board.json`) or `.excalidraw` files, which the browser then keeps in
-its list. Stop the server with Ctrl+C.
+its list. `pnpm dev` and the hosted editor show the sample atlas while the list is empty; the
+built viewer does not carry it. Stop the server with Ctrl+C.
 The viewer is served from the build, so rebuild before reloading the page after a change.
 
 ### MCP server in Claude Code
@@ -549,6 +555,7 @@ pnpm test                       # needs the build: end-to-end tests spawn the bu
 pnpm -C packages/groundboard exec playwright install --only-shell chromium   # once
 pnpm test:browser               # needs the build: the served viewer reaches nothing off the machine
 node scripts/check-pack.mjs     # pack, inspect and smoke-test the npm tarball
+pnpm -C apps/web build:hosted   # the hosted editor, with the sample boards, into apps/web/dist-hosted
 ```
 
 | Path                         | Contents                                                                     |
@@ -558,6 +565,7 @@ node scripts/check-pack.mjs     # pack, inspect and smoke-test the npm tarball
 | `packages/render-excalidraw` | `LaidOutBoard` to `.excalidraw` scene                                        |
 | `packages/groundboard`       | The published package: pipeline, source check, CLI, MCP, HTTP server         |
 | `apps/web`                   | The viewer (Vite, React, `@excalidraw/excalidraw`), bundled into the package |
+| `apps/site`                  | The project site: the home page of groundboard.ohnice.app, plain HTML        |
 | `plugins/groundboard`        | The Claude Code plugin; the repository is its own marketplace                |
 
 Only `groundboard` is published; the other packages are private and bundled into it.
@@ -588,7 +596,9 @@ conventional commits. When a release pull request is merged, the release workflo
 3. only after the npm publish succeeded, opens a pull request that moves the plugin's pinned
    version and every skill's metadata version (`scripts/bump-plugin-version.mjs`), so the
    plugin never points at a version npm does not have; `scripts/check-plugin-version.mjs` fails
-   when a skill's version differs from the plugin's.
+   when a skill's version differs from the plugin's;
+4. deploys the project site and the hosted editor to GitHub Pages from the released tag
+   (`.github/workflows/pages.yml`, which can also be run by hand).
 
 A skill that needs a newer MCP server (`/groundboard:api` needs one that knows `endpoint`) is
 merged only after the version that has it is published and pinned. Each such skill also asks

@@ -41,7 +41,11 @@ authoritative. groundboard itself never calls an LLM and needs no API key.
   snapshot that says when and at which commit its sources were checked.
 - Boards come from the atlas directory (`.groundboard/*.board.json`), a dropped or pasted
   `.board.json`, or an `.excalidraw` scene. Without an atlas, the viewer renders opened boards
-  in the browser and keeps the list in the browser's storage. Boards are produced by the Claude Code plugin
+  in the browser and keeps the list in the browser's storage; the list starts empty.
+- Tried without installing anything in the hosted editor (groundboard.ohnice.app/editor), the
+  viewer built as static files with the example shop app as sample boards. It is the only build
+  that carries them; a link to it from the local viewer would leave the machine, so the local
+  viewer names it in plain text. Boards are produced by the Claude Code plugin
   skills (`/groundboard:board`, `/groundboard:atlas`, `/groundboard:screen`) or any MCP client.
 
 ## Capabilities and Constraints
