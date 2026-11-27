@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>groundboard: diagrams that cite the code they describe</title>
+    <meta
+      name="description"
+      content="Turn a question about a codebase into an editable Excalidraw board whose every claim cites the file and line it rests on, checked against the file."
+    />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="site.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="top">
+      <a class="brand" href="./" aria-label="groundboard home">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path d="M4 5h7v6H4zM13 13h7v6h-7zM7.5 11v4.5H13M16.5 13V8.5H11" />
+        </svg>
+        groundboard
+      </a>
+      <nav aria-label="Site">
+        <a href="#start">Get started</a>
+        <a href="https://github.com/lamngockhuong/groundboard">GitHub</a>
+        <a class="button" href="editor/">Open the editor</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-text">
+          <h1 id="hero-title">Diagrams that cite the code they describe.</h1>
+          <p class="lede">
+            Ask a question about your codebase. Your AI assistant reads the code and draws the
+            answer as an editable Excalidraw board, and groundboard checks every quoted line
+            against the file before the board is rendered.
+          </p>
+          <p class="actions">
+            <a class="button" href="editor/">Open the editor</a>
+            <a class="button secondary" href="#start">Install the Claude Code plugin</a>
+          </p>
+          <p class="fine">
+            The editor runs in your browser with an example shop app. Boards you open stay in
+            your browser.
+          </p>
+        </div>
+
+        <figure class="board" aria-labelledby="board-caption">
+          <figcaption id="board-caption">
+            <span class="board-title">Place order (web)</span>
+            <span class="board-question">What happens when a customer presses Pay?</span>
+          </figcaption>
+          <ol class="steps" aria-label="Steps of the flow; choose one to see what it cites">
+            <li>
+              <button type="button" aria-pressed="true" data-source="on-pay">
+                <span class="step-label">Customer presses Pay</span>
+                <span class="cite ok">Checkout.tsx:11</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" aria-pressed="false" data-source="guard">
+                <span class="step-label">Were the terms accepted?</span>
+                <span class="cite ok">api.ts:26</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" aria-pressed="false" data-source="post">
+                <span class="step-label">POST /api/orders with the form</span>
+                <span class="cite ok">api.ts:27</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" aria-pressed="false" data-source="open">
+                <span class="step-label">What does the customer see when it fails?</span>
+                <span class="cite open">unresolved: Frontend</span>
+              </button>
+            </li>
+          </ol>
+          <div class="source" aria-live="polite">
+            <p class="source-path" id="source-path">shop-web/src/screens/Checkout.tsx:11-12</p>
+            <pre id="source-quote"><code>const onPay = async () =&gt; { await placeOrder(form);</code></pre>
+            <p class="source-state" id="source-state">
+              <span class="dot ok" aria-hidden="true"></span>Quote matches the file
+            </p>
+          </div>
+        </figure>
+      </section>
+
+      <section class="how" aria-labelledby="how-title">
+        <h2 id="how-title">How a board is made</h2>
+        <ol class="sequence">
+          <li>
+            <h3>You ask</h3>
+            <p>
+              “Why can a checkout be declined after the card was authorized?” in Claude Code or
+              any MCP client.
+            </p>
+          </li>
+          <li>
+            <h3>The assistant reads the code</h3>
+            <p>
+              It writes a board: steps, arrows, causes and open questions, each with the file,
+              line and exact text it rests on.
+            </p>
+          </li>
+          <li>
+            <h3>groundboard checks it</h3>
+            <p>
+              Every quote is compared with the cited lines. A claim the code does not back is
+              marked spec only or unresolved, never shown as checked.
+            </p>
+          </li>
+          <li>
+            <h3>You read and edit it</h3>
+            <p>
+              The board is laid out and rendered as an <code>.excalidraw</code> scene. Select a
+              step to see its source; when the code changes, the board says it is stale.
+            </p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="atlas" aria-labelledby="atlas-title">
+        <div>
+          <h2 id="atlas-title">A map of the whole app</h2>
+          <p>
+            A screen atlas puts every screen, endpoint, table and background job on boards that
+            link to each other. Someone new clicks the Pay button and follows it to
+            <code>POST /orders</code>, the <code>orders</code> table it writes and the receipt
+            job it starts, each with the line that proves it.
+          </p>
+          <p>
+            Share it with people who do not read code: export the atlas as a static site, or
+            publish it as a private link.
+          </p>
+        </div>
+        <pre class="terminal"><code>/groundboard:atlas web
+/groundboard:screen web:checkout &lt;figma-url&gt;
+/groundboard:api orders
+/groundboard:db
+/groundboard:batch
+/groundboard:publish</code></pre>
+      </section>
+
+      <section class="start" id="start" aria-labelledby="start-title">
+        <h2 id="start-title">Get started</h2>
+        <div class="ways">
+          <div class="way">
+            <h3>In Claude Code</h3>
+            <p>Install the plugin, then ask about any repository.</p>
+            <pre><code>/plugin marketplace add lamngockhuong/groundboard
+/plugin install groundboard@groundboard
+/groundboard:board why does a refund need a restock?</code></pre>
+          </div>
+          <div class="way">
+            <h3>On your machine</h3>
+            <p>Open the boards of a repository in the viewer. Needs Node.js 24 or later.</p>
+            <pre><code>npx groundboard serve</code></pre>
+          </div>
+          <div class="way">
+            <h3>In the browser</h3>
+            <p>
+              Open <code>.board.json</code> or <code>.excalidraw</code> files without installing
+              anything.
+            </p>
+            <p><a class="button secondary" href="editor/">Open the editor</a></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="private" aria-labelledby="private-title">
+        <h2 id="private-title">Your code stays yours</h2>
+        <p>
+          groundboard never calls an AI model and needs no API key: your own assistant does the
+          reading. The local viewer contacts nothing outside your machine, and the editor on
+          this site keeps the boards you open in your browser, with nothing uploaded.
+        </p>
+      </section>
+    </main>
+
+    <footer class="bottom">
+      <p>
+        groundboard is open source under the MIT license.
+        <a href="https://github.com/lamngockhuong/groundboard">Source on GitHub</a>
+      </p>
+    </footer>
+
+    <script src="site.js" defer></script>
+  </body>
+</html>
