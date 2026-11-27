@@ -1,35 +1,45 @@
 #!/usr/bin/env node
-// Packs `groundboard` (scripts/pack.mjs) and checks the tarball before anything is published:
-//   - package.json has no `workspace:` specifier and names no private package;
-//   - no shipped file imports a private `@groundboard/` package;
-//   - THIRD_PARTY_NOTICES.md, LICENSE, README.md and npm-shrinkwrap.json are inside;
-//   - `npx <tarball> render <example>` works in an empty directory, and `png` there prints the
-//     command that installs groundboard-png instead of failing;
-//   - with --measure, reports the tarball size and the cold start of `npx <tarball> mcp`
-//     (empty npm cache), so the plugin's first start can be tracked.
-// Usage: node scripts/check-pack.mjs [--tarball <file>] [--measure]
+// Packs the published packages, `groundboard` and `@groundboard/png` (scripts/pack.mjs), and
+// checks each tarball before anything is published:
+//   - package.json has no `workspace:` specifier, no devDependencies, and names no private
+//     workspace package (scripts/private-packages.mjs);
+//   - no shipped file imports a private workspace package;
+//   - THIRD_PARTY_NOTICES.md, LICENSE, README.md and npm-shrinkwrap.json are inside, and both
+//     packages have the same version;
+//   - in an empty directory, `npx <groundboard> render <example>` works, `png` without
+//     @groundboard/png prints the command that installs it, and `png` with both tarballs draws
+//     the example as a PNG;
+//   - with --measure, reports the cold start of `npx <tarball> mcp` (empty npm cache), so the
+//     plugin's first start can be tracked.
+// Usage: node scripts/check-pack.mjs [--tarball <groundboard.tgz>] [--png-tarball <png.tgz>] [--measure]
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { packStage, stagePackage } from "./pack.mjs";
+import { namesAlternation, privatePackageNames } from "./private-packages.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const { values } = parseArgs({
-  options: { tarball: { type: "string" }, measure: { type: "boolean" } },
+  options: {
+    tarball: { type: "string" },
+    "png-tarball": { type: "string" },
+    measure: { type: "boolean" },
+  },
 });
 
 const work = mkdtempSync(path.join(tmpdir(), "groundboard-check-pack-"));
 const failures = [];
 const fail = (message) => failures.push(message);
+const versions = {};
+const internal = privatePackageNames();
+const importsInternal = new RegExp(`["'\`](?:${namesAlternation(internal)})(?:/|["'\`])`);
 
-try {
-  const tarball = values.tarball
-    ? path.resolve(values.tarball)
-    : packStage(stagePackage(path.join(work, "package")), work);
-  const unpacked = path.join(work, "unpacked");
+/** Unpacks a tarball and checks what every published package must hold. */
+function checkTarball(tarball, label, required) {
+  const unpacked = path.join(work, `unpacked-${label}`);
   execFileSync("mkdir", ["-p", unpacked]);
   execFileSync("tar", ["-xzf", tarball, "-C", unpacked]);
   const root = path.join(unpacked, "package");
@@ -40,24 +50,56 @@ try {
     .sort();
 
   const pkgText = readFileSync(path.join(root, "package.json"), "utf8");
-  if (pkgText.includes("workspace:")) fail("package.json contains a workspace: specifier");
-  if (pkgText.includes("@groundboard/")) fail("package.json names a private @groundboard/ package");
+  if (pkgText.includes("workspace:"))
+    fail(`${label}: package.json contains a workspace: specifier`);
   const pkg = JSON.parse(pkgText);
-  if (pkg.devDependencies) fail("package.json still lists devDependencies");
-
+  if (pkg.devDependencies) fail(`${label}: package.json still lists devDependencies`);
+  const named = Object.keys({
+    ...pkg.dependencies,
+    ...pkg.optionalDependencies,
+    ...pkg.peerDependencies,
+  });
+  for (const name of named.filter((n) => internal.includes(n))) {
+    fail(`${label}: package.json depends on the private package ${name}`);
+  }
   for (const file of files.filter((f) => /\.(m?js|d\.mts|json)$/.test(f))) {
     const text = readFileSync(path.join(root, file), "utf8");
-    if (/["'`]@groundboard\//.test(text)) fail(`${file} refers to a private @groundboard/ package`);
+    if (importsInternal.test(text)) fail(`${label}: ${file} refers to a private workspace package`);
   }
-  for (const required of [
+  for (const file of [
     "LICENSE",
     "README.md",
     "npm-shrinkwrap.json",
     "dist/THIRD_PARTY_NOTICES.md",
-    "dist/cli.mjs",
-    "dist/layout-worker.mjs",
+    ...required,
   ]) {
-    if (!files.includes(required)) fail(`tarball is missing ${required}`);
+    if (!files.includes(file)) fail(`${label}: tarball is missing ${file}`);
+  }
+  const size = statSync(tarball).size;
+  versions[label] = pkg.version;
+  console.log(
+    `tarball: ${path.basename(tarball)} ${(size / 1024).toFixed(1)} kB, ${files.length} files`,
+  );
+}
+
+try {
+  const tarball = values.tarball
+    ? path.resolve(values.tarball)
+    : packStage(stagePackage(path.join(work, "package")), work);
+  const pngTarball = values["png-tarball"]
+    ? path.resolve(values["png-tarball"])
+    : packStage(stagePackage(path.join(work, "package-png"), "png"), work);
+  checkTarball(tarball, "groundboard", ["dist/cli.mjs", "dist/layout-worker.mjs"]);
+  checkTarball(pngTarball, "@groundboard/png", [
+    "dist/index.mjs",
+    "dist/fonts/Nunito-merged/Nunito.ttf",
+  ]);
+
+  // The CLI names @groundboard/png@<its own version>; release-please links the two versions.
+  if (versions.groundboard !== versions["@groundboard/png"]) {
+    fail(
+      `groundboard is ${versions.groundboard} but @groundboard/png is ${versions["@groundboard/png"]}`,
+    );
   }
 
   // Smoke: run the packed CLI in an empty directory.
@@ -67,44 +109,35 @@ try {
     path.join(repoRoot, "examples", "order-state-machine.board.json"),
     path.join(smoke, "board.json"),
   );
-  execFileSync(
-    "npx",
-    [
-      "--yes",
-      `--package=${tarball}`,
-      "groundboard",
-      "render",
-      "board.json",
-      "-o",
-      "out.excalidraw",
-    ],
-    {
-      cwd: smoke,
-      stdio: ["ignore", "inherit", "inherit"],
-      env: { ...process.env, npm_config_cache: path.join(work, "npm-cache-smoke") },
-    },
-  );
-  const scene = JSON.parse(readFileSync(path.join(smoke, "out.excalidraw"), "utf8"));
-  if (scene.type !== "excalidraw") fail("packed CLI did not write an Excalidraw scene");
-
-  // `png` needs the separate groundboard-png package; without it the CLI names the install command.
-  const png = spawnSync(
-    "npx",
-    ["--yes", `--package=${tarball}`, "groundboard", "png", "board.json"],
-    {
+  const npx = (packages, args) =>
+    spawnSync("npx", ["--yes", ...packages.map((p) => `--package=${p}`), "groundboard", ...args], {
       cwd: smoke,
       encoding: "utf8",
       env: { ...process.env, npm_config_cache: path.join(work, "npm-cache-smoke") },
-    },
-  );
-  if (png.status !== 1 || !png.stderr.includes("groundboard-png@")) {
-    fail(`packed CLI "png" without groundboard-png: exit ${png.status}, ${png.stderr.trim()}`);
+    });
+  const render = npx([tarball], ["render", "board.json", "-o", "out.excalidraw"]);
+  const scene = existsSync(path.join(smoke, "out.excalidraw"))
+    ? JSON.parse(readFileSync(path.join(smoke, "out.excalidraw"), "utf8"))
+    : null;
+  if (render.status !== 0 || scene?.type !== "excalidraw") {
+    fail(`packed CLI did not write an Excalidraw scene: ${render.stderr.trim()}`);
   }
 
-  const size = statSync(tarball).size;
-  console.log(
-    `tarball: ${path.basename(tarball)} ${(size / 1024).toFixed(1)} kB, ${files.length} files`,
-  );
+  // Without @groundboard/png, `png` names the command that installs it.
+  const missing = npx([tarball], ["png", "board.json"]);
+  if (missing.status !== 1 || !missing.stderr.includes("@groundboard/png@")) {
+    fail(
+      `packed CLI "png" without @groundboard/png: exit ${missing.status}, ${missing.stderr.trim()}`,
+    );
+  }
+  // With both tarballs, as the install command runs them, it draws the board.
+  const drawn = npx([tarball, pngTarball], ["png", "board.json", "-o", "board.png"]);
+  const png = existsSync(path.join(smoke, "board.png"))
+    ? readFileSync(path.join(smoke, "board.png"))
+    : Buffer.alloc(0);
+  if (drawn.status !== 0 || png.subarray(1, 4).toString("latin1") !== "PNG") {
+    fail(`packed CLI "png" with @groundboard/png: exit ${drawn.status}, ${drawn.stderr.trim()}`);
+  }
 
   if (values.measure) {
     const cold = await coldStart(tarball, path.join(work, "npm-cache-cold"), smoke);
