@@ -299,6 +299,13 @@ export const en = {
   "sources.unresolved": "Unresolved:",
   "sources.evidence": "Evidence",
   "sources.noSources": "No sources cited.",
+  "flowHint.missing": "No flow yet",
+  "flowHint.explain": "This element calls an API or changes state, but no flow describes it yet.",
+  "flowHint.copy": "Copy the request for a developer",
+  "flowHint.copied": "Copied",
+  "flowHint.copyFailed": "Could not copy; select the text below and copy it.",
+  "flowHint.prompt":
+    "/groundboard:board Draw the flow when {label} is pressed on {screen} (`{ref}`)",
 
   // Loading a board
   "input.loadBoard": "Load a board",

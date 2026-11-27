@@ -126,6 +126,8 @@ export interface AtlasRef {
   ref: string;
   definedIn: AtlasPlace[];
   usedIn: AtlasPlace[];
+  /** An element that calls an API or changes state, so a flow should cover it. */
+  needsFlow?: true;
 }
 
 /** When an exported atlas checked its sources, and against which commit. */
@@ -254,6 +256,7 @@ export function toAtlas(value: unknown): AtlasIndex | null {
       ref: r.ref as string,
       definedIn: toPlaces(r.definedIn),
       usedIn: toPlaces(r.usedIn),
+      ...(r.needsFlow === true ? { needsFlow: true as const } : {}),
     }));
   const exported = toStamp(value.exported);
   const atlasId =

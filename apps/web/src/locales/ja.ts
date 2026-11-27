@@ -288,6 +288,14 @@ export const ja: Messages = {
   "sources.unresolved": "未解決:",
   "sources.evidence": "根拠",
   "sources.noSources": "出典は引用されていません。",
+  "flowHint.missing": "フローがまだありません",
+  "flowHint.explain":
+    "この要素は API を呼ぶか状態を変えますが、それを説明するフローがまだありません。",
+  "flowHint.copy": "開発者への依頼をコピー",
+  "flowHint.copied": "コピーしました",
+  "flowHint.copyFailed": "コピーできませんでした。下のテキストを選択してコピーしてください。",
+  "flowHint.prompt":
+    "/groundboard:board {screen} で {label} を押したときのフローを描いて (`{ref}`)",
 
   "input.loadBoard": "ボードを読み込む",
   "input.formats": "{board} はブラウザーで描画し、{scene} シーンはそのまま開きます。",

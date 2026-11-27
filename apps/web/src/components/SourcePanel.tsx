@@ -1,6 +1,8 @@
 import { DEFINING_KINDS as DEFINERS } from "@groundboard/schema";
+import { useEffect, useRef, useState } from "react";
 import type { AtlasIndex, AtlasPlace } from "../api.ts";
 import { boardDefiningRef } from "../atlas-nav.ts";
+import { copyText, flowPrompt } from "../flow-hints.ts";
 import { t } from "../i18n.ts";
 import {
   type Citation,
@@ -21,9 +23,12 @@ interface SourcePanelProps {
   currentSlug?: string | null;
   /** Ids of the sources the board check found changed; empty for a pasted board. */
   staleSourceIds?: readonly string[];
+  /** Refs of elements that call an API or change state with no flow yet. */
+  missingFlows?: ReadonlySet<string>;
   onOpen?: (place: AtlasPlace) => void;
 }
 
+const NO_MISSING: ReadonlySet<string> = new Set();
 const NO_STALE: ReadonlySet<string> = new Set();
 
 const NONE_STALE: ReadonlySet<string> = new Set();
@@ -266,18 +271,81 @@ function Appearances({
   );
 }
 
+/**
+ * Says that the selected element has no flow yet and offers the line to ask a developer for
+ * one. When the browser will not copy (a sandboxed frame may refuse), the line is shown
+ * selected so the reader can copy it by hand.
+ */
+function FlowHint({
+  label,
+  screen,
+  refName,
+}: {
+  label?: string;
+  screen?: string;
+  refName: string;
+}) {
+  const prompt = flowPrompt({
+    ref: refName,
+    ...(label !== undefined ? { label } : {}),
+    ...(screen !== undefined ? { screen } : {}),
+  });
+  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
+  const fallback = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (copy === "failed") fallback.current?.select();
+  }, [copy]);
+  return (
+    <div className="flow-hint panel-block">
+      <h4 className="panel-section">{t("flowHint.missing")}</h4>
+      <p className="flow-hint-explain">{t("flowHint.explain")}</p>
+      <button
+        type="button"
+        className="flow-hint-copy"
+        onClick={async () => setCopy((await copyText(prompt)) ? "copied" : "failed")}
+      >
+        <Icon name="copy" size={14} />
+        {t("flowHint.copy")}
+      </button>
+      <span role="status" className="flow-hint-status">
+        {copy === "copied"
+          ? t("flowHint.copied")
+          : copy === "failed"
+            ? t("flowHint.copyFailed")
+            : ""}
+      </span>
+      {copy === "failed" ? (
+        <input
+          ref={fallback}
+          className="flow-hint-text"
+          readOnly
+          value={prompt}
+          aria-label={t("flowHint.copy")}
+          onFocus={(e) => e.currentTarget.select()}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** The title of the board on screen: an element is defined only on its own screen board. */
+const screenTitle = (atlas: AtlasIndex | null, slug: string | null): string | undefined =>
+  slug === null ? undefined : atlas?.boards.find((b) => b.slug === slug)?.title;
+
 /** One selected node or arrow: what it is, what it cites, and where it leads. */
 function NodeSources({
   node,
   atlas,
   currentSlug,
   stale,
+  missingFlows,
   onOpen,
 }: {
   node: NodeCitations;
   atlas: AtlasIndex | null;
   currentSlug: string | null;
   stale: ReadonlySet<string>;
+  missingFlows: ReadonlySet<string>;
   onOpen?: (place: AtlasPlace) => void;
 }) {
   const isEdge = node.edgeId !== undefined;
@@ -287,6 +355,7 @@ function NodeSources({
   const refName = node.ref ?? node.toRef;
   // An arrow drawn as a numbered tag has no text of its own: it is named by where it starts.
   const title = node.label ?? (isEdge ? node.fromLabel : undefined);
+  const screen = screenTitle(atlas, currentSlug);
   return (
     <section className="node-sources">
       <h3 className="node-head">
@@ -351,6 +420,18 @@ function NodeSources({
         <Target target={target} atlas={atlas} currentSlug={currentSlug} onOpen={onOpen} />
       ) : null}
 
+      {node.kind === "element" &&
+      node.edgeId === undefined &&
+      node.ref !== undefined &&
+      missingFlows.has(node.ref) ? (
+        <FlowHint
+          key={node.ref}
+          refName={node.ref}
+          {...(node.label !== undefined ? { label: node.label } : {})}
+          {...(screen !== undefined ? { screen } : {})}
+        />
+      ) : null}
+
       {atlas && onOpen && refName !== undefined ? (
         <Appearances
           node={node}
@@ -373,6 +454,7 @@ export function SourcePanel({
   atlas = null,
   currentSlug = null,
   staleSourceIds,
+  missingFlows = NO_MISSING,
   onOpen,
 }: SourcePanelProps) {
   const stale = staleSourceIds?.length ? new Set(staleSourceIds) : NO_STALE;
@@ -399,6 +481,7 @@ export function SourcePanel({
             atlas={atlas}
             currentSlug={currentSlug}
             stale={stale}
+            missingFlows={missingFlows}
             onOpen={onOpen}
           />
         ))

@@ -5,6 +5,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -25,6 +26,7 @@ import { TabBar } from "./components/TabBar.tsx";
 import { TokenForm } from "./components/TokenForm.tsx";
 import { ZipDialog } from "./components/ZipDialog.tsx";
 import type { ZipSource } from "./download.ts";
+import { missingFlowSet } from "./flow-hints.ts";
 import { type Locale, setLocale, t, useLocale } from "./i18n.ts";
 import { parseInput, type Scene } from "./input.ts";
 import type { LayerId } from "./layers.ts";
@@ -397,6 +399,8 @@ export function App() {
     twoPanes: !narrowSplit,
   });
 
+  /** Elements with no flow yet: the source panel and the canvas marks read the same set. */
+  const missingFlows = useMemo(() => missingFlowSet(atlas), [atlas]);
   /** Tabs show where the source has more than one board to keep open. */
   const tabsShown = atlas !== null && atlas.boards.length > 1;
   /** Back and Forward sit at the start of the tab bar when it shows, else in the toolbar. */
@@ -1100,6 +1104,7 @@ export function App() {
         atlas={atlas}
         currentSlug={loaded.slug}
         staleSourceIds={loaded.staleSourceIds}
+        missingFlows={missingFlows}
         onOpen={(place) => openPlace(place, tabsShown ? "new" : "preview")}
       />
     ) : null;

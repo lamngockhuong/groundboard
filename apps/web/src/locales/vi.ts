@@ -288,6 +288,12 @@ export const vi: Messages = {
   "sources.unresolved": "Chưa rõ:",
   "sources.evidence": "Căn cứ",
   "sources.noSources": "Không có nguồn trích dẫn.",
+  "flowHint.missing": "Chưa có flow",
+  "flowHint.explain": "Nút này gọi API hoặc đổi trạng thái nhưng chưa có flow nào mô tả nó.",
+  "flowHint.copy": "Sao chép lệnh cho dev",
+  "flowHint.copied": "Đã sao chép",
+  "flowHint.copyFailed": "Không sao chép được, hãy chọn và sao chép đoạn dưới.",
+  "flowHint.prompt": "/groundboard:board Vẽ flow khi bấm {label} trên {screen} (`{ref}`)",
 
   "input.loadBoard": "Tải board",
   "input.formats":

@@ -43,6 +43,7 @@ const PATHS = {
   settings: "M4 7h9m4 0h3M4 17h3m4 0h9M15 5v4M9 15v4",
   tabNew: "M3 20V8h6V5h7v3h5v12zM12 11v6M9 14h6",
   link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
+  copy: "M9 9h10v11H9zM15 9V4H5v11h4",
 } as const;
 
 export type IconName = keyof typeof PATHS;
