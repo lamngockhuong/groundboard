@@ -8,6 +8,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -15,7 +16,17 @@ import path from "node:path";
 import { FIGMA_CACHE_DIR } from "@groundboard/schema";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { createApp } from "../server/app.ts";
-import { exportAtlas, gitState, STATIC_MODE_META, staticIndexHtml } from "./export.ts";
+import { resolveAtlasPaths } from "./atlas.ts";
+import {
+  ARTIFACT_LIMITS,
+  exportAtlas,
+  gitState,
+  nonAsciiCodePoints,
+  parseUnicodeRange,
+  publishBatches,
+  STATIC_MODE_META,
+  staticIndexHtml,
+} from "./export.ts";
 import { run } from "./index.ts";
 import type { CliIO } from "./io.ts";
 
@@ -119,6 +130,83 @@ describe("groundboard export", () => {
     expect(manifest).toContain("data/boards/web--checkout.json");
     expect(manifest).not.toContain("manifest.txt");
     for (const rel of manifest) expect(existsSync(path.join(out, rel)), rel).toBe(true);
+    // Without the viewer's range map every CJK font file is kept.
+    expect(summary.cjkFonts).toEqual({ written: 1, total: 1 });
+    // One batch: every manifest path but index.html, ready to pass as `files`.
+    expect(summary.batches).toEqual(["publish-batch-1.json"]);
+    const batch = readJson(path.join(out, "publish-batch-1.json"));
+    expect(batch).toEqual(manifest.filter((p) => p !== "index.html").map((p) => ({ path: p })));
+  }, 60_000);
+
+  test("writes only the CJK font files whose unicode-range the boards' text uses", async () => {
+    const web = fakeViewer(path.join(base, "web-cjk"));
+    writeFileSync(path.join(web, "fonts", "Xiaolai", "kana.woff2"), "k");
+    writeFileSync(path.join(web, "fonts", "Xiaolai", "hangul.woff2"), "h");
+    writeFileSync(
+      path.join(web, "fonts", "xiaolai-ranges.json"),
+      JSON.stringify({
+        "a.woff2": "U+4e00-4e2f",
+        "kana.woff2": "U+3040-309f,U+30a0-30ff",
+        "hangul.woff2": "U+ac00-d7af",
+      }),
+    );
+    const root = path.join(base, "cjk");
+    const dir = path.join(root, ".groundboard");
+    cpSync(path.join(figmaRoot, ".groundboard"), dir, { recursive: true });
+    const board = path.join(dir, "web--users.board.json");
+    writeFileSync(
+      board,
+      readFileSync(board, "utf8").replace(/"title": "([^"]*)"/, '"title": "$1 ユーザー"'),
+    );
+
+    const out = path.join(base, "cjk-out");
+    const summary = await exportAtlas({ dir, root, out, webRoot: web }, () => {});
+    expect(summary.cjkFonts).toEqual({ written: 1, total: 3 });
+    expect(readdirSync(path.join(out, "fonts", "Xiaolai"))).toEqual(["kana.woff2"]);
+    expect(existsSync(path.join(out, "fonts", "xiaolai-ranges.json"))).toBe(false);
+    const manifest = readFileSync(path.join(out, "manifest.txt"), "utf8");
+    expect(manifest).not.toContain("xiaolai-ranges");
+    expect(manifest).not.toContain("hangul");
+
+    const skipped = await exportAtlas(
+      { dir, root, out: path.join(base, "cjk-skip"), webRoot: web, skipCjkFonts: true },
+      () => {},
+    );
+    expect(skipped.cjkFonts).toEqual({ written: 0, total: 3 });
+  }, 60_000);
+
+  test("an atlas directory that is a symlink out of the root is accepted", async () => {
+    const main = path.join(base, "main-checkout");
+    cpSync(path.join(figmaRoot, ".groundboard"), path.join(main, ".groundboard"), {
+      recursive: true,
+    });
+    const worktree = path.join(base, "worktree");
+    mkdirSync(worktree);
+    symlinkSync(path.join(main, ".groundboard"), path.join(worktree, ".groundboard"));
+    const { root, dir } = await resolveAtlasPaths(worktree, undefined, undefined, "--atlas-dir");
+    expect(root).toBe(worktree);
+    expect(dir).toBe(path.join(main, ".groundboard"));
+    const out = path.join(base, "worktree-out");
+    const summary = await exportAtlas(
+      { dir, root, out, webRoot, title: "Shop screen atlas" },
+      () => {},
+    );
+    expect(summary.boards).toBe(1);
+    expect(readFileSync(path.join(out, "index.html"), "utf8")).toContain(
+      "<title>Shop screen atlas</title>",
+    );
+
+    // A symlink to a parent of the root is still refused, and the message says why.
+    const nested = path.join(base, "nested", "project");
+    mkdirSync(nested, { recursive: true });
+    symlinkSync(path.join(base, "nested"), path.join(nested, ".groundboard"));
+    await expect(resolveAtlasPaths(nested, undefined, undefined, "--atlas-dir")).rejects.toThrow(
+      /--atlas-dir is a symlink to .*--root/,
+    );
+    // A directory named outside the root is refused as before.
+    await expect(resolveAtlasPaths(worktree, undefined, main, "--atlas-dir")).rejects.toThrow(
+      "--atlas-dir must be the project root or a directory inside it",
+    );
   }, 60_000);
 
   test("exports the Figma images by default, and leaves them out with references: false", async () => {
@@ -249,5 +337,36 @@ describe("groundboard export", () => {
       `<html><head lang="x">\n    ${STATIC_MODE_META}<title>t</title></head></html>`,
     );
     expect(() => staticIndexHtml("<html></html>")).toThrow(/no <head>/);
+    expect(staticIndexHtml("<head><title>groundboard</title></head>", "A & <B> atlas")).toBe(
+      `<head>\n    ${STATIC_MODE_META}<title>A &amp; &lt;B&gt; atlas</title></head>`,
+    );
+    expect(staticIndexHtml("<head></head>", "T")).toBe(
+      `<head>\n    ${STATIC_MODE_META}\n    <title>T</title></head>`,
+    );
+  });
+
+  test("parses unicode-range and finds the non-ASCII code points", () => {
+    expect(parseUnicodeRange("U+20-7e, U+3000,u+ff01-ff5e")).toEqual([
+      [0x20, 0x7e],
+      [0x3000, 0x3000],
+      [0xff01, 0xff5e],
+    ]);
+    expect([...nonAsciiCodePoints(["abc", "日本 é😀"])].sort()).toEqual(
+      [0x65e5, 0x672c, 0xe9, 0x1f600].sort(),
+    );
+  });
+
+  test("splits the publish into batches by file count and bytes", () => {
+    const files = Array.from({ length: 501 }, (_, i) => ({ path: `f${i}`, bytes: 1 }));
+    expect(publishBatches(files).map((b) => b.length)).toEqual([250, 250, 1]);
+    const big = ARTIFACT_LIMITS.bytesPerPublish / 2;
+    expect(
+      publishBatches([
+        { path: "a", bytes: big },
+        { path: "b", bytes: big },
+        { path: "c", bytes: 1 },
+      ]),
+    ).toEqual([["a", "b"], ["c"]]);
+    expect(publishBatches([])).toEqual([]);
   });
 });

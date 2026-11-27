@@ -35,10 +35,12 @@ Options:
                            inside the atlas directory nor contain it
       --root <path>        Project root sources are checked against (default .)
       --atlas-dir <path>   Directory of *.board.json inside the root (default <root>/${OUTPUT_DIR})
+      --title <text>       Title of the page (default: the viewer's, "groundboard")
       --no-references      Leave the cached Figma images out of the boards
-      --skip-cjk-fonts     Leave out the Chinese, Japanese and Korean handwriting font
-                           (fonts/Xiaolai, about half the files); boards in those scripts
-                           then draw with a fallback font
+      --skip-cjk-fonts     Leave out the whole Chinese, Japanese and Korean handwriting font
+                           (fonts/Xiaolai); text in those scripts then draws with a system
+                           font. Without it, only the parts of the font that cover the
+                           characters the exported boards use are written.
   -h, --help               Show this help
 
 A board that is stale or invalid, or an atlas with problems, is still exported: the viewer
@@ -47,18 +49,30 @@ shows them as \`serve --atlas\` does. Exit codes: 0 written, 1 I/O error, 2 bad 
 
 /** Every file of the export but itself, one path per line; the publish skill reads it. */
 export const MANIFEST_FILE = "manifest.txt";
+/**
+ * Prefix of the batch files: `<prefix>-<n>.json` lists, as `[{"path": ...}]`, the files one
+ * Artifact publish sends, every manifest path but `index.html` (the page is sent apart).
+ */
+export const PUBLISH_BATCH_PREFIX = "publish-batch";
 /** Meta tag that tells the viewer to read `data/` instead of the API. */
 export const STATIC_MODE_META = '<meta name="groundboard:mode" content="static" />';
 /** Largest data file the export writes; a Claude Artifact takes text files up to 16 MB. */
 export const MAX_EXPORT_FILE_BYTES = 15 * 1024 * 1024;
-/** Files one Artifact publish sends, and files and bytes one Artifact version holds. */
+/**
+ * What one Artifact publish sends beside its page, and what one Artifact version holds. A
+ * publish takes at most 255 `files` and 64 MB; a batch stays at 250 files and 60 MB, so the
+ * page sent with it, and a skill that miscounts by a few, still fit.
+ */
 export const ARTIFACT_LIMITS = {
-  filesPerPublish: 255,
+  filesPerPublish: 250,
+  bytesPerPublish: 60 * 1024 * 1024,
   files: 511,
   bytes: 256 * 1024 * 1024,
 } as const;
-/** Font directory of the viewer build only boards in Chinese, Japanese or Korean need. */
+/** Font directory of the viewer build only text in Chinese, Japanese or Korean needs. */
 const CJK_FONT_DIR = path.join("fonts", "Xiaolai");
+/** The viewer build's map of each CJK font file to its `unicode-range`; never exported. */
+const CJK_RANGES_FILE = path.join("fonts", "xiaolai-ranges.json");
 
 const defaultWebRoot = () => fileURLToPath(new URL("./web", import.meta.url));
 const run = promisify(execFile);
@@ -102,6 +116,8 @@ export interface ExportOptions {
   webRoot?: string;
   references?: boolean;
   skipCjkFonts?: boolean;
+  /** Replaces the page's `<title>`. */
+  title?: string;
   /** Board JSON larger than this is rendered again without Figma images. */
   maxFileBytes?: number;
   /** Size caps of the Figma images, for tests. */
@@ -118,6 +134,10 @@ export interface ExportSummary {
   problems: number;
   /** Boards written without their Figma images because they were too large with them. */
   withoutReferences: string[];
+  /** CJK font files written, of those the viewer has. */
+  cjkFonts: { written: number; total: number };
+  /** Batch files written for the Artifact publish, in order. */
+  batches: string[];
   stamp: ExportStamp;
 }
 
@@ -163,23 +183,104 @@ async function checkOut(out: string, dir: string): Promise<string> {
   return real;
 }
 
-/** Files of the built viewer, relative paths, without index.html and the skipped fonts. */
-async function viewerFiles(webRoot: string, skipCjkFonts: boolean): Promise<string[]> {
+/** Parses a CSS `unicode-range` such as `U+20-7e,U+3000` into inclusive code point ranges. */
+export function parseUnicodeRange(range: string): [number, number][] {
+  return range.split(",").flatMap((part) => {
+    const m = /^\s*U\+([0-9a-f]+)(?:-([0-9a-f]+))?\s*$/i.exec(part);
+    if (!m) return [];
+    const from = Number.parseInt(m[1] as string, 16);
+    return [[from, m[2] === undefined ? from : Number.parseInt(m[2], 16)]];
+  });
+}
+
+/** Every code point above ASCII that occurs in `texts`. */
+export function nonAsciiCodePoints(texts: Iterable<string>): Set<number> {
+  const found = new Set<number>();
+  for (const text of texts) {
+    for (const [ch] of text.matchAll(/[^\0-\x7f]/gu)) found.add(ch.codePointAt(0) as number);
+  }
+  return found;
+}
+
+/**
+ * Which CJK font files to export: none when skipped; else those whose `unicode-range` covers
+ * a code point the export's text uses. The browser fetches a file only for text in its range,
+ * so the others are never asked for. Without the viewer's range map, or for a file missing from
+ * it, the file is kept.
+ */
+async function cjkFontFilter(
+  webRoot: string,
+  skip: boolean,
+  used: Set<number>,
+): Promise<(rel: string) => boolean> {
+  if (skip) return () => false;
+  let map: Record<string, string>;
+  try {
+    map = JSON.parse(await readFile(path.join(webRoot, CJK_RANGES_FILE), "utf8"));
+  } catch {
+    return () => true;
+  }
+  const points = [...used];
+  return (rel) => {
+    const range = map[path.basename(rel)];
+    if (typeof range !== "string") return true;
+    return parseUnicodeRange(range).some(([from, to]) =>
+      points.some((point) => point >= from && point <= to),
+    );
+  };
+}
+
+/** Files of the built viewer, relative paths, without index.html and its range map. */
+async function viewerFiles(webRoot: string): Promise<string[]> {
   const entries = await readdir(webRoot, { recursive: true, withFileTypes: true });
   return entries
     .filter((e) => e.isFile())
     .map((e) => path.relative(webRoot, path.join(e.parentPath, e.name)))
-    .filter((rel) => rel !== "index.html")
-    .filter((rel) => !(skipCjkFonts && isInside(rel, CJK_FONT_DIR)))
+    .filter((rel) => rel !== "index.html" && rel !== CJK_RANGES_FILE)
     .sort();
 }
 
-/** The viewer page with the static-mode flag at the top of its head. */
-export function staticIndexHtml(html: string): string {
+const escapeHtml = (text: string) =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** The viewer page with the static-mode flag at the top of its head, and `title` if given. */
+export function staticIndexHtml(html: string, title?: string): string {
   const head = /<head[^>]*>/i.exec(html);
   if (!head) throw new CliError(EXIT.io, "the viewer's index.html has no <head>");
   const at = head.index + head[0].length;
-  return `${html.slice(0, at)}\n    ${STATIC_MODE_META}${html.slice(at)}`;
+  let page = `${html.slice(0, at)}\n    ${STATIC_MODE_META}${html.slice(at)}`;
+  if (title !== undefined) {
+    const element = `<title>${escapeHtml(title)}</title>`;
+    page = /<title[^>]*>[\s\S]*?<\/title>/i.test(page)
+      ? page.replace(/<title[^>]*>[\s\S]*?<\/title>/i, () => element)
+      : page.replace(STATIC_MODE_META, () => `${STATIC_MODE_META}\n    ${element}`);
+  }
+  return page;
+}
+
+/**
+ * Splits the files one Artifact publishes beside its page into batches of at most
+ * `ARTIFACT_LIMITS.filesPerPublish` files and `bytesPerPublish` bytes, in manifest order.
+ */
+export function publishBatches(files: { path: string; bytes: number }[]): string[][] {
+  const batches: string[][] = [];
+  let current: string[] = [];
+  let bytes = 0;
+  for (const file of files) {
+    if (
+      current.length > 0 &&
+      (current.length >= ARTIFACT_LIMITS.filesPerPublish ||
+        bytes + file.bytes > ARTIFACT_LIMITS.bytesPerPublish)
+    ) {
+      batches.push(current);
+      current = [];
+      bytes = 0;
+    }
+    current.push(file.path);
+    bytes += file.bytes;
+  }
+  if (current.length > 0) batches.push(current);
+  return batches;
 }
 
 /**
@@ -258,18 +359,38 @@ export async function exportAtlas(
     atlasId: atlasIdOf(await realpath(options.root)),
     exported: stamp,
   });
-  const html = staticIndexHtml(await readFile(path.join(webRoot, "index.html"), "utf8"));
-  const files = await viewerFiles(webRoot, options.skipCjkFonts ?? false);
+  const html = staticIndexHtml(
+    await readFile(path.join(webRoot, "index.html"), "utf8"),
+    options.title,
+  );
+  // Board titles, node text and notes all sit in the JSON written below; what else it holds
+  // (code excerpts, the board files) can only add a font file, never drop one that is needed.
+  const keepCjk = await cjkFontFilter(
+    webRoot,
+    options.skipCjkFonts ?? false,
+    nonAsciiCodePoints([atlasText, ...boards.values()]),
+  );
+  const allFiles = await viewerFiles(webRoot);
+  const cjkTotal = allFiles.filter((rel) => isInside(rel, CJK_FONT_DIR)).length;
+  const files = allFiles.filter((rel) => !isInside(rel, CJK_FONT_DIR) || keepCjk(rel));
+  const cjkWritten = files.filter((rel) => isInside(rel, CJK_FONT_DIR)).length;
 
   let bytes = 0;
   const written: string[] = [];
+  const sizes = new Map<string, number>();
+  const record = (rel: string, size: number) => {
+    bytes += size;
+    written.push(rel);
+    sizes.set(rel, size);
+  };
   const write = async (rel: string, data: string) => {
     const target = path.join(out, rel);
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, data);
-    bytes += Buffer.byteLength(data);
-    written.push(rel);
+    record(rel, Buffer.byteLength(data));
   };
+  const posix = (rel: string) => rel.split(path.sep).join("/");
+  const batchNames: string[] = [];
   const existed = existsSync(out);
   try {
     await mkdir(out, { recursive: true });
@@ -278,14 +399,25 @@ export async function exportAtlas(
       const target = path.join(out, rel);
       await mkdir(path.dirname(target), { recursive: true });
       await copyFile(path.join(webRoot, rel), target);
-      bytes += (await stat(target)).size;
-      written.push(rel);
+      record(rel, (await stat(target)).size);
     }
     await write(path.join("data", "atlas.json"), atlasText);
     for (const [slug, text] of boards)
       await write(path.join("data", "boards", `${slug}.json`), text);
-    const manifest = `${written.map((rel) => rel.split(path.sep).join("/")).join("\n")}\n`;
+    const manifest = `${written.map(posix).join("\n")}\n`;
+    const batches = publishBatches(
+      written
+        .filter((rel) => rel !== "index.html")
+        .map((rel) => ({ path: posix(rel), bytes: sizes.get(rel) ?? 0 })),
+    );
     await write(MANIFEST_FILE, manifest);
+    // Ready to pass as an Artifact publish's `files`; not in the manifest, never published.
+    for (const [i, batch] of batches.entries()) {
+      const name = `${PUBLISH_BATCH_PREFIX}-${i + 1}.json`;
+      const list = batch.map((p) => `  ${JSON.stringify({ path: p })}`).join(",\n");
+      await writeFile(path.join(out, name), `[\n${list}\n]\n`);
+      batchNames.push(name);
+    }
   } catch (error) {
     // `out` was empty or missing: put it back that way, so the next run is not refused.
     await rm(out, { recursive: true, force: true }).catch(() => {});
@@ -302,6 +434,8 @@ export async function exportAtlas(
     invalid: atlas.boards.filter((b) => b.status === "invalid").length,
     problems: atlas.problems.length,
     withoutReferences,
+    cjkFonts: { written: cjkWritten, total: cjkTotal },
+    batches: batchNames,
     stamp,
   };
 }
@@ -313,6 +447,7 @@ export async function exportCommand(args: string[], io: CliIO): Promise<number> 
       out: { type: "string" },
       root: { type: "string" },
       "atlas-dir": { type: "string" },
+      title: { type: "string" },
       references: { type: "boolean", default: true },
       "skip-cjk-fonts": { type: "boolean" },
       help: { type: "boolean", short: "h" },
@@ -344,6 +479,7 @@ export async function exportCommand(args: string[], io: CliIO): Promise<number> 
       out,
       references: values.references,
       skipCjkFonts: values["skip-cjk-fonts"] ?? false,
+      ...(values.title !== undefined ? { title: values.title } : {}),
     },
     io.stderr,
   );
@@ -354,17 +490,30 @@ export async function exportCommand(args: string[], io: CliIO): Promise<number> 
       `warning: the atlas has ${summary.stale} stale and ${summary.invalid} invalid board(s) and ${summary.problems} problem(s); the pages show them. Run "groundboard atlas check" for details.\n`,
     );
   }
-  if (summary.files > ARTIFACT_LIMITS.files || summary.bytes > ARTIFACT_LIMITS.bytes) {
+  // The manifest is not published and the page replaces index.html: published = files - 1.
+  const published = summary.files - 1;
+  const { cjkFonts } = summary;
+  if (published > ARTIFACT_LIMITS.files || summary.bytes > ARTIFACT_LIMITS.bytes) {
+    const tooMany = published > ARTIFACT_LIMITS.files;
     io.stderr(
-      `warning: ${summary.files} files and ${megabytes(summary.bytes)} do not fit one Claude Artifact (at most ${ARTIFACT_LIMITS.files} files and ${megabytes(ARTIFACT_LIMITS.bytes)}); any other static host still serves them\n`,
-    );
-  } else if (summary.files > ARTIFACT_LIMITS.filesPerPublish) {
-    io.stderr(
-      `note: ${summary.files} files need more than one Artifact publish (at most ${ARTIFACT_LIMITS.filesPerPublish} files each)\n`,
+      `warning: ${published} files and ${megabytes(summary.bytes)} do not fit one Claude Artifact (at most ${ARTIFACT_LIMITS.files} files and ${megabytes(ARTIFACT_LIMITS.bytes)}); ` +
+        (tooMany && cjkFonts.written > 0
+          ? `--skip-cjk-fonts leaves out ${cjkFonts.written} file(s), `
+          : "") +
+        (summary.bytes > ARTIFACT_LIMITS.bytes
+          ? "--no-references makes the boards smaller, "
+          : "") +
+        "and any other static host still serves them\n",
     );
   }
   io.stdout(
-    `exported ${summary.boards} board(s) to ${out}: ${summary.files} files, ${megabytes(summary.bytes)}\n` +
+    `exported ${summary.boards} board(s) to ${out}: ${published} files to publish, ${megabytes(summary.bytes)}\n` +
+      (cjkFonts.total === 0
+        ? ""
+        : values["skip-cjk-fonts"]
+          ? "CJK handwriting font: left out (--skip-cjk-fonts); Chinese, Japanese and Korean text draws with a system font\n"
+          : `CJK handwriting font: ${cjkFonts.written} of ${cjkFonts.total} file(s), for the characters the boards use\n`) +
+      `Artifact publish batches (at most ${ARTIFACT_LIMITS.filesPerPublish} files and ${megabytes(ARTIFACT_LIMITS.bytesPerPublish)} each): ${summary.batches.join(", ")}\n` +
       `sources checked ${stamp.checkedAt}${stamp.commit ? ` at commit ${stamp.commit}${stamp.dirty ? " with uncommitted changes" : ""}` : " (not a git repository)"}\n`,
   );
   return EXIT.ok;

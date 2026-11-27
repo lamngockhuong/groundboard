@@ -91,6 +91,50 @@ export async function confineDirectory(
   return real;
 }
 
+/**
+ * `confineDirectory` for the atlas directory a person names on the command line: it also
+ * accepts a directory whose path lies inside the root but whose real path does not, because
+ * a symlink inside the root points elsewhere (a git worktree whose `.groundboard` links to the
+ * main checkout's). The atlas directory only supplies `*.board.json`, overlays and the Figma
+ * cache, each read without following a further symlink; the sources boards cite are still
+ * checked against the real root. The MCP tools, whose arguments an agent chooses, keep
+ * `confineDirectory`. A target that is a filesystem root, the home directory or an ancestor
+ * of the root is refused.
+ */
+export async function confineAtlasDirectory(
+  root: string,
+  requested: string,
+  name: string,
+  home = homedir(),
+): Promise<string> {
+  try {
+    return await confineDirectory(root, requested, name);
+  } catch (error) {
+    const given = path.resolve(root, requested);
+    if (!(error instanceof FileAccessError) || !isInside(given, root)) throw error;
+    let real: string;
+    try {
+      real = await realpath(given);
+    } catch {
+      throw error;
+    }
+    if (isInside(real, root)) throw error;
+    let realHome: string | undefined;
+    try {
+      realHome = await realpath(home);
+    } catch {
+      realHome = undefined;
+    }
+    if (real === path.parse(real).root || real === realHome || isInside(root, real)) {
+      throw new FileAccessError(
+        `${name} is a symlink to ${real}, which is a filesystem root, the home directory or a parent of the project root; pass --atlas-dir with the real atlas directory and --root with its project`,
+      );
+    }
+    if (!(await stat(real)).isDirectory()) throw new FileAccessError(`${name} is not a directory`);
+    return real;
+  }
+}
+
 async function holdsGroundboardScene(file: string): Promise<boolean> {
   const info = await lstat(file);
   if (!info.isFile() || info.size > MAX_EXISTING_SCENE_BYTES) return false;

@@ -1,7 +1,13 @@
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { type AtlasIndex, type AtlasRequire, atlasHasProblems, buildAtlas } from "../atlas.ts";
-import { confineDirectory, FileAccessError, OUTPUT_DIR, resolveRoot } from "../mcp/file-access.ts";
+import {
+  confineAtlasDirectory,
+  confineDirectory,
+  FileAccessError,
+  OUTPUT_DIR,
+  resolveRoot,
+} from "../mcp/file-access.ts";
 import { CliError, type CliIO, EXIT, formatIssues } from "./io.ts";
 
 export const atlasHelp = `Usage: groundboard atlas check [dir] [options]
@@ -24,7 +30,10 @@ Options:
 Exit codes: 0 clean, 1 I/O error, 2 bad arguments, 3 a stale or invalid board or a problem.
 `;
 
-/** Resolves the root and atlas directory the way \`serve --atlas\` does: confined, never / or home. */
+/**
+ * Resolves the root and atlas directory the way \`serve --atlas\` does: never / or home, the
+ * atlas directory inside the root or a symlink inside it (see \`confineAtlasDirectory\`).
+ */
 export async function resolveAtlasPaths(
   cwd: string,
   rootArg: string | undefined,
@@ -38,7 +47,10 @@ export async function resolveAtlasPaths(
   if (!resolved.ok) throw new CliError(EXIT.usage, `--root: ${resolved.reason}`);
   const requested = dirArg === undefined ? OUTPUT_DIR : path.resolve(cwd, dirArg);
   try {
-    return { root: resolved.root, dir: await confineDirectory(resolved.root, requested, dirName) };
+    return {
+      root: resolved.root,
+      dir: await confineAtlasDirectory(resolved.root, requested, dirName),
+    };
   } catch (error) {
     if (error instanceof FileAccessError) throw new CliError(EXIT.usage, error.message);
     throw error;
