@@ -63,8 +63,9 @@ not carry them: they are bundled only when `import.meta.env.DEV` is true or the 
 `apps/site` is the home page of groundboard.ohnice.app, plain HTML and CSS with no build. The
 `Pages` workflow puts it at the root and the hosted editor (`apps/web` built with
 `build:hosted` into `dist-hosted/`) under `/editor/`, then deploys to GitHub Pages. The release
-workflow runs it for every release; run it by hand from the Actions tab with a tag or
-branch to deploy again. To look at the result locally:
+workflow runs it for every release. To deploy again, run it from the Actions tab and pick the
+branch in "Use workflow from"; the `github-pages` environment accepts deploys from `main` only
+unless its rules are changed. To look at the result locally:
 
 ```sh
 pnpm -C apps/web build:hosted

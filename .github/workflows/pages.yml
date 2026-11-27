@@ -2,8 +2,10 @@ name: Pages
 
 # The project site on GitHub Pages: the home page (apps/site) at the root and the hosted editor
 # (the viewer built with the sample boards, apps/web `build:hosted`) under /editor/. Called by
-# the release workflow once a version is on npm, so the editor matches the released viewer; run
-# it by hand to deploy the site again from a tag or a branch.
+# the release workflow once a version is on npm, so the editor matches the released viewer. To
+# deploy again by hand, run it from the Actions tab and pick the tag or branch in "Use workflow
+# from": it then runs in that ref's own context. It takes no ref as an input, since building one
+# from the default branch's context could poison that branch's cache.
 on:
   workflow_call:
     inputs:
@@ -12,11 +14,6 @@ on:
         required: true
         type: string
   workflow_dispatch:
-    inputs:
-      ref:
-        description: Tag or branch to build, e.g. v0.4.0 or main
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -31,13 +28,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
+          # The released tag when called; the ref the run was started from otherwise.
+          ref: ${{ inputs.ref || github.ref }}
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-      # No dependency cache: this builds whatever ref it is given, and a cache it saved could be
-      # restored by workflows on the default branch.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
       # The viewer with the samples; the workspace packages it imports are read from source.
       - run: pnpm -C apps/web build:hosted
