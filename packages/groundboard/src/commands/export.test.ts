@@ -119,6 +119,12 @@ describe("groundboard export", () => {
     expect(summary.boards).toBe(8);
     const slugs = await compareWithServer(dir, fixtures, out);
     expect(slugs).toHaveLength(8);
+    // The viewer reads which elements need a flow from the exported index.
+    const refs: Array<{ ref: string; needsFlow?: boolean }> = readJson(
+      path.join(out, "data", "atlas.json"),
+    ).refs;
+    expect(refs.find((r) => r.ref === "web:checkout/pay-button")?.needsFlow).toBe(true);
+    expect(refs.find((r) => r.ref === "web:checkout")?.needsFlow).toBeUndefined();
 
     const html = readFileSync(path.join(out, "index.html"), "utf8");
     expect(html).toContain(`<head>\n    ${STATIC_MODE_META}`);

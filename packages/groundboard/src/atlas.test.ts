@@ -467,3 +467,94 @@ describe("baseline", () => {
     ]);
   });
 });
+
+describe("missing flows", () => {
+  const flowWarning = (warnings: string[] | undefined) =>
+    (warnings ?? []).filter((w) => w.includes("have no flow yet"));
+  const unlinkedWarning = (warnings: string[] | undefined) =>
+    (warnings ?? []).filter((w) => w.includes("have no ref"));
+
+  test("warns about elements that change state with no flow, without failing", async () => {
+    const states = path.join(repoRoot, "examples/fixtures/states");
+    const atlas = await buildAtlas(path.join(states, ".groundboard"), states);
+    expect(atlasHasProblems(atlas)).toBe(false);
+    expect(atlas.refs.find((r) => r.ref === "web:users-upload/choose-file")?.needsFlow).toBe(true);
+    expect(flowWarning(atlas.warnings)).toEqual([
+      "8 element(s) that call an API or change state have no flow yet: `web:users-upload/cancel-validation`, `web:users-upload/choose-file`, `web:users-upload/confirm-cancel`, `web:users-upload/dialog-cancel`, `web:users-upload/dialog-import`, and 3 more; draw one with the board skill, e.g. /groundboard:board",
+    ]);
+  });
+
+  test("a flow step carrying the element's ref covers it", async () => {
+    const fixtures = path.join(repoRoot, "examples/fixtures");
+    const atlas = await buildAtlas(path.join(fixtures, ".groundboard"), fixtures, {
+      require: "spec",
+    });
+    expect(atlas.refs.find((r) => r.ref === "web:checkout/pay-button")?.needsFlow).toBe(true);
+    expect(flowWarning(atlas.warnings)).toEqual([]);
+    expect(atlas.problems).toEqual([]);
+  });
+
+  test("an element that calls an API with no flow is listed by its ref", async () => {
+    const screenBoard = checkoutScreen();
+    screenBoard.edges.push({
+      id: "pay-call",
+      from: "pay",
+      toRef: "api:orders/create",
+      kind: "calls",
+      sourceIds: ["pay"],
+    });
+    write("web--checkout.board.json", screenBoard);
+    const atlas = await buildAtlas(dir, root);
+    expect(atlas.refs.find((r) => r.ref === "web:checkout/pay-button")?.needsFlow).toBe(true);
+    expect(flowWarning(atlas.warnings)).toEqual([
+      expect.stringContaining(
+        "1 element(s) that call an API or change state have no flow yet: `web:checkout/pay-button`; draw",
+      ),
+    ]);
+    // A flow drawn for it clears the warning.
+    write("place-order.board.json", flow());
+    expect(flowWarning((await buildAtlas(dir, root)).warnings)).toEqual([]);
+  });
+
+  test("warns about elements that change state without a ref, also only a warning", async () => {
+    const figma = path.join(repoRoot, "examples/fixtures/figma");
+    const atlas = await buildAtlas(path.join(figma, ".groundboard"), figma);
+    expect(unlinkedWarning(atlas.warnings)).toEqual([
+      "2 element(s) call an API or change state but have no ref, so no flow can point at them: web--users (delete), web--users (confirm-ok); give each a ref such as web:<screen>/<element>",
+    ]);
+    expect(atlas.problems.some((p) => p.message.includes("no ref"))).toBe(false);
+  });
+
+  test("lists five elements and counts the rest", async () => {
+    const ids = ["a", "b", "c", "d", "e", "f", "g"];
+    const base = checkoutScreen();
+    write("web--checkout.board.json", {
+      ...base,
+      nodes: [
+        base.nodes[0],
+        ...ids.map((id) => ({
+          id,
+          kind: "element",
+          role: "button",
+          label: id,
+          parentId: "checkout",
+          action: "calls",
+          sourceIds: ["pay"],
+        })),
+      ],
+      edges: ids.map((id) => ({
+        id: `call-${id}`,
+        from: id,
+        toRef: "api:orders/create",
+        kind: "calls",
+        sourceIds: ["pay"],
+      })),
+    });
+    const atlas = await buildAtlas(dir, root, { require: "code" });
+    expect(unlinkedWarning(atlas.warnings)).toEqual([
+      expect.stringContaining(
+        "7 element(s) call an API or change state but have no ref, so no flow can point at them: web--checkout (a), web--checkout (b), web--checkout (c), web--checkout (d), web--checkout (e), and 2 more;",
+      ),
+    ]);
+  });
+});

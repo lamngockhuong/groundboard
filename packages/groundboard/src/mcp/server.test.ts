@@ -255,6 +255,43 @@ describe("MCP tools in process", () => {
     expect(clean.content[0]?.text).toMatch(/The atlas is clean: 1 board/);
   });
 
+  test("check_atlas passes with warnings for elements with no flow or no ref", async () => {
+    const states = await call({ root }, "check_atlas", {
+      dir: "examples/fixtures/states/.groundboard",
+      checkSourcesRoot: "examples/fixtures/states",
+    });
+    expect(states.isError).toBeFalsy();
+    expect(states.structuredContent?.ok).toBe(true);
+    expect(states.content[0]?.text).toMatch(/The atlas is clean/);
+    expect(states.content[0]?.text).toContain(
+      "\nwarning: 8 element(s) that call an API or change state have no flow yet",
+    );
+
+    // A copy of the figma fixture without its own two dangling refs, so only the warning is left.
+    const figma = path.join(root, "examples", "fixtures", "figma");
+    const hints = path.join(figma, "hints");
+    cpSync(path.join(figma, ".groundboard"), hints, { recursive: true });
+    const usersFile = path.join(hints, "web--users.board.json");
+    const users = JSON.parse(readFileSync(usersFile, "utf8"));
+    const dangling = new Set(["web:help", "web:user-new"]);
+    for (const node of users.nodes) if (dangling.has(node.ref)) node.ref = undefined;
+    users.edges = users.edges.filter((e: { toRef?: string }) => !dangling.has(e.toRef ?? ""));
+    writeFileSync(usersFile, JSON.stringify(users));
+    const unlinked = await call({ root }, "check_atlas", {
+      dir: "examples/fixtures/figma/hints",
+      checkSourcesRoot: "examples/fixtures/figma",
+    });
+    expect(unlinked.structuredContent?.problems).toEqual([]);
+    expect(unlinked.isError).toBeFalsy();
+    expect(unlinked.structuredContent?.ok).toBe(true);
+    expect(unlinked.structuredContent?.warnings).toEqual([
+      "2 element(s) call an API or change state but have no ref, so no flow can point at them: web--users (delete), web--users (confirm-ok); give each a ref such as web:<screen>/<element>",
+    ]);
+    expect(unlinked.content[0]?.text).toContain(
+      "\nwarning: 2 element(s) call an API or change state but have no ref",
+    );
+  });
+
   test("check_atlas refuses a dir outside the root and runs only with file access", async () => {
     const outside = await call({ root }, "check_atlas", { dir: "escape" });
     expect(outside.isError).toBe(true);

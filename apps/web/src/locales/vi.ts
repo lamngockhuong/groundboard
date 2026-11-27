@@ -134,6 +134,11 @@ export const vi: Messages = {
   "grounding.none": "Chưa có căn cứ",
   "home.attention": "Cần xem lại",
   "home.allClear": "Mọi board đều khớp với mã nguồn.",
+  "home.missingFlows": "Thiếu flow",
+  "home.missingFlowsTitle_one": "{count} phần tử chưa có flow",
+  "home.missingFlowsTitle_other": "{count} phần tử chưa có flow",
+  "home.missingFlowsHint":
+    "Các phần tử gọi API hoặc đổi trạng thái mà chưa có flow nào trỏ tới. Mở một phần tử để sao chép lệnh gửi cho dev.",
   "home.notValid": "không hợp lệ",
   "home.notValidIssues_one": "không hợp lệ: {count} lỗi",
   "home.notValidIssues_other": "không hợp lệ: {count} lỗi",
@@ -251,6 +256,8 @@ export const vi: Messages = {
   "layer.marks.hint": "chấm hành động, dấu ? và tag đặc tả",
   "layer.notes": "Chú giải & ghi chú",
   "layer.notes.hint": "chú giải và các ghi chú dưới tiêu đề",
+  "layer.flowHints": "Gợi ý flow",
+  "layer.flowHints.hint": "phần tử gọi API hoặc đổi trạng thái mà chưa có flow",
 
   "tags.tooLong": "Mỗi tag dài tối đa {max} ký tự.",
   "tags.tooMany": "Mỗi board có tối đa {max} tag.",
@@ -288,6 +295,13 @@ export const vi: Messages = {
   "sources.unresolved": "Chưa rõ:",
   "sources.evidence": "Căn cứ",
   "sources.noSources": "Không có nguồn trích dẫn.",
+  "flowHint.missing": "Chưa có flow",
+  "flowHint.explain": "Phần tử này gọi API hoặc đổi trạng thái nhưng chưa có flow nào mô tả nó.",
+  "flowHint.copy": "Sao chép lệnh cho dev",
+  "flowHint.text": "Lệnh gửi cho dev",
+  "flowHint.copied": "Đã sao chép",
+  "flowHint.copyFailed": "Không sao chép được, hãy chọn và sao chép đoạn dưới.",
+  "flowHint.prompt": "/groundboard:board Vẽ flow khi bấm {label} trên {screen} (`{ref}`)",
 
   "input.loadBoard": "Tải board",
   "input.formats":

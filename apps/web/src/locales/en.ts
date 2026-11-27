@@ -140,6 +140,11 @@ export const en = {
   "grounding.none": "Unresolved",
   "home.attention": "Needs attention",
   "home.allClear": "Every board matches the code.",
+  "home.missingFlows": "Missing flows",
+  "home.missingFlowsTitle_one": "{count} element with no flow",
+  "home.missingFlowsTitle_other": "{count} elements with no flow",
+  "home.missingFlowsHint":
+    "Elements that call an API or change state, but no flow points at them yet. Open one to copy a request for a developer.",
   "home.notValid": "not valid",
   "home.notValidIssues_one": "not valid: {count} issue",
   "home.notValidIssues_other": "not valid: {count} issues",
@@ -260,6 +265,8 @@ export const en = {
   "layer.marks.hint": "action dots, ? and spec tags",
   "layer.notes": "Legend & notes",
   "layer.notes.hint": "legend and the notes under the title",
+  "layer.flowHints": "Flow hints",
+  "layer.flowHints.hint": "elements that call an API or change state with no flow yet",
 
   // Tags
   "tags.tooLong": "A tag is at most {max} characters.",
@@ -299,6 +306,14 @@ export const en = {
   "sources.unresolved": "Unresolved:",
   "sources.evidence": "Evidence",
   "sources.noSources": "No sources cited.",
+  "flowHint.missing": "No flow yet",
+  "flowHint.explain": "This element calls an API or changes state, but no flow describes it yet.",
+  "flowHint.copy": "Copy the request for a developer",
+  "flowHint.text": "Request for a developer",
+  "flowHint.copied": "Copied",
+  "flowHint.copyFailed": "Could not copy; select the text below and copy it.",
+  "flowHint.prompt":
+    "/groundboard:board Draw the flow when {label} is pressed on {screen} (`{ref}`)",
 
   // Loading a board
   "input.loadBoard": "Load a board",

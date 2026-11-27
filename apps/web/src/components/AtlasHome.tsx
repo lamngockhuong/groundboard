@@ -1,17 +1,47 @@
-import { useId } from "react";
+import { type Ref, useId, useMemo, useRef, useState } from "react";
 import type { AtlasBoard, AtlasIndex } from "../api.ts";
 import { atlasGrounding, groupSingular, needsAttention, statusLabel } from "../atlas-nav.ts";
+import { type MissingFlowGroup, missingFlowPlaces } from "../flow-hints.ts";
 import { getLocale, t, tn } from "../i18n.ts";
 import { formatRoute } from "../route.ts";
 import { describeStamp } from "../stamp.ts";
 import { Icon } from "./Icon.tsx";
 
-function Stat({ value, label, tone }: { value: number; label: string; tone?: string }) {
-  return (
-    <div className={tone ? `stat stat-${tone}` : "stat"}>
+function Stat({
+  value,
+  label,
+  tone,
+  onClick,
+  controls,
+  expanded,
+}: {
+  value: number;
+  label: string;
+  tone?: string;
+  /** The figure opens the list behind it: the list's id and whether it is open. */
+  onClick?: () => void;
+  controls?: string;
+  expanded?: boolean;
+}) {
+  const className = tone ? `stat stat-${tone}` : "stat";
+  const body = (
+    <>
       <span className="stat-label">{label}</span>
       <span className="stat-value">{value}</span>
-    </div>
+    </>
+  );
+  return onClick ? (
+    <button
+      type="button"
+      className={`${className} stat-button`}
+      onClick={onClick}
+      aria-controls={controls}
+      aria-expanded={expanded}
+    >
+      {body}
+    </button>
+  ) : (
+    <div className={className}>{body}</div>
   );
 }
 
@@ -104,11 +134,67 @@ function Attention({ atlas, library }: { atlas: AtlasIndex; library: boolean }) 
   );
 }
 
+/**
+ * The elements that call an API or change state with no flow yet, by screen board. Each line
+ * opens the board with that element selected, where the source panel offers the request to copy.
+ */
+function MissingFlows({
+  id,
+  groups,
+  open,
+  onToggle,
+  ref,
+}: {
+  id: string;
+  groups: MissingFlowGroup[];
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  ref: Ref<HTMLDetailsElement>;
+}) {
+  const total = groups.reduce((sum, g) => sum + g.items.length, 0);
+  return (
+    <details
+      id={id}
+      ref={ref}
+      className="card missing-flows"
+      open={open}
+      onToggle={(e) => onToggle(e.currentTarget.open)}
+    >
+      <summary className="card-head missing-flows-summary">
+        <span className="missing-flows-title">{tn("home.missingFlowsTitle", total)}</span>
+        <span className="count">{total}</span>
+      </summary>
+      <p className="missing-flows-hint muted">{t("home.missingFlowsHint")}</p>
+      {groups.map((group) => (
+        <section key={group.slug} className="missing-flows-group">
+          <h4>
+            <a href={formatRoute({ view: "board", slug: group.slug })}>{group.title}</a>
+          </h4>
+          <ul>
+            {group.items.map((item) => (
+              <li key={item.ref}>
+                <a href={formatRoute({ view: "board", slug: group.slug, node: item.nodeId })}>
+                  <code>{item.ref}</code>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </details>
+  );
+}
+
 /** The atlas home: how many boards are in which state, how the claims are grounded, what to fix. */
 export function AtlasHome({ atlas, library }: { atlas: AtlasIndex; library?: LibraryHome }) {
   const titleId = useId();
   const count = (status: AtlasBoard["status"]) =>
     atlas.boards.filter((b) => b.status === status).length;
+  const missingGroups = useMemo(() => missingFlowPlaces(atlas), [atlas]);
+  const missingCount = missingGroups.reduce((sum, g) => sum + g.items.length, 0);
+  const [missingOpen, setMissingOpen] = useState(false);
+  const missingRef = useRef<HTMLDetailsElement>(null);
+  const missingId = useId();
 
   return (
     <section className="atlas-home" aria-labelledby={titleId}>
@@ -169,9 +255,33 @@ export function AtlasHome({ atlas, library }: { atlas: AtlasIndex; library?: Lib
             {count("invalid") > 0 ? (
               <Stat value={count("invalid")} label={statusLabel("invalid")} tone="invalid" />
             ) : null}
+            {missingCount > 0 ? (
+              <Stat
+                value={missingCount}
+                label={t("home.missingFlows")}
+                tone="stale"
+                controls={missingId}
+                expanded={missingOpen}
+                onClick={() => {
+                  setMissingOpen(true);
+                  missingRef.current?.scrollIntoView({ block: "start" });
+                  // Keyboard and screen reader users land on the list that just opened.
+                  missingRef.current?.querySelector("summary")?.focus();
+                }}
+              />
+            ) : null}
           </div>
           <Grounding atlas={atlas} />
           <Attention atlas={atlas} library={library !== undefined} />
+          {missingCount > 0 ? (
+            <MissingFlows
+              id={missingId}
+              ref={missingRef}
+              groups={missingGroups}
+              open={missingOpen}
+              onToggle={setMissingOpen}
+            />
+          ) : null}
         </>
       )}
 

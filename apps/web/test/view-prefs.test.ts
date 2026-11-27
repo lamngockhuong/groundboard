@@ -62,6 +62,14 @@ describe("view prefs", () => {
     expect(keepLayers(prefs, ["arrows", "notes"])).toBe(prefs);
   });
 
+  it("stores the flow-hint layer like the others, and drops it on a board with no marks", () => {
+    storeChange({ layer: "flowHints", hidden: true });
+    expect(readStoredPrefs().hiddenLayers).toEqual(["flowHints"]);
+    const prefs: ViewPrefs = { ...DEFAULT_PREFS, hiddenLayers: ["flowHints", "notes"] };
+    expect(keepLayers(prefs, ["notes"]).hiddenLayers).toEqual(["notes"]);
+    expect(keepLayers(prefs, ["notes", "flowHints"])).toBe(prefs);
+  });
+
   it("reads back only choices of the right shape", () => {
     expect(readPrefs(DEFAULT_PREFS)).toEqual(DEFAULT_PREFS);
     expect(readPrefs(null)).toBeNull();

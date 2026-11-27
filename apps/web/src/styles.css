@@ -1390,6 +1390,24 @@ body.resizing .split-handle {
   pointer-events: none;
 }
 
+/* Marks over the canvas on elements with no flow yet; never part of the scene. */
+.flow-hint-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.flow-hint-mark {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--warn);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--warn-line);
+}
+
 .motion-flow,
 .motion-draw {
   fill: none;
@@ -2091,6 +2109,47 @@ details.edit-section > :not(summary) + * {
 
 .target-card > button {
   flex: none;
+}
+
+/* An element that calls an API or changes state with no flow drawn for it yet. */
+.flow-hint {
+  border: 1px solid var(--warn-line);
+  background: var(--warn-soft);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+}
+
+.flow-hint .panel-section {
+  color: var(--warn);
+}
+
+.flow-hint-explain {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.8rem;
+}
+
+.flow-hint-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.flow-hint-status {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.flow-hint-status:empty {
+  display: none;
+}
+
+.flow-hint-text {
+  width: 100%;
+  margin-top: 0.3rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
 }
 
 .appearances > summary,
@@ -3079,6 +3138,81 @@ dialog::backdrop {
 
 .attention li a {
   font-weight: 600;
+}
+
+.stat-button {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stat-button:hover {
+  border-color: var(--warn-line);
+}
+
+.missing-flows > summary {
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  list-style: none;
+}
+
+.missing-flows > summary::-webkit-details-marker {
+  display: none;
+}
+
+.missing-flows-summary::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.5rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--ease);
+}
+
+.missing-flows[open] .missing-flows-summary::before {
+  transform: rotate(45deg);
+}
+
+.missing-flows-title {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.missing-flows:not([open]) > summary {
+  border-bottom: 0;
+}
+
+.missing-flows-hint {
+  margin: 0;
+  padding: 0.7rem 1.25rem 0;
+  font-size: 0.9rem;
+}
+
+.missing-flows-group {
+  padding: 0.7rem 1.25rem;
+}
+
+.missing-flows-group + .missing-flows-group {
+  border-top: 1px solid var(--line);
+}
+
+.missing-flows-group h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.missing-flows-group ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .attention-clear {

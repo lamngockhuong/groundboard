@@ -265,6 +265,21 @@ describe("atlas payload of the spec-stage fixture", () => {
   });
 });
 
+describe("needsFlow", () => {
+  it("keeps needsFlow only when it is true", () => {
+    const index = toAtlas({
+      boards: [],
+      refs: [
+        { ref: "web:a/b", definedIn: [], usedIn: [], needsFlow: true },
+        { ref: "web:a/c", definedIn: [], usedIn: [], needsFlow: "yes" },
+        { ref: "web:a/d", definedIn: [], usedIn: [] },
+      ],
+    });
+    expect(index?.refs.map((r) => r.needsFlow)).toEqual([true, undefined, undefined]);
+    expect(index?.refs[1]).not.toHaveProperty("needsFlow");
+  });
+});
+
 describe("export stamp", () => {
   const stamp = {
     checkedAt: "2026-11-20T07:00:00.000Z",

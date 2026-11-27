@@ -123,6 +123,9 @@ npx groundboard atlas check --baseline <dir>   # also fail on an id or ref missi
 For each board it prints how many claims (screens, interactive elements, grounded nodes and
 navigations) are backed by code, by the specification only, or unresolved:
 `grounding: code 12, spec 30, none 4`. `--require spec` fails only on unresolved claims.
+It also warns, without failing, about elements that call an API or change state (a `calls` or
+`transition` edge) that no flow covers yet, and about such elements that have no `ref`, so no
+flow can point at them.
 
 Browse it: everyone on the team runs, in the repository,
 
@@ -225,7 +228,7 @@ Exit codes: 0 ok, 1 I/O error, 2 bad arguments, 3 invalid board or failed source
 | `get_board_schema` | Returns the JSON Schema and the [IR guide](plugins/groundboard/skills/board/references/ir-guide.md). |
 | `validate_board`   | Validates a board; with `checkSourcesRoot`, checks its quotes against the files.                     |
 | `render_board`     | Renders a board; with `outputPath`, writes the scene under `.groundboard/`.                          |
-| `check_atlas`      | Checks every board of an atlas directory and reports refs, stale boards and grounding; takes `require` and `baseline` like `atlas check`. |
+| `check_atlas`      | Checks every board of an atlas directory and reports refs, stale boards and grounding; takes `require` and `baseline` like `atlas check`; warns about elements with no flow or no `ref` like `atlas check`. |
 
 For example, in a client's MCP configuration:
 

@@ -382,6 +382,33 @@ describe("groundboard CLI", () => {
     }
   });
 
+  test("atlas check: missing flows and elements without a ref are warnings, never failures", () => {
+    const states = "examples/fixtures/states";
+    const args = ["atlas", "check", `${states}/.groundboard`, "--root", states];
+    for (const extra of [[], ["--require", "spec"], ["--require", "code"]]) {
+      const result = run([...args, ...extra]);
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toContain(
+        "\nwarning: 8 element(s) that call an API or change state have no flow yet: `web:users-upload/cancel-validation`,",
+      );
+      expect(result.stdout).toContain("0 problem(s)");
+    }
+
+    // The figma fixture fails on its own two dangling refs; the warning adds no problem.
+    const figma = "examples/fixtures/figma";
+    const unlinked = run(["atlas", "check", `${figma}/.groundboard`, "--root", figma]);
+    expect(unlinked.status).toBe(3);
+    expect(unlinked.stderr).toContain(
+      "\nwarning: 2 element(s) call an API or change state but have no ref, so no flow can point at them: web--users (delete), web--users (confirm-ok);",
+    );
+    expect(unlinked.stderr).toContain("2 problem(s)");
+    const json = JSON.parse(
+      run(["atlas", "check", `${figma}/.groundboard`, "--root", figma, "--json"]).stdout,
+    );
+    expect(json.problems).toHaveLength(2);
+    expect(json.warnings).toHaveLength(1);
+  });
+
   test("atlas check: grounding, --require and --baseline", () => {
     const spec = "examples/fixtures/lifecycle/spec";
     const args = ["atlas", "check", `${spec}/.groundboard`, "--root", spec];

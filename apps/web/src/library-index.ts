@@ -121,6 +121,7 @@ export function buildLibraryIndex(entries: readonly LibraryEntry[]): AtlasIndex 
     for (const place of defined) {
       refEntry(place.ref).definedIn.push({ slug, nodeId: place.nodeId });
       definerKinds.set(`${place.ref} ${slug} ${place.nodeId}`, place.kind);
+      if (place.needsFlow) refEntry(place.ref).needsFlow = true;
     }
     for (const place of used) {
       refEntry(place.ref).usedIn.push({

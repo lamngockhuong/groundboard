@@ -282,6 +282,7 @@ export function registerTools(
         const warnings = b.warnings.map((w) => `\n  warning: ${w}`).join("");
         return head + issues + warnings;
       });
+      for (const warning of atlas.warnings ?? []) lines.push(`warning: ${warning}`);
       if (atlas.problems.length > 0) lines.push(`Problems:\n${issuesText(atlas.problems)}`);
       const summary = clean
         ? `The atlas is clean: ${atlas.boards.length} board(s), ${atlas.refs.length} ref(s).`

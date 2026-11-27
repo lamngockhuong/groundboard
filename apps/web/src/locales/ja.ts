@@ -133,6 +133,11 @@ export const ja: Messages = {
   "grounding.none": "未解決",
   "home.attention": "要確認",
   "home.allClear": "すべてのボードがコードと一致しています。",
+  "home.missingFlows": "フロー未作成",
+  "home.missingFlowsTitle_one": "フローのない要素 {count} 件",
+  "home.missingFlowsTitle_other": "フローのない要素 {count} 件",
+  "home.missingFlowsHint":
+    "API を呼ぶか状態を変えるのに、まだどのフローからも指されていない要素です。開くと開発者への依頼をコピーできます。",
   "home.notValid": "無効",
   "home.notValidIssues_one": "無効: 問題 {count} 件",
   "home.notValidIssues_other": "無効: 問題 {count} 件",
@@ -251,6 +256,8 @@ export const ja: Messages = {
   "layer.marks.hint": "アクションの点、? と仕様タグ",
   "layer.notes": "凡例とメモ",
   "layer.notes.hint": "凡例とタイトル下のメモ",
+  "layer.flowHints": "フローのヒント",
+  "layer.flowHints.hint": "API を呼ぶか状態を変えるのにフローがまだない要素",
 
   "tags.tooLong": "タグは {max} 文字以内です。",
   "tags.tooMany": "1 つのボードに付けられるタグは {max} 個までです。",
@@ -288,6 +295,15 @@ export const ja: Messages = {
   "sources.unresolved": "未解決:",
   "sources.evidence": "根拠",
   "sources.noSources": "出典は引用されていません。",
+  "flowHint.missing": "フローがまだありません",
+  "flowHint.explain":
+    "この要素は API を呼ぶか状態を変えますが、それを説明するフローがまだありません。",
+  "flowHint.copy": "開発者への依頼をコピー",
+  "flowHint.text": "開発者への依頼",
+  "flowHint.copied": "コピーしました",
+  "flowHint.copyFailed": "コピーできませんでした。下のテキストを選択してコピーしてください。",
+  "flowHint.prompt":
+    "/groundboard:board {screen} で {label} を押したときのフローを描いて (`{ref}`)",
 
   "input.loadBoard": "ボードを読み込む",
   "input.formats": "{board} はブラウザーで描画し、{scene} シーンはそのまま開きます。",

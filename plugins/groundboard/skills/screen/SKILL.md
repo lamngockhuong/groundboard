@@ -88,7 +88,9 @@ order, rows marked `direction: "row"`.
   do not draw every row of the screenshot.
 - Something visible on the screenshot or design that no line of the screen's code renders
   stays on the board without a code source; say so in its `detail` and in the report. Give a `ref` (`<screen-ref>/<element-slug>`) to the
-elements other boards may point at: actions, key fields.
+elements other boards may point at: actions, key fields. An element that calls an API or changes
+state (a `calls` or `transition` edge) always gets one: without a ref no flow can point at it, and
+`atlas check` warns about it.
 
 ### 3S. Decide whether the screen has states
 

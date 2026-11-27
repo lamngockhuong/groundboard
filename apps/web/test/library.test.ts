@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { missingFlowSet } from "../src/flow-hints.ts";
 import {
   clearEntries,
   type LibraryEntry,
@@ -74,6 +75,40 @@ describe("buildLibraryIndex", () => {
       { slug: "drawing", title: "drawing.excalidraw", kind: "flow", status: "ok" },
     ]);
     expect(index.boards[0]?.issues.length).toBeGreaterThan(0);
+  });
+});
+
+describe("missing flows in the library index", () => {
+  const fixtureEntries = (fixture: string): LibraryEntry[] => {
+    const dir = path.resolve(import.meta.dirname, "../../../examples/fixtures", fixture);
+    return readdirSync(dir)
+      .filter((f) => f.endsWith(".board.json"))
+      .map((f) =>
+        entry(f.replace(".board.json", ""), {
+          type: "board",
+          board: JSON.parse(readFileSync(path.join(dir, f), "utf8")),
+        }),
+      );
+  };
+
+  it("flags the same elements as atlas check: eight on the states fixture", () => {
+    const index = buildLibraryIndex(fixtureEntries("states/.groundboard"));
+    expect([...missingFlowSet(index)]).toEqual([
+      "web:users-upload/cancel-validation",
+      "web:users-upload/choose-file",
+      "web:users-upload/confirm-cancel",
+      "web:users-upload/dialog-cancel",
+      "web:users-upload/dialog-import",
+      "web:users-upload/errors-upload-again",
+      "web:users-upload/import",
+      "web:users-upload/mismatch-upload-again",
+    ]);
+  });
+
+  it("counts a flow step as covering the element", () => {
+    const index = buildLibraryIndex(fixtureEntries(".groundboard"));
+    expect(index.refs.find((r) => r.ref === "web:checkout/pay-button")?.needsFlow).toBe(true);
+    expect(missingFlowSet(index).size).toBe(0);
   });
 });
 

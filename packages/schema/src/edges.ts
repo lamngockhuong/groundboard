@@ -35,6 +35,9 @@ export const REF_EDGE_KINDS: Partial<
   enqueues: { namespaces: ["batch"], level: "root" },
 };
 
+/** Edge kinds by which an element calls an API or changes state, so a flow should cover it. */
+export const FLOW_EDGE_KINDS = ["calls", "transition"] as const satisfies readonly EdgeKind[];
+
 /** Whether an edge states a claim: a claim kind, or a transition that ends at a screen. */
 export function isClaimEdge(
   edge: Pick<BoardEdge, "kind" | "to">,
