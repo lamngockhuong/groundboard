@@ -1,0 +1,20 @@
+{
+  "name": "spike-png-render",
+  "private": true,
+  "type": "module",
+  "description": "Scratch prototype: render a groundboard .excalidraw scene to PNG without a browser (option B) and with one (option A). Not part of the build.",
+  "dependencies": {
+    "@excalidraw/excalidraw": "0.18.1",
+    "@resvg/resvg-js": "2.6.2",
+    "@resvg/resvg-wasm": "2.6.2",
+    "esbuild": "0.25.12",
+    "jsdom": "31.0.1",
+    "linkedom": "0.18.12",
+    "pixelmatch": "7.1.0",
+    "playwright-core": "1.65.1",
+    "pngjs": "7.0.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "wawoff2": "2.0.1"
+  }
+}

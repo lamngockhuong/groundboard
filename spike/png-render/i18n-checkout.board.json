@@ -1,0 +1,210 @@
+{
+  "$schema": "../packages/schema/board.schema.json",
+  "schemaVersion": 1,
+  "title": "Luồng thanh toán / 決済フロー",
+  "question": "Why can a checkout be declined after the card was authorized?",
+  "repo": {
+    "url": "https://github.com/lamngockhuong/groundboard"
+  },
+  "groups": [
+    {
+      "id": "g-checkout",
+      "label": "checkout()"
+    },
+    {
+      "id": "g-why",
+      "label": "Why this order"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n-ready",
+      "kind": "step",
+      "label": "Kiểm tra giỏ hàng đã sẵn sàng",
+      "detail": "Giỏ trống và giỏ của khách bị từ chối trước khi gọi thanh toán.",
+      "groupId": "g-checkout",
+      "sourceIds": [
+        "s-ready",
+        "s-guest"
+      ]
+    },
+    {
+      "id": "n-authorize",
+      "kind": "step",
+      "label": "カードの与信を確保する（合計金額）",
+      "groupId": "g-checkout",
+      "sourceIds": [
+        "s-authorize"
+      ]
+    },
+    {
+      "id": "n-reserve",
+      "kind": "decision",
+      "label": "Mọi SKU đều còn hàng? 在庫はありますか？",
+      "groupId": "g-checkout",
+      "sourceIds": [
+        "s-reserve",
+        "s-all-or-none"
+      ]
+    },
+    {
+      "id": "n-capture",
+      "kind": "step",
+      "label": "Capture the payment",
+      "groupId": "g-checkout",
+      "sourceIds": [
+        "s-capture"
+      ]
+    },
+    {
+      "id": "n-void",
+      "kind": "step",
+      "label": "Void the authorization and decline: out of stock",
+      "groupId": "g-checkout",
+      "sourceIds": [
+        "s-void"
+      ]
+    },
+    {
+      "id": "n-cause",
+      "kind": "cause",
+      "label": "Stock is reserved only after the card is authorized",
+      "groupId": "g-why",
+      "sourceIds": [
+        "s-why"
+      ]
+    },
+    {
+      "id": "n-rejected",
+      "kind": "rejected",
+      "label": "Capture at order time",
+      "detail": "Refunds for out-of-stock orders cost a fee on every transaction.",
+      "groupId": "g-why",
+      "sourceIds": [
+        "s-rejected"
+      ]
+    },
+    {
+      "id": "n-guest",
+      "kind": "question",
+      "label": "Should guest checkout be allowed? (Product)",
+      "groupId": "g-why",
+      "sourceIds": [
+        "s-open"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "n-ready",
+      "to": "n-authorize",
+      "kind": "flow"
+    },
+    {
+      "id": "e2",
+      "from": "n-authorize",
+      "to": "n-reserve",
+      "kind": "flow"
+    },
+    {
+      "id": "e3",
+      "from": "n-reserve",
+      "to": "n-capture",
+      "kind": "flow",
+      "label": "yes"
+    },
+    {
+      "id": "e4",
+      "from": "n-reserve",
+      "to": "n-void",
+      "kind": "flow",
+      "label": "no"
+    },
+    {
+      "id": "e5",
+      "from": "n-cause",
+      "to": "n-void",
+      "kind": "causes"
+    },
+    {
+      "id": "e6",
+      "from": "n-rejected",
+      "to": "n-cause",
+      "kind": "relates"
+    },
+    {
+      "id": "e7",
+      "from": "n-guest",
+      "to": "n-ready",
+      "kind": "relates"
+    }
+  ],
+  "sources": [
+    {
+      "id": "s-ready",
+      "path": "examples/fixtures/checkout/payment.ts",
+      "line": 17,
+      "quote": "assertCheckoutReady(cart);"
+    },
+    {
+      "id": "s-guest",
+      "path": "examples/fixtures/checkout/cart.ts",
+      "line": 23,
+      "endLine": 24,
+      "quote": "if (cart.customerId === null) { throw new Error(\"guest carts must sign in before checkout\");"
+    },
+    {
+      "id": "s-authorize",
+      "path": "examples/fixtures/checkout/payment.ts",
+      "line": 20,
+      "quote": "await gateway.authorize(amount, cart.customerId as string)"
+    },
+    {
+      "id": "s-reserve",
+      "path": "examples/fixtures/checkout/payment.ts",
+      "line": 21,
+      "endLine": 22,
+      "quote": "const reserved = await reserveStock(cart.lines); if (!reserved) {"
+    },
+    {
+      "id": "s-all-or-none",
+      "path": "examples/fixtures/checkout/inventory.ts",
+      "line": 7,
+      "quote": "Reserves every line or none of them."
+    },
+    {
+      "id": "s-capture",
+      "path": "examples/fixtures/checkout/payment.ts",
+      "line": 26,
+      "quote": "const paymentId = await gateway.capture(authorizationId);"
+    },
+    {
+      "id": "s-void",
+      "path": "examples/fixtures/checkout/payment.ts",
+      "line": 23,
+      "endLine": 24,
+      "quote": "await gateway.void(authorizationId); return { status: \"declined\", reason: \"out of stock\" };"
+    },
+    {
+      "id": "s-why",
+      "path": "examples/fixtures/checkout/decisions.md",
+      "line": 5,
+      "endLine": 6,
+      "quote": "We authorize the card before reserving stock, so a declined card never holds inventory"
+    },
+    {
+      "id": "s-rejected",
+      "path": "examples/fixtures/checkout/decisions.md",
+      "line": 10,
+      "endLine": 11,
+      "quote": "Capturing the payment immediately was rejected because refunds for out-of-stock orders cost a fee"
+    },
+    {
+      "id": "s-open",
+      "path": "examples/fixtures/checkout/decisions.md",
+      "line": 15,
+      "quote": "Should guest checkout be allowed? Product has not decided."
+    }
+  ]
+}
