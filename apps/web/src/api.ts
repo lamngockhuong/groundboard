@@ -1,4 +1,9 @@
-import { ATLAS_BOARD_KINDS, type AtlasBoardKind } from "@groundboard/schema";
+import {
+  ATLAS_BOARD_KINDS,
+  type AtlasBoardKind,
+  ELEMENT_ROLES,
+  type ElementRole,
+} from "@groundboard/schema";
 import { t } from "./i18n.ts";
 import { type Scene, toScene } from "./input.ts";
 import { isStaticMode } from "./mode.ts";
@@ -120,6 +125,13 @@ export interface AtlasPlace {
   slug: string;
   nodeId: string;
   edgeId?: string;
+  /**
+   * On a definition: the text the defining node shows. Absent in indexes written before it was
+   * carried, and on refs a node derives (a table's columns).
+   */
+  label?: string;
+  /** On the definition of an element: what it is drawn as (button, link, ...). */
+  role?: ElementRole;
 }
 
 export interface AtlasRef {
@@ -197,6 +209,9 @@ const isKind = (kind: unknown): kind is AtlasBoardKind =>
   (ATLAS_BOARD_KINDS as readonly unknown[]).includes(kind);
 const STATUSES: AtlasBoardStatus[] = ["ok", "stale", "invalid"];
 
+const isRole = (role: unknown): role is ElementRole =>
+  (ELEMENT_ROLES as readonly unknown[]).includes(role);
+
 function toPlaces(value: unknown): AtlasPlace[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -206,6 +221,8 @@ function toPlaces(value: unknown): AtlasPlace[] {
       slug: p.slug as string,
       nodeId: p.nodeId as string,
       ...(typeof p.edgeId === "string" ? { edgeId: p.edgeId } : {}),
+      ...(typeof p.label === "string" && p.label.trim() !== "" ? { label: p.label } : {}),
+      ...(isRole(p.role) ? { role: p.role } : {}),
     }));
 }
 

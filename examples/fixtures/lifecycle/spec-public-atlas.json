@@ -44,12 +44,14 @@
         {
           "slug": "overview-web",
           "nodeId": "signup",
-          "kind": "screen"
+          "kind": "screen",
+          "label": "Sign up"
         },
         {
           "slug": "web--signup",
           "nodeId": "signup",
-          "kind": "screen"
+          "kind": "screen",
+          "label": "Sign up"
         }
       ],
       "usedIn": []
@@ -60,7 +62,9 @@
         {
           "slug": "web--signup",
           "nodeId": "create-account",
-          "kind": "element"
+          "kind": "element",
+          "label": "Create account",
+          "role": "button"
         }
       ],
       "usedIn": []
@@ -71,7 +75,9 @@
         {
           "slug": "web--signup",
           "nodeId": "display-name",
-          "kind": "element"
+          "kind": "element",
+          "label": "Display name",
+          "role": "input"
         }
       ],
       "usedIn": []
@@ -82,7 +88,9 @@
         {
           "slug": "web--signup",
           "nodeId": "email",
-          "kind": "element"
+          "kind": "element",
+          "label": "Email",
+          "role": "input"
         }
       ],
       "usedIn": []
@@ -93,7 +101,9 @@
         {
           "slug": "web--signup",
           "nodeId": "password",
-          "kind": "element"
+          "kind": "element",
+          "label": "Password",
+          "role": "input"
         }
       ],
       "usedIn": []
@@ -104,7 +114,9 @@
         {
           "slug": "web--signup",
           "nodeId": "sign-in",
-          "kind": "element"
+          "kind": "element",
+          "label": "Sign in",
+          "role": "link"
         }
       ],
       "usedIn": []
@@ -115,7 +127,8 @@
         {
           "slug": "overview-web",
           "nodeId": "verify-email",
-          "kind": "screen"
+          "kind": "screen",
+          "label": "Verify email"
         }
       ],
       "usedIn": [
@@ -132,7 +145,8 @@
         {
           "slug": "overview-web",
           "nodeId": "welcome",
-          "kind": "screen"
+          "kind": "screen",
+          "label": "Welcome"
         }
       ],
       "usedIn": []
