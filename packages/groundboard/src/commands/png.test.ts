@@ -48,7 +48,7 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-describe("groundboard png without groundboard-png", () => {
+describe("groundboard png without @groundboard/png", () => {
   test("prints the one command that installs it and draws nothing", async () => {
     const io = capture(dir);
     const code = await pngCommand(["orders.board.json"], io, async () => null);
@@ -70,8 +70,9 @@ describe("groundboard png without groundboard-png", () => {
   });
 });
 
-// Uses the workspace's groundboard-png, built by `pnpm -r build`.
-describe("groundboard png", () => {
+// Uses the workspace's @groundboard/png, built by `pnpm -r build`. The first test loads
+// Excalidraw and the fonts, which can pass the default 5 s on a busy machine.
+describe("groundboard png", { timeout: 30_000 }, () => {
   test("draws a board beside it and prints the path", async () => {
     const io = capture(dir);
     expect(await run(["png", "orders.board.json"], io)).toBe(0);

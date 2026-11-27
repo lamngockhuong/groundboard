@@ -2,5 +2,5 @@
 // text in its editor. Export never reaches it; leaving it out keeps about 4 MiB of Mermaid out of
 // the package.
 export function parseMermaidToExcalidraw(): never {
-  throw new Error("Mermaid conversion is not part of groundboard-png");
+  throw new Error("Mermaid conversion is not part of @groundboard/png");
 }

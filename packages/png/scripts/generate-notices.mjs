@@ -33,7 +33,7 @@ const fonts = JSON.parse(readFileSync(path.join(fontLicenseDir, "fonts.json"), "
 const lines = [
   "# Third-party notices",
   "",
-  "groundboard-png is MIT licensed. It bundles or depends on the third-party software listed",
+  "@groundboard/png is MIT licensed. It bundles or depends on the third-party software listed",
   "below. Each entry gives the licence it is used under and the full licence and notice texts its",
   "authors publish. The packages are used unmodified; @excalidraw/mermaid-to-excalidraw is",
   "replaced by a stub and not shipped.",

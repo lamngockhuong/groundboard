@@ -306,6 +306,9 @@ importers:
       '@groundboard/layout':
         specifier: workspace:*
         version: link:../layout
+      '@groundboard/png':
+        specifier: workspace:*
+        version: link:../png
       '@groundboard/render-excalidraw':
         specifier: workspace:*
         version: link:../render-excalidraw
@@ -318,9 +321,6 @@ importers:
       '@modelcontextprotocol/client':
         specifier: ~2.4.0
         version: 2.4.0
-      groundboard-png:
-        specifier: workspace:*
-        version: link:../png
       playwright:
         specifier: 1.65.1
         version: 1.65.1

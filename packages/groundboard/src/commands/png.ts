@@ -8,7 +8,7 @@ import { CliError, type CliIO, EXIT, readJsonInput } from "./io.ts";
 import { parseDirection, sceneFromBoard } from "./render.ts";
 
 /** The optional package that draws the image; installed apart, so `groundboard` stays light. */
-export const PNG_PACKAGE = "groundboard-png";
+export const PNG_PACKAGE = "@groundboard/png";
 
 export const PNG_DEFAULTS = { maxEdge: 1568, minText: 8 } as const;
 const THEMES = ["light", "dark"] as const;
@@ -44,7 +44,7 @@ Known limit: a line of text holding a character its font lacks (such as "→" in
 drawn wholly in a fallback font, where the viewer swaps only that character.
 `;
 
-/** What the command uses of groundboard-png. */
+/** What the command uses of @groundboard/png. */
 export interface PngRenderer {
   renderPng(
     scene: object,
@@ -65,7 +65,7 @@ export interface PngRenderer {
 }
 
 /**
- * Loads groundboard-png from beside this package (`npx -p`, a global or a project install), then
+ * Loads @groundboard/png from beside this package (`npx -p`, a global or a project install), then
  * from the working directory; null when neither has it. Errors inside the package propagate.
  */
 export async function loadPngRenderer(cwd: string): Promise<PngRenderer | null> {
@@ -82,7 +82,7 @@ export async function loadPngRenderer(cwd: string): Promise<PngRenderer | null> 
   return null;
 }
 
-/** The one command that makes groundboard-png available to the way groundboard was started. */
+/** The one command that makes @groundboard/png available to the way groundboard was started. */
 export function installHint(args: string[], runningFrom = import.meta.url): string {
   const pkg = `${PNG_PACKAGE}@${VERSION}`;
   if (runningFrom.includes("/_npx/")) {
