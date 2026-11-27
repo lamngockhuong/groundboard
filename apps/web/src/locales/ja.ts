@@ -138,6 +138,8 @@ export const ja: Messages = {
   "home.missingFlowsTitle_other": "フローのない要素 {count} 件",
   "home.missingFlowsHint":
     "API を呼ぶか状態を変えるのに、まだどのフローからも指されていない要素です。開くと開発者への依頼をコピーできます。",
+  "home.openBoard": "ボードを開く",
+  "home.openBoardNamed": "{title} のボードを開く",
   "home.notValid": "無効",
   "home.notValidIssues_one": "無効: 問題 {count} 件",
   "home.notValidIssues_other": "無効: 問題 {count} 件",

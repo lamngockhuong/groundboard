@@ -139,6 +139,8 @@ export const vi: Messages = {
   "home.missingFlowsTitle_other": "{count} phần tử chưa có flow",
   "home.missingFlowsHint":
     "Các phần tử gọi API hoặc đổi trạng thái mà chưa có flow nào trỏ tới. Mở một phần tử để sao chép lệnh gửi cho dev.",
+  "home.openBoard": "Mở board",
+  "home.openBoardNamed": "Mở board {title}",
   "home.notValid": "không hợp lệ",
   "home.notValidIssues_one": "không hợp lệ: {count} lỗi",
   "home.notValidIssues_other": "không hợp lệ: {count} lỗi",

@@ -135,8 +135,10 @@ function Attention({ atlas, library }: { atlas: AtlasIndex; library: boolean }) 
 }
 
 /**
- * The elements that call an API or change state with no flow yet, by screen board. Each line
- * opens the board with that element selected, where the source panel offers the request to copy.
+ * The elements that call an API or change state with no flow yet, by screen board. Each board is
+ * a disclosure of its own, closed unless it is the only one, so a large atlas reads as a list of
+ * boards with their counts. Each line opens the board with that element selected, where the
+ * source panel offers the request to copy.
  */
 function MissingFlows({
   id,
@@ -152,6 +154,7 @@ function MissingFlows({
   ref: Ref<HTMLDetailsElement>;
 }) {
   const total = groups.reduce((sum, g) => sum + g.items.length, 0);
+  const single = groups.length === 1;
   return (
     <details
       id={id}
@@ -167,18 +170,34 @@ function MissingFlows({
       <p className="missing-flows-hint muted">{t("home.missingFlowsHint")}</p>
       {groups.map((group) => (
         <section key={group.slug} className="missing-flows-group">
-          <h4>
-            <a href={formatRoute({ view: "board", slug: group.slug })}>{group.title}</a>
-          </h4>
-          <ul>
-            {group.items.map((item) => (
-              <li key={item.ref}>
-                <a href={formatRoute({ view: "board", slug: group.slug, node: item.nodeId })}>
-                  <code>{item.ref}</code>
-                </a>
-              </li>
-            ))}
-          </ul>
+          {/* The summary holds text only; the link to the board sits beside it, outside the
+              disclosure, so it stays reachable while the group is closed. */}
+          <details className="missing-flows-board" open={single}>
+            <summary className="missing-flows-board-summary">
+              <span className="missing-flows-board-title">{group.title}</span>
+              <span className="count">{group.items.length}</span>
+            </summary>
+            <ul>
+              {group.items.map((item) => (
+                <li key={item.ref}>
+                  <a
+                    href={formatRoute({ view: "board", slug: group.slug, node: item.nodeId })}
+                    title={item.ref}
+                    aria-label={item.ref}
+                  >
+                    <code>{item.label}</code>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
+          <a
+            className="missing-flows-open"
+            href={formatRoute({ view: "board", slug: group.slug })}
+            aria-label={t("home.openBoardNamed", { title: group.title })}
+          >
+            {t("home.openBoard")}
+          </a>
         </section>
       ))}
     </details>

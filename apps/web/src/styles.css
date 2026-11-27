@@ -3194,24 +3194,64 @@ dialog::backdrop {
 }
 
 .missing-flows-group {
-  padding: 0.7rem 1.25rem;
+  position: relative;
+  padding: 0.55rem 1.25rem;
 }
 
 .missing-flows-group + .missing-flows-group {
   border-top: 1px solid var(--line);
 }
 
-.missing-flows-group h4 {
-  margin: 0 0 0.35rem;
+.missing-flows-board-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* Room for the board link that sits over the right end of the row. */
+  padding: 0.15rem 7rem 0.15rem 0;
+  cursor: pointer;
+  list-style: none;
   font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.missing-flows-board-summary::-webkit-details-marker {
+  display: none;
+}
+
+.missing-flows-board-summary::before {
+  content: "";
+  flex: none;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-right: 0.15rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--ease);
+}
+
+.missing-flows-board[open] .missing-flows-board-summary::before {
+  transform: rotate(45deg);
+}
+
+.missing-flows-board-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.missing-flows-open {
+  position: absolute;
+  top: 0.7rem;
+  right: 1.25rem;
+  font-size: 0.85rem;
 }
 
 .missing-flows-group ul {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem 0.75rem;
-  margin: 0;
-  padding: 0;
+  margin: 0.45rem 0 0.15rem;
+  padding: 0 0 0 1.05rem;
   list-style: none;
 }
 

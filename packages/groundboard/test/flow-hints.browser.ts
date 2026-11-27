@@ -1,9 +1,10 @@
 // Missing-flow hints in the built viewer: marks on the elements that call an API or change state
 // with no flow yet, the "No flow yet" line with its request to copy in the source panel, the
-// Layers entry that hides the marks, and the count with its list on the atlas home. Checked on
-// `groundboard serve` and on a static `groundboard export`. Needs `pnpm -r build` and
+// Layers entry that hides the marks, and the count with its list on the atlas home (one closed
+// group per screen board, open when it is the only one). Checked on `groundboard serve` and on a
+// static `groundboard export`. Needs `pnpm -r build` and
 // `pnpm exec playwright install --only-shell chromium` first.
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -114,6 +115,9 @@ interface Seen {
   marksLayerOff: number;
   marksPresenting: number;
   homeCount: string;
+  groupsOpen: number;
+  listedLabel: string;
+  listedTitle: string | null;
   listedUrl: string;
   errors: string[];
 }
@@ -164,7 +168,12 @@ async function walk(origin: string): Promise<Seen> {
     const homeCount = (await stat.locator(".stat-value").textContent()) ?? "";
     await stat.click();
     await page.locator(".missing-flows[open]").waitFor();
-    await page.locator(".missing-flows").getByRole("link", { name: IMPORT_REF }).click();
+    // The only screen board with missing flows: its group starts open.
+    const groupsOpen = await page.locator(".missing-flows-board[open]").count();
+    const listed = page.locator(".missing-flows").getByRole("link", { name: IMPORT_REF });
+    const listedLabel = (await listed.textContent()) ?? "";
+    const listedTitle = await listed.getAttribute("title");
+    await listed.click();
     await waitForBoard(page);
     const listedUrl = page.url();
     await page.locator(".source-panel .flow-hint").waitFor({ timeout: 10_000 });
@@ -175,6 +184,9 @@ async function walk(origin: string): Promise<Seen> {
       marksLayerOff,
       marksPresenting,
       homeCount,
+      groupsOpen,
+      listedLabel,
+      listedTitle,
       listedUrl,
       errors,
     };
@@ -189,6 +201,11 @@ function expectHints(seen: Seen) {
     marksLayerOff: 0,
     marksPresenting: 0,
     homeCount: String(MISSING),
+    groupsOpen: 1,
+    // The group names the screen, so the line shows the element part; the full ref stays in
+    // the link's title and accessible name.
+    listedLabel: "import",
+    listedTitle: IMPORT_REF,
     errors: [],
   });
   expect(seen.copied).toMatch(/^\/groundboard:board Draw the flow when .+ is pressed on .+/);
@@ -251,6 +268,68 @@ describe("missing-flow hints", () => {
     } finally {
       await context.close();
       await server.close();
+    }
+  });
+
+  test("list several screen boards as closed groups that open to their elements", async () => {
+    // The layouts fixture plus the states fixture's upload screen: two screen boards with
+    // missing flows, the shared layout (one) and the upload screen (eight).
+    const root = realpathSync(mkdtempSync(path.join(tmpdir(), "groundboard-flow-groups-")));
+    cpSync(path.join(fixtures, "layouts"), root, { recursive: true });
+    cpSync(path.join(STATES, "src"), path.join(root, "src"), { recursive: true });
+    cpSync(
+      path.join(STATES, ".groundboard", `${SCREEN}.board.json`),
+      path.join(root, ".groundboard", `${SCREEN}.board.json`),
+    );
+    const server = await startServe(root);
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => localStorage.setItem("groundboard.locale", "en"));
+      await page.goto(`${server.origin}/#/`);
+      const stat = page.locator(".stat-button");
+      await stat.waitFor({ timeout: 10_000 });
+      expect(await stat.locator(".stat-value").textContent()).toBe(String(MISSING + 1));
+      await stat.click();
+      await page.locator(".missing-flows[open]").waitFor();
+      // The Stat button lands on the card's own summary.
+      expect(
+        await page.evaluate(
+          "document.activeElement?.parentElement?.classList.contains('missing-flows') ?? false",
+        ),
+      ).toBe(true);
+
+      const groups = page.locator(".missing-flows-board");
+      expect(await groups.count()).toBe(2);
+      expect(await page.locator(".missing-flows-board[open]").count()).toBe(0);
+      const upload = page.locator(".missing-flows-group").filter({
+        has: page.locator(".missing-flows-open[href$='#/board/web--users-upload']"),
+      });
+      expect(await upload.locator("summary .count").textContent()).toBe(String(MISSING));
+      const listed = upload.getByRole("link", { name: IMPORT_REF });
+      expect(await listed.isVisible()).toBe(false);
+
+      // The board link works while the group is closed.
+      const open = upload.getByRole("link", { name: /^Open board: / });
+      expect(await open.isVisible()).toBe(true);
+
+      await upload.locator("summary").click();
+      await listed.waitFor();
+      expect(await listed.textContent()).toBe("import");
+      expect(await listed.getAttribute("title")).toBe(IMPORT_REF);
+      const layout = page.locator(".missing-flows-group").filter({
+        has: page.locator(".missing-flows-open[href$='#/board/web--layout']"),
+      });
+      expect(await layout.locator(".missing-flows-board[open]").count()).toBe(0);
+
+      await listed.click();
+      await waitForBoard(page);
+      expect(page.url()).toContain(`#/board/${SCREEN}?node=${IMPORT_NODE}`);
+      await page.locator(".source-panel .flow-hint").waitFor({ timeout: 10_000 });
+    } finally {
+      await context.close();
+      await server.close();
+      rmSync(root, { recursive: true, force: true });
     }
   });
 

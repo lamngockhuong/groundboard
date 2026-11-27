@@ -113,7 +113,7 @@ describe("missing flows in the library index", () => {
       {
         slug: "web--layout",
         title: "Shared layout",
-        items: [{ ref: "web:layout/header-logout", nodeId: "logout" }],
+        items: [{ ref: "web:layout/header-logout", nodeId: "logout", label: "header-logout" }],
       },
     ]);
     const entry = index.refs.find((r) => r.ref === "web:layout/header-logout");

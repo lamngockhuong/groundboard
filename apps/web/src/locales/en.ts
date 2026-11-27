@@ -145,6 +145,8 @@ export const en = {
   "home.missingFlowsTitle_other": "{count} elements with no flow",
   "home.missingFlowsHint":
     "Elements that call an API or change state, but no flow points at them yet. Open one to copy a request for a developer.",
+  "home.openBoard": "Open board",
+  "home.openBoardNamed": "Open board: {title}",
   "home.notValid": "not valid",
   "home.notValidIssues_one": "not valid: {count} issue",
   "home.notValidIssues_other": "not valid: {count} issues",
