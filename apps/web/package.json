@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:hosted": "VITE_GROUNDBOARD_HOSTED=1 vite build --outDir dist-hosted",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"
   },

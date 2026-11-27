@@ -324,9 +324,12 @@ function failureFor(response: Response, body: unknown): Failure {
 export async function fetchHealth(
   fetchImpl: typeof fetch = fetch,
   staticMode = isStaticMode(),
+  hosted = import.meta.env.VITE_GROUNDBOARD_HOSTED === "1",
 ): Promise<{ atlas: boolean }> {
   // An exported page always has an atlas, and no server to ask.
   if (staticMode) return { atlas: true };
+  // The hosted editor is static files on a site whose `/healthz`, if any, is not groundboard's.
+  if (hosted) return { atlas: false };
   try {
     const response = await fetchImpl(HEALTH_ENDPOINT);
     const body = await readJson(response);

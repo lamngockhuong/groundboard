@@ -163,6 +163,12 @@ describe("atlas calls", () => {
     }
   });
 
+  it("asks no server in the hosted editor, which has none", async () => {
+    const fetchImpl = respond(200, { ok: true, atlas: true });
+    expect(await fetchHealth(fetchImpl, false, true)).toEqual({ atlas: false });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("treats a server without an atlas or an unreachable one as no atlas", async () => {
     expect(await fetchHealth(respond(200, { ok: true }))).toEqual({ atlas: false });
     expect(

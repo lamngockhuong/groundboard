@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# The hosted editor's build (apps/web: pnpm build:hosted), deployed under /editor/.
+dist-hosted/
 coverage/
 *.tgz
 *.log
