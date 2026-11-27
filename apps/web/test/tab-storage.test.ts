@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { openBeside } from "../src/split.ts";
 import { loadTabs, saveTabs, tabStorageKey } from "../src/tab-storage.ts";
 import {
   emptyTabs,
@@ -149,6 +150,79 @@ describe("tab storage", () => {
     });
     expect(() => saveTabs(KEY, sample())).not.toThrow();
     expect(loadTabs(KEY)).toEqual({ tabs: [], activeId: null });
+  });
+
+  it("reads back two groups, the focused pane and the other pane's tab", () => {
+    const opened = openBeside(sample(), "tb2", 3, "ta");
+    if (!opened) throw new Error("openBeside refused");
+    const state = opened.state;
+    expect(state.focused).toBe(1);
+    saveTabs(KEY, state);
+    const read = loadTabs(KEY, 1);
+    expect(read.activeId).toBe("tb2");
+    expect(read.focused).toBe(1);
+    expect(read.otherId).toBe("tb");
+    expect(read.tabs.map(({ lastUsed: _l, ...rest }) => rest)).toEqual(
+      state.tabs.map(({ lastUsed: _l, ...rest }) => rest),
+    );
+  });
+
+  it("reads a list stored with one group as tabs of the left group", () => {
+    sessionStorage.setItem(
+      KEY,
+      JSON.stringify({
+        tabs: [
+          {
+            id: "t1",
+            preview: true,
+            history: { entries: [{ id: "e1", route: { view: "board", slug: "a" } }], index: 0 },
+          },
+          {
+            id: "t2",
+            preview: false,
+            history: { entries: [{ id: "e2", route: { view: "board", slug: "b" } }], index: 0 },
+          },
+        ],
+        activeIndex: 1,
+      }),
+    );
+    const read = loadTabs(KEY);
+    expect(read.tabs.map((t) => t.group)).toEqual([undefined, undefined]);
+    expect(read.activeId).toBe("t2");
+    expect(read.focused).toBeUndefined();
+    expect(read.otherId).toBeUndefined();
+  });
+
+  it("keeps one tab of a board per group, and a preview per group", () => {
+    const tab = (id: string, slug: string, group?: number) => ({
+      id,
+      preview: true,
+      history: { entries: [{ id: `e-${id}`, route: { view: "board", slug } }], index: 0 },
+      ...(group === undefined ? {} : { group }),
+    });
+    sessionStorage.setItem(
+      KEY,
+      JSON.stringify({
+        tabs: [
+          tab("t1", "a"),
+          tab("t2", "a"),
+          tab("t3", "a", 1),
+          tab("t4", "b", 1),
+          tab("t5", "c", 7),
+        ],
+        activeIndex: 2,
+      }),
+    );
+    const read = loadTabs(KEY);
+    // t2 repeats a in the left group; t5's group does not read back, so it joins the left one.
+    expect(read.tabs.map((t) => [t.id, t.group ?? 0, t.preview])).toEqual([
+      ["t1", 0, true],
+      ["t5", 0, false],
+      ["t3", 1, true],
+      ["t4", 1, false],
+    ]);
+    expect(read.activeId).toBe("t3");
+    expect(read.focused).toBe(1);
   });
 
   it("keeps one list per atlas, and one for the library", () => {

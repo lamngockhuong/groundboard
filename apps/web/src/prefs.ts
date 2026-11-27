@@ -56,3 +56,4 @@ export const SIDEBAR_CLOSED_SECTIONS_KEY = "groundboard.sidebarClosedSections";
 export const HIDDEN_LAYERS_KEY = "groundboard.hiddenLayers";
 export const MOTION_ALL_KEY = "groundboard.motionAll";
 export const PRESENT_DELAY_KEY = "groundboard.presentDelay";
+export const SPLIT_RATIO_KEY = "groundboard.splitRatio";

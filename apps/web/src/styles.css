@@ -1185,11 +1185,109 @@ code {
   }
 }
 
-/* The tab on screen while its board loads or cannot be shown. */
-.tab-pending {
+/* The button that ends the bar: the board on screen opens beside it. */
+.tab-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  padding: 0 0.3rem;
+  border-left: 1px solid var(--line);
+}
+
+.tab-actions .icon-button {
+  min-height: 2rem;
+  width: 2rem;
+}
+
+/* A tab's menu opens where it was asked for: at the pointer, or under the tab. */
+.menu.tab-menu {
+  position: fixed;
+  right: auto;
+  z-index: 50;
+  transform-origin: top left;
+}
+
+/* Split view: two panes side by side, each with its own tab bar and board, one source panel
+   beside both. The left pane's share of the width is `--split`, which the handle sets. */
+.split {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, var(--split, 50%)) auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* One pane: it takes the whole width, with no handle. */
+.split.split-one {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.pane {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The focused pane: an accent line along the top of its tab bar; the other pane's tab on
+   screen keeps a neutral line. Screen readers get the pane's name and "active pane". */
+.pane-focused .tab-bar {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.pane:not(.pane-focused) .tab.active::after {
+  background: var(--line-strong);
+}
+
+/* A pane whose tab waits for its board, or cannot show it. */
+.pane-pending {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   gap: 1rem;
+  padding: 1rem;
+  background: var(--surface);
+}
+
+/* The handle between the panes: a hairline with a wider grip, accent while used. */
+.split-handle {
+  position: relative;
+  z-index: 5;
+  width: 1px;
+  background: var(--line);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.split-handle::before {
+  position: absolute;
+  inset: 0 -4px;
+  content: "";
+}
+
+.split-handle::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 3px;
+  background: transparent;
+  content: "";
+  transition: background-color var(--ease);
+}
+
+.split-handle:hover::after,
+.split-handle:focus-visible::after,
+body.resizing .split-handle::after {
+  background: var(--accent);
+}
+
+.split-handle:focus-visible {
+  outline: none;
+}
+
+body.resizing .split-handle {
+  pointer-events: auto;
 }
 
 .palette-hint {
@@ -2628,7 +2726,8 @@ dialog::backdrop {
 }
 
 /* Under the tab bar, so it never hides a tab. */
-.main-column:has(> .tab-bar) > .loading-line {
+.main-column:has(> .tab-bar) > .loading-line,
+.main-column:has(.pane > .tab-bar) > .loading-line {
   top: 2.9rem;
 }
 

@@ -28,6 +28,7 @@ const PATHS = {
   menu: "M4 6h16M4 12h16M4 18h16",
   sidebar: "M4 4h16v16H4zM9 4v16",
   panel: "M4 4h16v16H4zM15 4v16",
+  split: "M4 4h16v16H4zM12 4v16",
   prev: "M15 6l-6 6 6 6",
   next: "M9 6l6 6-6 6",
   historyBack: "M19 12H5m6-6-6 6 6 6",
