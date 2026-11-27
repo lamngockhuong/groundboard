@@ -70,6 +70,12 @@ Pick the mode:
 - When a node is about a screen or an element the screen atlas already has (see
   `.groundboard/overview-*.board.json` and the screen boards), set its `ref` to that screen's
   or element's ref, e.g. `web:checkout/pay-button`, so the atlas viewer links the two.
+  A step carrying an element's ref is also what covers that element: an element with a `calls`
+  or `transition` edge and no node on a non-screen board carrying its ref is shown as "No flow
+  yet" in the viewer and warned about by `atlas check`. The viewer copies a request such as
+  ``/groundboard:board Draw the flow when Import is pressed on Upload (`web:users-upload/import`)``
+  (in the reader's interface language); draw that flow and put the element's ref on the step
+  where the user presses it.
 - When a step calls an endpoint, reads or writes a table, or enqueues a job the atlas has
   (`api--*`, `overview-db`, `overview-batch` boards), add a `calls`, `reads`, `writes` or
   `enqueues` edge from the step with `toRef` the endpoint's, table's or job's ref, citing the
