@@ -174,11 +174,45 @@ describe("missingFlowPlaces", () => {
         slug: "web--upload",
         title: "web--upload",
         items: [
-          { ref: "web:upload/import", nodeId: "import" },
-          { ref: "web:upload/pick", nodeId: "pick" },
+          { ref: "web:upload/import", nodeId: "import", label: "import" },
+          { ref: "web:upload/pick", nodeId: "pick", label: "pick" },
         ],
       },
-      { slug: "web--cart", title: "web--cart", items: [{ ref: "web:cart/pay", nodeId: "pay" }] },
+      {
+        slug: "web--cart",
+        title: "web--cart",
+        items: [{ ref: "web:cart/pay", nodeId: "pay", label: "pay" }],
+      },
+    ]);
+  });
+
+  it("labels each element without the screen ref its board defines, and keeps any other ref whole", () => {
+    // A layout board defines `web:layout`; one of its elements carries the ref of another
+    // screen, which the list shows in full rather than cut to a misleading tail.
+    const layout = {
+      boards: [board("web--layout", "screen")],
+      refs: [
+        { ref: "web:layout", definedIn: [{ slug: "web--layout", nodeId: "root" }], usedIn: [] },
+        ref("web:layout/header-logout", "web--layout", "logout"),
+        ref("web:other/stray", "web--layout", "stray"),
+      ],
+      problems: [],
+    } as unknown as AtlasIndex;
+    expect(missingFlowPlaces(layout)[0]?.items).toEqual([
+      { ref: "web:layout/header-logout", nodeId: "logout", label: "header-logout" },
+      { ref: "web:other/stray", nodeId: "stray", label: "web:other/stray" },
+    ]);
+  });
+
+  it("keeps every ref whole when the board defines no screen ref and its refs span screens", () => {
+    const mixed = {
+      boards: [board("web--mixed", "screen")],
+      refs: [ref("web:a/one", "web--mixed", "one"), ref("web:b/two", "web--mixed", "two")],
+      problems: [],
+    } as unknown as AtlasIndex;
+    expect(missingFlowPlaces(mixed)[0]?.items.map((i) => i.label)).toEqual([
+      "web:a/one",
+      "web:b/two",
     ]);
   });
 
