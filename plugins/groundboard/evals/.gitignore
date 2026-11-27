@@ -1,0 +1,4 @@
+# The local build of groundboard and @groundboard/png that scripts/prepare-tool.sh installs.
+.tool/
+# Results of `claude plugin eval` runs.
+results/

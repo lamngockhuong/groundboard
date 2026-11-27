@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: signup-from-requirements
+expected_outcome: |
+  The board draws the signup flow from the requirements only, every step citing the requirement line as a document source: Sign up, Verify email with the six-digit code, Welcome. What the brief leaves open (the Welcome layout, what happens when the code does not match) is a question addressed to the client, not an invented answer.
+context:
+  scaffold_script: scaffold.sh
