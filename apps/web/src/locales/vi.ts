@@ -325,6 +325,11 @@ export const vi: Messages = {
   "library.sampleTitle": "Board mẫu",
   "library.sampleBody":
     "Chưa mở board nào nên đang hiện một ứng dụng bán hàng mẫu. Mở file .board.json hoặc .excalidraw của bạn; chúng sẽ thay chỗ bộ mẫu và được giữ lại trong trình duyệt này.",
+  "library.emptyTitle": "Chưa mở board nào",
+  "library.emptyBody":
+    "Mở file .board.json, .excalidraw hoặc file zip của một atlas. Board chỉ lưu trong trình duyệt này và không gửi đi đâu.",
+  "library.examples":
+    "Muốn xem board trông thế nào, hãy mở app shop ví dụ trong editor trực tuyến tại groundboard.ohnice.app/editor.",
   "library.openFiles": "Mở file",
   "library.clear": "Xoá danh sách",
   "library.clearConfirm": "Xoá mọi board khỏi danh sách lưu trong trình duyệt này?",

@@ -185,6 +185,17 @@ function MissingFlows({
   );
 }
 
+const LIBRARY_TITLE = {
+  sample: "library.sampleTitle",
+  empty: "library.emptyTitle",
+  opened: "library.title",
+} as const;
+const LIBRARY_BODY = {
+  sample: "library.sampleBody",
+  empty: "library.emptyBody",
+  opened: "library.subtitle",
+} as const;
+
 /** The atlas home: how many boards are in which state, how the claims are grounded, what to fix. */
 export function AtlasHome({ atlas, library }: { atlas: AtlasIndex; library?: LibraryHome }) {
   const titleId = useId();
@@ -195,18 +206,14 @@ export function AtlasHome({ atlas, library }: { atlas: AtlasIndex; library?: Lib
   const [missingOpen, setMissingOpen] = useState(false);
   const missingRef = useRef<HTMLDetailsElement>(null);
   const missingId = useId();
+  // A release build has no samples: with nothing opened, the list starts empty.
+  const libraryKey = library?.sample ? "sample" : atlas.boards.length === 0 ? "empty" : "opened";
 
   return (
     <section className="atlas-home" aria-labelledby={titleId}>
       <div className="atlas-head">
-        <h2 id={titleId}>
-          {library ? t(library.sample ? "library.sampleTitle" : "library.title") : t("home.title")}
-        </h2>
-        <p className="muted">
-          {library
-            ? t(library.sample ? "library.sampleBody" : "library.subtitle")
-            : t("home.subtitle")}
-        </p>
+        <h2 id={titleId}>{library ? t(LIBRARY_TITLE[libraryKey]) : t("home.title")}</h2>
+        <p className="muted">{library ? t(LIBRARY_BODY[libraryKey]) : t("home.subtitle")}</p>
         {library?.memoryOnly ? (
           <p className="snapshot-note">
             <Icon name="alert" />
@@ -219,7 +226,7 @@ export function AtlasHome({ atlas, library }: { atlas: AtlasIndex; library?: Lib
               <Icon name="upload" />
               {t("library.openFiles")}
             </button>
-            {library.sample ? null : (
+            {libraryKey !== "opened" ? null : (
               <button type="button" className="secondary" onClick={library.onClear}>
                 {t("library.clear")}
               </button>
@@ -237,7 +244,7 @@ export function AtlasHome({ atlas, library }: { atlas: AtlasIndex; library?: Lib
       </div>
 
       {atlas.boards.length === 0 ? (
-        <p className="empty">{t("home.empty")}</p>
+        <p className="empty">{t(library ? "library.examples" : "home.empty")}</p>
       ) : (
         <>
           <div className="stats">

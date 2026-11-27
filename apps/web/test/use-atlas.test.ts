@@ -238,6 +238,50 @@ describe("useAtlas", () => {
     expect(window.location.hash).toBe("#/");
   });
 
+  it("starts with an empty list and no board open in a release build, which has no samples", async () => {
+    vi.stubEnv("DEV", false);
+    vi.stubEnv("VITE_GROUNDBOARD_HOSTED", "");
+    try {
+      api.fetchHealth.mockResolvedValue({ atlas: false });
+      const h = host();
+      await mount(h);
+      await vi.waitFor(
+        async () => {
+          await flush();
+          expect(latest.checked).toBe(true);
+        },
+        { timeout: 10_000 },
+      );
+      expect(latest.atlasEnabled).toBe(true);
+      expect(latest.library).toEqual({ sample: false, memoryOnly: false });
+      expect(latest.atlas?.boards).toEqual([]);
+      expect(window.location.hash).not.toMatch(/^#\/board\//);
+      expect(h.shown).toEqual([]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("shows the samples in the hosted editor's build", async () => {
+    vi.stubEnv("DEV", false);
+    vi.stubEnv("VITE_GROUNDBOARD_HOSTED", "1");
+    try {
+      api.fetchHealth.mockResolvedValue({ atlas: false });
+      await mount(host());
+      await vi.waitFor(
+        async () => {
+          await flush();
+          expect(latest.checked).toBe(true);
+        },
+        { timeout: 10_000 },
+      );
+      expect(latest.library?.sample).toBe(true);
+      expect(latest.atlas?.boards.map((b) => b.slug)).toContain("overview-web");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("goes back to the last node of the same board without loading it again, with its view", async () => {
     api.fetchAtlasBoard.mockResolvedValue(ok);
     const h = host();

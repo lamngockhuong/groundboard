@@ -508,11 +508,21 @@ export function useAtlas(host: AtlasHost) {
     hostRef.current.closeScene(tabId);
   }, []);
 
-  /** Reads the stored boards (or the samples when there are none) and indexes them. */
+  /**
+   * Reads the stored boards and indexes them. With none stored, the hosted editor and the dev
+   * server show the samples; a release build has none to show, so its list starts empty.
+   */
   const loadLibrary = useCallback(async (): Promise<void> => {
     let entries = await listEntries();
-    const sample = entries.length === 0;
-    if (sample) entries = await (await import("./samples.ts")).loadSamples();
+    let sample = false;
+    // The build flag comes first and inline, so a release build drops the samples' chunk.
+    if (
+      (import.meta.env.DEV || import.meta.env.VITE_GROUNDBOARD_HOSTED === "1") &&
+      !entries.length
+    ) {
+      entries = await (await import("./samples.ts")).loadSamples();
+      sample = true;
+    }
     const { buildLibraryIndex } = await import("./library-index.ts");
     libraryRef.current = { entries: new Map(entries.map((e) => [e.slug, e])), sample };
     putAtlas(buildLibraryIndex(entries));
@@ -1025,7 +1035,12 @@ export function useAtlas(host: AtlasHost) {
       const mark = readMark(window.history.state);
       let route = currentRoute();
       // Nothing opened yet: show a sample board rather than an empty page.
-      if (sample && state.tabs.length === 0 && route.view === "home") {
+      if (
+        (import.meta.env.DEV || import.meta.env.VITE_GROUNDBOARD_HOSTED === "1") &&
+        sample &&
+        state.tabs.length === 0 &&
+        route.view === "home"
+      ) {
         const { SAMPLE_START } = await import("./samples.ts");
         const entries = libraryRef.current?.entries;
         const start = entries?.has(SAMPLE_START) ? SAMPLE_START : [...(entries?.keys() ?? [])][0];

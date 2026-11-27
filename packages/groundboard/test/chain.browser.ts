@@ -1,15 +1,15 @@
 // From the "Pay" button to the job it starts, in the built viewer: each link across boards opens
 // the board that defines its target, on a served atlas and in the list of boards kept in the
 // browser. Needs `pnpm -r build` and `pnpm exec playwright install --only-shell chromium` first.
-import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { serve } from "@hono/node-server";
-import { strToU8, zipSync } from "fflate";
 import { type Browser, chromium, type Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { renderBoard } from "../src/pipeline.ts";
 import { type AppOptions, createApp } from "../src/server/app.ts";
+import { openExampleBoards } from "./library-boards.ts";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
 const webRoot = path.join(packageDir, "dist", "web");
@@ -163,19 +163,7 @@ describe("from the Pay button to the job it starts", () => {
     try {
       const page = await context.newPage();
       await page.addInitScript(() => localStorage.setItem("groundboard.locale", "en"));
-      await page.goto(server.origin);
-      await waitForBoard(page);
-      await page.getByRole("button", { name: "Open file", exact: true }).first().click();
-      const files: Record<string, Uint8Array> = {};
-      for (const name of readdirSync(atlasDir).filter((n) => n.endsWith(".board.json"))) {
-        files[`.groundboard/${name}`] = strToU8(readFileSync(path.join(atlasDir, name), "utf8"));
-      }
-      await page.locator(".file-dialog input[type=file]").setInputFiles({
-        name: "atlas.zip",
-        mimeType: "application/zip",
-        buffer: Buffer.from(zipSync(files)),
-      });
-      await page.getByText(/from atlas\.zip/).waitFor({ timeout: 30_000 });
+      await openExampleBoards(page, server.origin, atlasDir);
       await followChain(page, server.origin);
     } finally {
       await context.close();
