@@ -7,7 +7,7 @@ metadata:
   version: 0.1.0-rc.1
   homepage: https://github.com/lamngockhuong/groundboard
 argument-hint: "[--no-references] [--skip-cjk-fonts]"
-allowed-tools: Read Grep Write Bash(npx groundboard export:*) Artifact
+allowed-tools: Read Grep Write Bash(npx groundboard export:*) Bash(mkdir -p .groundboard/.cache/publish) Bash(cp * .groundboard/.cache/publish/manifest.txt) Artifact
 ---
 
 # groundboard publish: the atlas as a Claude Artifact
@@ -16,7 +16,8 @@ allowed-tools: Read Grep Write Bash(npx groundboard export:*) Artifact
 `data/boards/<slug>.json` per board, rendered exactly as `serve --atlas` renders them, with the
 time and commit the sources were checked at. You post that folder as one Artifact and keep its
 URL in `.groundboard/publish.json`, so the next run updates the same link instead of making a
-new one.
+new one, and keeps what it published in `.groundboard/.cache/publish/`, never committed, so
+the next update on this machine knows which files to remove without listing them all.
 
 The page is a snapshot. It shows when it was checked; it does not follow the code.
 
@@ -46,8 +47,15 @@ package name: the Artifact gallery shows the page's title, and without `--title`
 is called "groundboard".
 
 ```sh
-npx groundboard export --out <dir> --title "<App> screen atlas" [--no-references]
+npx groundboard export --out <dir> --title "<App> screen atlas" [--no-references] \
+  [--previous .groundboard/.cache/publish/manifest.txt]
 ```
+
+Add `--previous` when `.groundboard/publish.json` and `.groundboard/.cache/publish/last.json`
+both exist and hold the same `url`: that is the record of the last publish from this machine
+(step 5). `export` then also writes `<dir>/publish-remove.json`, a `{"<path>": null}` map of
+the published paths it no longer has, and prints which order to publish in. Whether the record
+is still current is checked in step 4, against the Artifact itself.
 
 Add `--root` or `--atlas-dir` only when the atlas is not `.groundboard/` of the current
 directory. A `.groundboard` that is a symlink (a git worktree linked to the main checkout's
@@ -58,6 +66,9 @@ the current directory. Exit code 2 is a bad argument (fix it and run again), 1 a
 - A warning about stale or invalid boards or atlas problems: tell the user before publishing
   and ask whether to go on. The page shows them as well.
 - A board exported without its Figma images because it was too large: tell the user.
+- With `--previous`, two lines: `previously published: <P> file(s) beside the page; <S> no
+  longer exported, listed in publish-remove.json; <K> of publish-batch-1.json not published
+  before`, and `publish order: ...`, the files to publish in that order (step 4).
 - The `CJK handwriting font` line: `export` writes only the parts of the Chinese, Japanese and
   Korean handwriting font that cover characters in the boards and their overlays, none for an
   atlas without them. A reader's edits and notes on the published page stay in their own
@@ -100,14 +111,39 @@ Together the batches list one path fewer than the "files to publish" count `expo
   `icon` `map`, a one-sentence `description` naming the app, and `files` the contents of
   `publish-batch-1.json`. Publish each further batch to the URL the first call returned, with
   `file_path` again `<dir>/artifact.html` so the page stays the same.
-- **Update** (file present): read the Artifact first (`action: "read"` with its `url`), then
-  list its published files (`scope: "files"`). Publish every batch the same way with that
-  `url`. Then, if any published path is not in `<dir>/manifest.txt` (a board removed since),
-  publish once more with `file_path` `<dir>/artifact.html` and `files` a map of those paths to
-  `null`, for example `{"data/boards/old.json": null}`, so the old board does not linger; the
-  list form cannot remove a file.
+- **Update** (file present):
+  1. Read the Artifact (`action: "read"` with its `url`); a publish to it is refused without
+     this read. Its header names the live version as `(version <id>)`, for example
+     `(version 1795747926-1adc)`, and how many files it holds, the page included, as `This
+     version has <N> published files, this page included`.
+  2. Find the stale paths, the published ones that are not in `<dir>/manifest.txt` (a board
+     removed since, or a viewer asset whose hashed name changed):
+     - **From the record**, when all of these hold: `export` ran with `--previous`;
+       `.groundboard/.cache/publish/last.json` holds this `url`, and its `version` equals the
+       `<id>` of the read's `(version <id>)`; and the `previously published` count `export`
+       printed is `<N>` − 1. The stale paths are then the map in `<dir>/publish-remove.json`,
+       and the `publish order` line is the order. Do not list the published files.
+     - **From the listing** otherwise: no record, or someone published since (another version,
+       or another count). List the published files (`scope: "files"`); the stale paths are the
+       listed paths not in `manifest.txt`, never the page. Ignore `publish-remove.json` and the
+       `publish order` line.
+  3. Publish, every call with that `url`, `file_path` `<dir>/artifact.html` and `root` `<dir>`,
+     in this order:
+     1. `files` the contents of `publish-batch-1.json`;
+     2. the removals, if there are stale paths: `files` a map of each stale path to `null`, for
+        example `{"data/boards/old.json": null}` (the contents of `publish-remove.json` as
+        they are, from the record); the list form cannot remove a file;
+     3. each further batch, in order.
 
-If a publish fails, stop and report what failed; do not retry the same call unchanged.
+     The new page goes live with batch 1 while the old files are still there, so a reader with
+     the page open loses nothing mid-update. One Artifact version holds at most 512 files, the
+     page included, counting old and new together while the update is in progress: if
+     (`<N>` − 1) + (the paths of batch 1 not already published) > 511, publish the removals
+     first, then every batch. From the record, the `publish order` line already says which.
+
+If a publish fails, stop and report what failed; do not retry the same call unchanged, and
+skip step 5's record of what was published (the version changed, so the next update lists the
+files instead).
 
 ### 5. Record the URL
 
@@ -126,12 +162,33 @@ leaves the file as it is.
 Tell the user to commit it, so that whoever publishes next updates the same link. It is not a
 board: `atlas check` and `export` ignore it.
 
+Then record what was published, for the next update from this machine:
+
+1. `mkdir -p .groundboard/.cache/publish`; if `.groundboard/.cache/.gitignore` does not exist,
+   write it containing the single line `*`, so nothing under `.cache/` is committed.
+2. `cp <dir>/manifest.txt .groundboard/.cache/publish/manifest.txt`.
+3. Write `.groundboard/.cache/publish/last.json` with the URL and the version id of the last
+   publish call of step 4: its result reads `Published <file> at <url> (Version <n>, version
+   id <id>)`, for example `(Version 5, version id 1795754365-4514)`; record `<id>`, not
+   `<n>`. Do not read the Artifact again for it:
+
+   ```json
+   {
+     "url": "<the Artifact URL>",
+     "version": "<the version id>"
+   }
+   ```
+
+A record that is missing or out of date only costs a listing next time: step 4 checks it
+against the Artifact before trusting it.
+
 ### 6. Report
 
 - the link;
 - how many boards, and how many are stale or invalid;
 - the time and commit the sources were checked at (the last line `export` printed), and
-  whether the working tree had uncommitted changes;
+  whether the working tree had uncommitted changes (changes in the atlas directory itself,
+  or a `.groundboard` symlink, do not count);
 - whether the Figma images were sent;
 - whether the CJK handwriting font was left out (`--skip-cjk-fonts`), and that Chinese,
   Japanese and Korean text then shows in a system font;

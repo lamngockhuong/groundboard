@@ -33,13 +33,15 @@ Exit codes: 0 clean, 1 I/O error, 2 bad arguments, 3 a stale or invalid board or
 /**
  * Resolves the root and atlas directory the way \`serve --atlas\` does: never / or home, the
  * atlas directory inside the root or a symlink inside it (see \`confineAtlasDirectory\`).
+ * \`dir\` is the real directory; \`entry\` is the path it was named by inside the root, a
+ * symlink left unresolved.
  */
 export async function resolveAtlasPaths(
   cwd: string,
   rootArg: string | undefined,
   dirArg: string | undefined,
   dirName: string,
-): Promise<{ root: string; dir: string }> {
+): Promise<{ root: string; dir: string; entry: string }> {
   const resolved = await resolveRoot(
     { GROUNDBOARD_ROOT: rootArg === undefined ? cwd : path.resolve(cwd, rootArg) },
     cwd,
@@ -50,6 +52,7 @@ export async function resolveAtlasPaths(
     return {
       root: resolved.root,
       dir: await confineAtlasDirectory(resolved.root, requested, dirName),
+      entry: path.resolve(resolved.root, requested),
     };
   } catch (error) {
     if (error instanceof FileAccessError) throw new CliError(EXIT.usage, error.message);

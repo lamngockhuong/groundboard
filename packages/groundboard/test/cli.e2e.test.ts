@@ -182,9 +182,35 @@ describe("groundboard CLI", () => {
       board,
       readFileSync(board, "utf8").replace(/"title": "([^"]*)"/, '"title": "$1 お支払い"'),
     );
+    // A git worktree with one committed source; its .groundboard links to the main atlas.
     const worktree = path.join(tmp, "worktree");
     mkdirSync(worktree);
+    const git = (...args: string[]) => {
+      const r = spawnSync(
+        "git",
+        [
+          "-c",
+          "user.name=test",
+          "-c",
+          "user.email=test@example.com",
+          "-c",
+          "commit.gpgsign=false",
+          "-c",
+          "core.hooksPath=/dev/null",
+          ...args,
+        ],
+        { cwd: worktree, encoding: "utf8" },
+      );
+      expect(r.status, r.stderr).toBe(0);
+      return r.stdout.trim();
+    };
+    writeFileSync(path.join(worktree, "app.ts"), "export const a = 1;\n");
+    git("init", "-q");
+    git("add", "app.ts");
+    git("commit", "-q", "-m", "init");
+    const commit = git("rev-parse", "--short", "HEAD");
     symlinkSync(atlas, path.join(worktree, ".groundboard"));
+    expect(git("status", "--porcelain")).toBe("?? .groundboard");
 
     const out = path.join(tmp, "export-symlink");
     const result = run(
@@ -216,6 +242,35 @@ describe("groundboard CLI", () => {
     expect(batches.length).toBe(Math.ceil((manifest.length - 1) / 250));
     for (const batch of batches) expect(batch.length).toBeLessThanOrEqual(250);
     expect(batches.flat().map((f) => f.path)).toEqual(manifest.filter((p) => p !== "index.html"));
+    // The atlas link is not an uncommitted change; no --previous, no removal file.
+    expect(result.stdout).toContain(`at commit ${commit}\n`);
+    expect(existsSync(path.join(out, "publish-remove.json"))).toBe(false);
+    expect(result.stdout).not.toContain("publish order");
+
+    // An update: the last publish held this export's files and a board removed since.
+    const previous = path.join(tmp, "previous-manifest.txt");
+    writeFileSync(previous, `${manifest.join("\n")}\ndata/boards/web--gone.json\n`);
+    writeFileSync(path.join(worktree, "app.ts"), "export const a = 2;\n");
+    const again = path.join(tmp, "export-symlink-again");
+    const update = run(["export", "--out", again, "--previous", previous], undefined, worktree);
+    expect(update.status, update.stderr).toBe(0);
+    expect(update.stdout).toContain(`at commit ${commit} with uncommitted changes\n`);
+    expect(JSON.parse(readFileSync(path.join(again, "publish-remove.json"), "utf8"))).toEqual({
+      "data/boards/web--gone.json": null,
+    });
+    expect(update.stdout).toContain(
+      `previously published: ${manifest.length} file(s) beside the page; 1 no longer exported, listed in publish-remove.json; 0 of publish-batch-1.json not published before\n`,
+    );
+    expect(update.stdout).toContain(
+      `publish order: publish-batch-1.json, publish-remove.json${batches.length > 1 ? ", publish-batch-2.json" : ""}`,
+    );
+    expect(
+      run(
+        ["export", "--out", path.join(tmp, "x"), "--previous", "missing.txt"],
+        undefined,
+        worktree,
+      ).status,
+    ).toBe(1);
   });
 
   test("reads the board from stdin", () => {

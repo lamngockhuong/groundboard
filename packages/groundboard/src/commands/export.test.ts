@@ -22,8 +22,11 @@ import {
   exportAtlas,
   gitState,
   nonAsciiCodePoints,
+  PUBLISH_REMOVE_FILE,
+  parsePrevious,
   parseUnicodeRange,
   publishBatches,
+  publishRemoval,
   STATIC_MODE_META,
   staticIndexHtml,
 } from "./export.ts";
@@ -183,9 +186,15 @@ describe("groundboard export", () => {
     const worktree = path.join(base, "worktree");
     mkdirSync(worktree);
     symlinkSync(path.join(main, ".groundboard"), path.join(worktree, ".groundboard"));
-    const { root, dir } = await resolveAtlasPaths(worktree, undefined, undefined, "--atlas-dir");
+    const { root, dir, entry } = await resolveAtlasPaths(
+      worktree,
+      undefined,
+      undefined,
+      "--atlas-dir",
+    );
     expect(root).toBe(worktree);
     expect(dir).toBe(path.join(main, ".groundboard"));
+    expect(entry).toBe(path.join(worktree, ".groundboard"));
     const out = path.join(base, "worktree-out");
     const summary = await exportAtlas(
       { dir, root, out, webRoot, title: "Shop screen atlas" },
@@ -291,6 +300,118 @@ describe("groundboard export", () => {
     expect(await gitState(root)).toEqual({ commit: null, dirty: true });
     expect(await gitState(path.join(base, "web"))).toEqual({ commit: null, dirty: false });
   }, 60_000);
+
+  test("changes in the atlas directory, real or a symlink, are not uncommitted changes", async () => {
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.name=test",
+          "-c",
+          "user.email=test@example.com",
+          "-c",
+          "commit.gpgsign=false",
+          "-c",
+          "core.hooksPath=/dev/null",
+          ...args,
+        ],
+        { cwd },
+      );
+    const repo = path.join(base, "dirty-repo");
+    mkdirSync(path.join(repo, "src"), { recursive: true });
+    writeFileSync(path.join(repo, "src", "app.ts"), "export const a = 1;\n");
+    git(repo, "init", "-q");
+    git(repo, "add", ".");
+    git(repo, "commit", "-q", "-m", "init");
+    const commit = git(repo, "rev-parse", "--short", "HEAD").toString().trim();
+
+    // A symlinked atlas, as in a worktree linked to the main checkout's atlas.
+    const elsewhere = path.join(base, "dirty-main", ".groundboard");
+    mkdirSync(elsewhere, { recursive: true });
+    const link = path.join(repo, ".groundboard");
+    symlinkSync(elsewhere, link);
+    expect(await gitState(repo)).toEqual({ commit, dirty: true });
+    expect(await gitState(repo, [link])).toEqual({ commit, dirty: false });
+
+    // A real atlas directory with an untracked board in it.
+    rmSync(link);
+    mkdirSync(path.join(link, "sub"), { recursive: true });
+    writeFileSync(path.join(link, "sub", "web--a.board.json"), "{}");
+    expect(await gitState(repo, [link])).toEqual({ commit, dirty: false });
+    // Paths outside the root are left alone; a file whose name only starts like it counts.
+    expect(await gitState(repo, [link, base])).toEqual({ commit, dirty: false });
+    writeFileSync(path.join(repo, ".groundboard-notes"), "x");
+    expect(await gitState(repo, [link])).toEqual({ commit, dirty: true });
+    rmSync(path.join(repo, ".groundboard-notes"));
+
+    // A change to a source is still reported.
+    writeFileSync(path.join(repo, "src", "app.ts"), "export const a = 2;\n");
+    expect(await gitState(repo, [link])).toEqual({ commit, dirty: true });
+  }, 60_000);
+
+  test("--previous writes the paths to remove and says whether they go first", async () => {
+    const out = path.join(base, "previous-out");
+    const previous = [
+      "index.html",
+      "assets/index.js",
+      "assets/index-old.js",
+      "data/boards/web--gone.json",
+    ];
+    const summary = await exportAtlas(
+      { dir: path.join(fixtures, ".groundboard"), root: fixtures, out, webRoot, previous },
+      () => {},
+    );
+    expect(readJson(path.join(out, PUBLISH_REMOVE_FILE))).toEqual({
+      "assets/index-old.js": null,
+      "data/boards/web--gone.json": null,
+    });
+    expect(summary.removal).toMatchObject({ previous: 3, removeFirst: false });
+    // Never published, so not in the manifest.
+    expect(readFileSync(path.join(out, "manifest.txt"), "utf8")).not.toContain(PUBLISH_REMOVE_FILE);
+
+    const none = path.join(base, "previous-none");
+    await exportAtlas(
+      {
+        dir: path.join(fixtures, ".groundboard"),
+        root: fixtures,
+        out: none,
+        webRoot,
+        previous: [],
+      },
+      () => {},
+    );
+    expect(readFileSync(path.join(none, PUBLISH_REMOVE_FILE), "utf8")).toBe("{}\n");
+    const without = path.join(base, "previous-without");
+    await exportAtlas(
+      { dir: path.join(fixtures, ".groundboard"), root: fixtures, out: without, webRoot },
+      () => {},
+    );
+    expect(existsSync(path.join(without, PUBLISH_REMOVE_FILE))).toBe(false);
+  }, 60_000);
+
+  test("the removals go first only when the first batch would not fit beside the old files", () => {
+    const old = Array.from({ length: 327 }, (_, i) => `assets/old-${i}.js`);
+    const manifest = ["index.html", ...Array.from({ length: 397 }, (_, i) => `assets/new-${i}.js`)];
+    const batch1 = manifest.slice(1, 251);
+    // 327 + 250 = 577 > 511: removing the 327 old files first is the only way batch 1 fits.
+    expect(publishRemoval(["index.html", ...old], manifest, batch1)).toMatchObject({
+      previous: 327,
+      newInFirstBatch: 250,
+      removeFirst: true,
+    });
+    expect(publishRemoval(["index.html", ...old], manifest, batch1).stale).toHaveLength(327);
+    // 261 + 250 = 511: still fits.
+    expect(publishRemoval(old.slice(0, 261), manifest, batch1).removeFirst).toBe(false);
+    expect(publishRemoval(old.slice(0, 262), manifest, batch1).removeFirst).toBe(true);
+    // Paths batch 1 republishes under the same name take no new slot.
+    expect(publishRemoval([...old, ...batch1.slice(0, 100)], manifest, batch1)).toMatchObject({
+      previous: 427,
+      newInFirstBatch: 150,
+      removeFirst: true,
+    });
+    expect(parsePrevious("a\r\n\n  b  \na\n")).toEqual(["a", "b"]);
+  });
 
   test("refuses an output inside or around the atlas, a non-empty one and a missing --out", async () => {
     const atlasDir = path.join(figmaRoot, ".groundboard");
