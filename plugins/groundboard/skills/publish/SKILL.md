@@ -112,16 +112,17 @@ Together the batches list one path fewer than the "files to publish" count `expo
   `publish-batch-1.json`. Publish each further batch to the URL the first call returned, with
   `file_path` again `<dir>/artifact.html` so the page stays the same.
 - **Update** (file present):
-  1. Read the Artifact (`action: "read"` with its `url`). Its header names the live version
-     (`version <id>`) and how many files it holds, the page included (`This version has <N>
-     published files`).
+  1. Read the Artifact (`action: "read"` with its `url`); a publish to it is refused without
+     this read. Its header names the live version as `(version <id>)`, for example
+     `(version 1795747926-1adc)`, and how many files it holds, the page included, as `This
+     version has <N> published files, this page included`.
   2. Find the stale paths, the published ones that are not in `<dir>/manifest.txt` (a board
      removed since, or a viewer asset whose hashed name changed):
      - **From the record**, when all of these hold: `export` ran with `--previous`;
-       `.groundboard/.cache/publish/last.json` holds this `url` and the `version` the read
-       shows; and the `previously published` count `export` printed is `<N>` − 1. The stale
-       paths are then the map in `<dir>/publish-remove.json`, and the `publish order` line is
-       the order. Do not list the published files.
+       `.groundboard/.cache/publish/last.json` holds this `url`, and its `version` equals the
+       `<id>` of the read's `(version <id>)`; and the `previously published` count `export`
+       printed is `<N>` − 1. The stale paths are then the map in `<dir>/publish-remove.json`,
+       and the `publish order` line is the order. Do not list the published files.
      - **From the listing** otherwise: no record, or someone published since (another version,
        or another count). List the published files (`scope: "files"`); the stale paths are the
        listed paths not in `manifest.txt`, never the page. Ignore `publish-remove.json` and the
@@ -166,8 +167,10 @@ Then record what was published, for the next update from this machine:
 1. `mkdir -p .groundboard/.cache/publish`; if `.groundboard/.cache/.gitignore` does not exist,
    write it containing the single line `*`, so nothing under `.cache/` is committed.
 2. `cp <dir>/manifest.txt .groundboard/.cache/publish/manifest.txt`.
-3. Read the Artifact once more (`action: "read"`) and write
-   `.groundboard/.cache/publish/last.json` with its URL and the version its header names:
+3. Write `.groundboard/.cache/publish/last.json` with the URL and the version id of the last
+   publish call of step 4: its result reads `Published <file> at <url> (Version <n>, version
+   id <id>)`, for example `(Version 5, version id 1795754365-4514)`; record `<id>`, not
+   `<n>`. Do not read the Artifact again for it:
 
    ```json
    {
