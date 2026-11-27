@@ -251,7 +251,9 @@ the code.
   canvas; each tab keeps its own choice (see Tabs below).
 - **Split view:** two panes side by side in the workspace, the left one `--split` wide (25% to
   75%, half and half until dragged), each with its own tab bar over its own board, and one
-  source panel to the right of both that follows the focused pane. Between the panes a
+  source panel to the right of both that shows the focused pane's selection. The panel's
+  toggle in either pane's toolbar opens or closes it for both panes, so moving the focus never
+  makes it come or go. The status and warning lines sit above both panes, under none. Between the panes a
   hairline handle (a `separator` with an 8px grip) turns indigo on hover, focus and drag; it
   takes ← and → (Shift for 10%), Home and End, and a double click goes back to half and half.
   The ratio is kept in `localStorage`. The focused pane carries a 2px indigo line along the top
@@ -265,7 +267,8 @@ the code.
 - **Open file:** a modal dialog holding the load panel.
 - **Breakpoint at 1024px:** narrower than this, the two panes fold into one tab bar holding
   every tab (the left pane's first) and one board, the focused pane's; there is no handle and
-  nothing opens beside. Widening again brings both panes back as they were.
+  nothing opens beside. The other pane's board is hidden, not closed: nothing asks, nothing on
+  it is lost, and widening again brings both panes back exactly as they were.
 - **Breakpoint at 760px:** the sidebar becomes a drawer, opened from a menu button in a slim
   header and closed by Esc, the backdrop, or following a board link; focus stays inside while
   it is open. The source panel moves below the canvas (max 40% height); the toolbar title is
@@ -474,7 +477,10 @@ when it has one. A click or the keyboard in a pane focuses it: the address, Back
 panel follow the focused pane. Closing a pane's last tab leaves one pane. One board is edited
 at a time and one presents at a time: the other pane's Edit or Present button is off and says
 why, and the keys of editing and presenting reach the focused pane's board only. When both
-panes show the same board, a save in one loads it again in the other where it stands. The ten
+panes show the same board, a save in one loads it again in the other where it stands. "Atlas
+home" takes the focused pane only: the home shows there, under that pane's tab bar with no tab
+selected, while the other pane keeps its board to compare with; a board chosen from the
+sidebar or the home opens in the pane the home was in. The ten
 tabs count over both panes, and a reload brings both back.
 
 Each tab keeps its own toolbar choices: whether the design images show, the layers hidden, the
