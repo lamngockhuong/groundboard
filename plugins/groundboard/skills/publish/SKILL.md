@@ -6,7 +6,7 @@ compatibility: Claude Code with the Artifact tool and Node 24 or later (network 
 metadata:
   version: 0.1.0-rc.1
   homepage: https://github.com/lamngockhuong/groundboard
-argument-hint: "[--no-references]"
+argument-hint: "[--no-references] [--skip-cjk-fonts]"
 allowed-tools: Read Grep Write Bash(npx groundboard export:*) Artifact
 ---
 
@@ -41,30 +41,41 @@ Pick a new, empty directory in your scratchpad directory (or the system temp dir
 there is none), for example `<scratchpad>/groundboard-export-<YYYYMMDD-HHMMSS>`. Never point
 `--out` inside `.groundboard/`.
 
-Check whether any board has Chinese, Japanese or Korean text: Grep
-`.groundboard/*.board.json` for `\p{Han}|\p{Hiragana}|\p{Katakana}|\p{Hangul}`. When none does,
-add `--skip-cjk-fonts`; it leaves out about half the files.
+Name the page after the app, for example `Acme screen atlas`, from the repository's README or
+package name: the Artifact gallery shows the page's title, and without `--title` every atlas
+is called "groundboard".
 
 ```sh
-npx groundboard export --out <dir> [--skip-cjk-fonts] [--no-references]
+npx groundboard export --out <dir> --title "<App> screen atlas" [--no-references]
 ```
 
 Add `--root` or `--atlas-dir` only when the atlas is not `.groundboard/` of the current
-directory. Exit code 2 is a bad argument (fix it and run again), 1 an I/O error (report it and
-stop). Read what the command prints:
+directory. A `.groundboard` that is a symlink (a git worktree linked to the main checkout's
+atlas) needs neither: `export` reads the atlas where the link points and checks the sources in
+the current directory. Exit code 2 is a bad argument (fix it and run again), 1 an I/O error
+(report it and stop). Read what the command prints:
 
 - A warning about stale or invalid boards or atlas problems: tell the user before publishing
   and ask whether to go on. The page shows them as well.
 - A board exported without its Figma images because it was too large: tell the user.
+- The `CJK handwriting font` line: `export` writes only the parts of the Chinese, Japanese and
+  Korean handwriting font that the boards' characters need, none for an atlas without them.
 - A warning that the export does not fit one Artifact (more than 511 files or 256 MB): stop,
-  and suggest `--skip-cjk-fonts`, `--no-references`, or another static host for the folder.
+  tell the user which limit it passes, and offer what fixes that limit, then export again into
+  a new directory:
+  - too many files: `--skip-cjk-fonts` leaves out the whole CJK handwriting font (the warning
+    says how many files that is). Say what it costs: Chinese, Japanese and Korean text then
+    draws in a system font instead of the handwriting one. `--no-references` does not help
+    here; the Figma images are inside the board files, not files of their own.
+  - too large: `--no-references` leaves the Figma images out and makes the boards smaller.
+  - either way, any other static host serves the folder as it is.
 
 ### 3. Write the Artifact page
 
 An Artifact wraps its page in `<html>`, `<head>` and `<body>` itself. Read `<dir>/index.html`
 and write `<dir>/artifact.html` holding only, in this order:
 
-1. its `<title>` element;
+1. its `<title>` element (it holds the `--title` text);
 2. `<meta name="groundboard:mode" content="static" />` (the viewer finds it anywhere in the
    page; without it the viewer looks for a server and shows nothing);
 3. its `<link>` and `<script>` elements, unchanged, relative paths included;
@@ -74,20 +85,24 @@ and write `<dir>/artifact.html` holding only, in this order:
 
 Read `.groundboard/publish.json` if it exists: `{ "url": "...", "publishedAt": "..." }`.
 
-- **First publish** (no file): publish with `file_path` `<dir>/artifact.html`, `root` `<dir>`,
-  `icon` `map`, a one-sentence `description` naming the app, and `files` listing every path
-  in `<dir>/manifest.txt` (one path per line, relative to `<dir>`) except `index.html`. Read
-  the manifest rather than listing the folder: a file search may cut a long list short. The
-  manifest has one line fewer than the file count `export` printed (it does not list itself);
-  if the numbers do not match, stop and report it.
-- **Update** (file present): read the Artifact first (`action: "read"` with its `url`), then
-  list its published files (`scope: "files"`). Publish the same way with that `url`, and add
-  every published path that is no longer in the export (a board removed since) to `files` as
-  `null`, so the old board does not linger.
+`export` wrote the files to send as `<dir>/publish-batch-1.json`, `publish-batch-2.json`, and so
+on, in the order printed. Each is a list `[{"path": "..."}]` of paths relative to `<dir>`, at
+most 250 files and 60 MB, ready to pass unchanged as `files` (the list form publishes each file
+at its own path, and is about half the size of a `{path: path}` map; do not convert it). One
+publish takes at most 255 files and 64 MB; the batches stay below that so the page fits too.
+Together the batches list one path fewer than the "files to publish" count `export` printed
+(the page is the other one); if the numbers do not match, stop and report it.
 
-At most 250 entries go in `files` per publish. When there are more, send the page with the
-first 250, then publish the rest to the same `url` in further calls of at most 250 each,
-`file_path` again `<dir>/artifact.html` so the page stays the same.
+- **First publish** (no file): publish with `file_path` `<dir>/artifact.html`, `root` `<dir>`,
+  `icon` `map`, a one-sentence `description` naming the app, and `files` the contents of
+  `publish-batch-1.json`. Publish each further batch to the URL the first call returned, with
+  `file_path` again `<dir>/artifact.html` so the page stays the same.
+- **Update** (file present): read the Artifact first (`action: "read"` with its `url`), then
+  list its published files (`scope: "files"`). Publish every batch the same way with that
+  `url`. Then, if any published path is not in `<dir>/manifest.txt` (a board removed since),
+  publish once more with `file_path` `<dir>/artifact.html` and `files` a map of those paths to
+  `null`, for example `{"data/boards/old.json": null}`, so the old board does not linger; the
+  list form cannot remove a file.
 
 If a publish fails, stop and report what failed; do not retry the same call unchanged.
 
@@ -115,5 +130,9 @@ board: `atlas check` and `export` ignore it.
 - the time and commit the sources were checked at (the last line `export` printed), and
   whether the working tree had uncommitted changes;
 - whether the Figma images were sent;
+- whether the CJK handwriting font was left out (`--skip-cjk-fonts`), and that Chinese,
+  Japanese and Korean text then shows in a system font;
 - that other people see the page only after the user shares it from the Artifact's Share menu,
-  and that a link ending in `#<board-name>` (letters, digits and dashes) opens that board.
+  and that a link ending in `#<board-name>` (letters, digits and dashes) opens that board;
+- that the gallery card has no thumbnail when the Artifact holds many files, and that they can
+  set one from the Artifact's Share menu.
