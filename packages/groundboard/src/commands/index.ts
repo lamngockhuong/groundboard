@@ -11,6 +11,7 @@ Usage: groundboard <command> [options]
 
 Commands:
   render <board.json>    Validate, lay out and write an .excalidraw scene
+  png <board.json>       Draw a board or .excalidraw scene as PNG (needs groundboard-png)
   validate <board.json>  Check a board and, with --check-sources, its citations
   atlas check [dir]      Check every board of a screen atlas and the refs between them
   schema                 Print the board JSON Schema
@@ -29,6 +30,7 @@ type Command = (args: string[], io: CliIO) => Promise<number>;
 const commands: Record<string, () => Promise<Command>> = {
   render: async () => renderCommand,
   validate: async () => validateCommand,
+  png: async () => (await import("./png.ts")).pngCommand,
   atlas: async () => (await import("./atlas.ts")).atlasCommand,
   schema: async () => async (_args, io) => {
     io.stdout(boardJsonSchemaText());

@@ -3,12 +3,13 @@
 //   - package.json has no `workspace:` specifier and names no private package;
 //   - no shipped file imports a private `@groundboard/` package;
 //   - THIRD_PARTY_NOTICES.md, LICENSE, README.md and npm-shrinkwrap.json are inside;
-//   - `npx <tarball> render <example>` works in an empty directory;
+//   - `npx <tarball> render <example>` works in an empty directory, and `png` there prints the
+//     command that installs groundboard-png instead of failing;
 //   - with --measure, reports the tarball size and the cold start of `npx <tarball> mcp`
 //     (empty npm cache), so the plugin's first start can be tracked.
 // Usage: node scripts/check-pack.mjs [--tarball <file>] [--measure]
 
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -85,6 +86,20 @@ try {
   );
   const scene = JSON.parse(readFileSync(path.join(smoke, "out.excalidraw"), "utf8"));
   if (scene.type !== "excalidraw") fail("packed CLI did not write an Excalidraw scene");
+
+  // `png` needs the separate groundboard-png package; without it the CLI names the install command.
+  const png = spawnSync(
+    "npx",
+    ["--yes", `--package=${tarball}`, "groundboard", "png", "board.json"],
+    {
+      cwd: smoke,
+      encoding: "utf8",
+      env: { ...process.env, npm_config_cache: path.join(work, "npm-cache-smoke") },
+    },
+  );
+  if (png.status !== 1 || !png.stderr.includes("groundboard-png@")) {
+    fail(`packed CLI "png" without groundboard-png: exit ${png.status}, ${png.stderr.trim()}`);
+  }
 
   const size = statSync(tarball).size;
   console.log(
