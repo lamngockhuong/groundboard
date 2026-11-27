@@ -1,11 +1,12 @@
 import { currentEntry, NAV_LIMIT, type NavEntry, type ViewState } from "./nav-history.ts";
 import { NODE_ID_PATTERN, type Route, SLUG_PATTERN } from "./route.ts";
 import { TAB_LIMIT, type Tab, type TabsState } from "./tabs.ts";
+import { readPrefs, type ViewPrefs } from "./view-prefs.ts";
 
 /**
  * The open tabs, kept in `sessionStorage` so a reload brings them back: per browser tab, never
- * in the address. Only what names a place is stored, never a rendered board; a pasted board
- * has no place to name and is left out. Anything that does not read back exactly as written
+ * in the address. Only what names a place, and how each tab shows its board, is stored, never a
+ * rendered board; a pasted board has no place to name and is left out. Anything that does not read back exactly as written
  * is dropped, so a stale or hand-edited value never reaches the server.
  */
 
@@ -20,7 +21,12 @@ const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const SELECTED_LIMIT = 500;
 
 interface StoredTabs {
-  tabs: { id: string; preview: boolean; history: { entries: NavEntry[]; index: number } }[];
+  tabs: {
+    id: string;
+    preview: boolean;
+    history: { entries: NavEntry[]; index: number };
+    prefs?: ViewPrefs;
+  }[];
   activeIndex: number;
 }
 
@@ -38,6 +44,7 @@ export function saveTabs(key: string, state: TabsState): void {
         })),
         index: tab.history.index,
       },
+      ...(tab.prefs ? { prefs: tab.prefs } : {}),
     })),
     activeIndex: tabs.findIndex((tab) => tab.id === state.activeId),
   };
@@ -104,7 +111,16 @@ function readTab(value: unknown, now: number): Tab | null {
   const stack = { entries, index };
   const route = currentEntry(stack)?.route;
   if (route?.view !== "board") return null;
-  return { id: value.id, slug: route.slug, preview: value.preview, history: stack, lastUsed: now };
+  const tab: Tab = {
+    id: value.id,
+    slug: route.slug,
+    preview: value.preview,
+    history: stack,
+    lastUsed: now,
+  };
+  // Choices that do not read back are left out: the tab starts with the ones made last.
+  const prefs = readPrefs(value.prefs);
+  return prefs ? { ...tab, prefs } : tab;
 }
 
 /**

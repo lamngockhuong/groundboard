@@ -5,10 +5,11 @@ import {
   openNew,
   openPasted,
   openPreview,
-  pin,
   saveTabView,
+  setTabPrefs,
   type TabsState,
 } from "../src/tabs.ts";
+import { DEFAULT_PREFS } from "../src/view-prefs.ts";
 
 const KEY = "groundboard.tabs.test";
 
@@ -40,17 +41,54 @@ describe("tab storage", () => {
   });
 
   it("never writes a pasted board", () => {
-    // Tab b is pinned, so the pasted board gets a tab of its own.
-    const state = openPasted(
-      pin(sample(), "tb"),
-      { id: "e3", route: { view: "home" } },
-      "tp",
-      3,
-    ).state;
+    const state = openPasted(sample(), { id: "e3", route: { view: "home" } }, "tp", 3).state;
     saveTabs(KEY, state);
     const read = loadTabs(KEY);
     expect(read.tabs.map((t) => t.id)).toEqual(["ta", "tb"]);
     expect(read.activeId).toBeNull();
+  });
+
+  it("reads back each tab's toolbar choices", () => {
+    const own = {
+      designShown: false,
+      hiddenLayers: ["arrows", "notes"] as const,
+      font: "mono" as const,
+      sourcesOpen: false,
+    };
+    let state = setTabPrefs(sample(), "ta", own);
+    state = setTabPrefs(state, "tb", DEFAULT_PREFS);
+    saveTabs(KEY, state);
+    const read = loadTabs(KEY, 1);
+    expect(read.tabs.map((t) => t.prefs)).toEqual([own, DEFAULT_PREFS]);
+  });
+
+  it("keeps a tab whose choices do not read back, without them", () => {
+    const tab = (id: string, slug: string, prefs: unknown) => ({
+      id,
+      preview: false,
+      history: { entries: [{ id: `e-${id}`, route: { view: "board", slug } }], index: 0 },
+      prefs,
+    });
+    sessionStorage.setItem(
+      KEY,
+      JSON.stringify({
+        tabs: [
+          tab("t1", "a", { ...DEFAULT_PREFS, font: "comic" }),
+          tab("t2", "b", { ...DEFAULT_PREFS, hiddenLayers: ["nope"] }),
+          tab("t3", "c", { ...DEFAULT_PREFS, hiddenLayers: ["refs", "refs"] }),
+          tab("t4", "d", "yes"),
+        ],
+        activeIndex: 0,
+      }),
+    );
+    const read = loadTabs(KEY);
+    expect(read.tabs.map((t) => t.slug)).toEqual(["a", "b", "c", "d"]);
+    expect(read.tabs.map((t) => t.prefs)).toEqual([
+      undefined,
+      undefined,
+      { ...DEFAULT_PREFS, hiddenLayers: ["refs"] },
+      undefined,
+    ]);
   });
 
   it("drops what does not read back: broken JSON, a bad slug, a bad node", () => {

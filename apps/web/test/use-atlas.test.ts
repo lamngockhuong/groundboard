@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AtlasBoardResult } from "../src/api.ts";
 import { type AtlasHost, useAtlas } from "../src/use-atlas.ts";
+import { DEFAULT_PREFS, type ViewPrefs } from "../src/view-prefs.ts";
 
 const api = vi.hoisted(() => ({
   fetchHealth: vi.fn(),
@@ -446,7 +447,7 @@ describe("useAtlas", () => {
     expect(latest.tabs.tabs).toHaveLength(2);
   });
 
-  it("asks before a pasted board is replaced, and never gives two tabs one id on Back", async () => {
+  it("pins a pasted board in a tab of its own: links never replace it, closing it asks nothing more", async () => {
     api.fetchAtlasBoard.mockResolvedValue(ok);
     const h = host();
     await mount(h);
@@ -457,35 +458,88 @@ describe("useAtlas", () => {
       asked.push(kind);
       return true;
     };
-    // The paste goes into the preview tab that showed b.
+    // The preview tab that shows b stays: the paste opens after it, pinned.
     await act(async () => {
       latest.showPastedBoard({ scene: scene as never, title: "Pasted", fileName: "pasted" });
     });
-    expect(latest.tabs.tabs.map((t) => t.slug)).toEqual([null]);
+    expect(latest.tabs.tabs.map((t) => [t.slug, t.preview])).toEqual([
+      ["b", true],
+      [null, false],
+    ]);
     expect(asked).toEqual(["tab"]);
-    await act(async () => latest.pinTab(latest.tabs.activeId as string));
-    // Back to b's entry, which the tab no longer has: b opens in a tab of its own.
-    await traverse(() => window.history.back());
+    // An ordinary link replaces the preview tab, never the paste, and asks only as any tab does.
+    await go("#/board/c");
     await flush();
     expect(asked).toEqual(["tab", "tab"]);
+    expect(latest.tabs.tabs.map((t) => t.slug)).toEqual(["c", null]);
+    // Back to the paste's entry, then to b's entry the preview tab still has.
+    await traverse(() => window.history.back());
+    await flush();
+    expect(latest.tabs.tabs[1]?.id).toBe(latest.tabs.activeId);
+    await traverse(() => window.history.back());
+    await flush();
     const ids = latest.tabs.tabs.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(latest.tabs.tabs.map((t) => t.slug)).toEqual([null, "b"]);
     expect(latest.route).toEqual({ view: "board", slug: "b" });
+    expect(latest.tabs.tabs.filter((t) => t.slug === null)).toHaveLength(1);
 
-    // A preview tab holding a paste: an ordinary link asks, even with no change on it.
-    await act(async () => latest.closeTab(latest.tabs.tabs[1]?.id as string));
-    await act(async () => {
-      latest.showPastedBoard({ scene: scene as never, title: "Two", fileName: "two" });
-    });
+    // Closing the paste asks only through the unsaved-work guard, refused here.
+    const paste = latest.tabs.tabs.find((t) => t.slug === null)?.id as string;
+    await act(async () => latest.selectTab(paste));
     asked.length = 0;
     latest.leaveGuard.current = (kind) => {
       asked.push(kind);
       return false;
     };
-    await go("#/board/c");
-    expect(asked).toEqual(["pasted"]);
-    expect(latest.tabs.tabs.filter((t) => t.slug === null)).toHaveLength(2);
+    await act(async () => latest.closeTab(paste));
+    expect(asked).toEqual(["tab"]);
+    expect(latest.tabs.tabs.some((t) => t.id === paste)).toBe(true);
+    latest.leaveGuard.current = () => true;
+    await act(async () => latest.closeTab(paste));
+    expect(latest.tabs.tabs.some((t) => t.id === paste)).toBe(false);
+  });
+
+  it("gives a new tab the choices made last, and keeps each tab's own across a reload", async () => {
+    api.fetchAtlasBoard.mockResolvedValue(ok);
+    api.fetchAtlas.mockResolvedValue({
+      status: "ok",
+      atlas: {
+        atlasId: "prefs",
+        boards: [
+          { slug: "a", title: "A" },
+          { slug: "b", title: "B" },
+        ],
+        refs: [],
+        problems: [],
+      },
+    });
+    let last: ViewPrefs = DEFAULT_PREFS;
+    const h = { ...host(), defaultPrefs: () => last };
+    await mount(h);
+    await go("#/board/a");
+    await flush();
+    const a = latest.tabs.activeId as string;
+    expect(latest.tabs.tabs[0]?.prefs).toEqual(DEFAULT_PREFS);
+    const own: ViewPrefs = { ...DEFAULT_PREFS, designShown: false, font: "mono" };
+    last = own;
+    await act(async () => latest.setTabPrefs(a, own));
+    await act(async () => latest.openPlace({ slug: "b" }, "new"));
+    await flush();
+    const b = latest.tabs.activeId as string;
+    expect(b).not.toBe(a);
+    // Tab b started from the choices made last; changing them later leaves tab a as it was.
+    expect(latest.tabs.tabs.find((t) => t.id === b)?.prefs).toEqual(own);
+    const other: ViewPrefs = { ...own, sourcesOpen: false };
+    await act(async () => latest.setTabPrefs(b, other));
+    expect(latest.tabs.tabs.find((t) => t.id === a)?.prefs).toEqual(own);
+
+    await act(async () => root.unmount());
+    await mount(h);
+    await flush();
+    expect(latest.tabs.tabs.map((t) => [t.slug, t.prefs])).toEqual([
+      ["a", own],
+      ["b", other],
+    ]);
   });
 
   it("asks once when the browser's Back is refused", async () => {

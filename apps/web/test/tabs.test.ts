@@ -5,17 +5,20 @@ import {
   cachePlan,
   close,
   emptyTabs,
+  fillPrefs,
   navigateInTab,
   openNew,
   openPasted,
   openPreview,
   pin,
+  setTabPrefs,
   TAB_LIMIT,
   type TabsState,
   tabAtIndex,
   tabById,
   tabRoute,
 } from "../src/tabs.ts";
+import { DEFAULT_PREFS, type ViewPrefs } from "../src/view-prefs.ts";
 
 let n = 0;
 const entry = (slug: string, node?: string): NavEntry => ({
@@ -76,12 +79,24 @@ describe("openPreview", () => {
     expect(tab?.history.entries).toHaveLength(2);
   });
 
-  it("starts a new history when the preview tab held a pasted board", () => {
+  it("never replaces a pasted board: the click opens a preview tab after it", () => {
     let state = openPasted(emptyTabs(), pasted(), "t1", 1).state;
     state = openPreview(state, entry("a"), "t2", 2).state;
-    expect(state.tabs).toHaveLength(1);
-    expect(state.tabs[0]).toMatchObject({ id: "t1", slug: "a", preview: true });
-    expect(state.tabs[0]?.history.entries).toHaveLength(1);
+    expect(slugs(state)).toEqual([null, "a"]);
+    expect(tabById(state, "t2")).toMatchObject({ preview: true });
+    expect(state.activeId).toBe("t2");
+  });
+
+  it("starts a new history when every tab is pinned and a pasted board is on screen", () => {
+    let state = pinnedTabs(["a", "b", "c", "d", "e", "f", "g", "h", "i"]);
+    state = openPasted(state, pasted(), "t-p", 20).state;
+    expect(state.tabs).toHaveLength(TAB_LIMIT);
+    const opened = openPreview(state, entry("z"), "t-z", 21);
+    expect(opened.full).toBe(true);
+    expect(opened.tabId).toBe("t-p");
+    const tab = tabById(opened.state, "t-p");
+    expect(tab?.slug).toBe("z");
+    expect(tab?.history.entries).toHaveLength(1);
   });
 });
 
@@ -178,11 +193,54 @@ describe("pin", () => {
 });
 
 describe("openPasted", () => {
-  it("makes a preview tab with no slug", () => {
+  it("makes a pinned tab with no slug", () => {
     const opened = openPasted(pinnedTabs(["a"]), pasted(), "t1", 5);
     expect(opened.tabId).toBe("t1");
-    expect(tabById(opened.state, "t1")).toMatchObject({ slug: null, preview: true });
+    expect(tabById(opened.state, "t1")).toMatchObject({ slug: null, preview: false });
     expect(opened.state.activeId).toBe("t1");
+  });
+
+  it("leaves the preview tab as it is: the paste gets a tab of its own", () => {
+    let state = openPreview(emptyTabs(), entry("a"), "t-a", 1).state;
+    state = openPasted(state, pasted(), "t-p", 2).state;
+    expect(slugs(state)).toEqual(["a", null]);
+    expect(tabById(state, "t-a")).toMatchObject({ preview: true });
+    // A second paste keeps the first one too.
+    state = openPasted(state, pasted(), "t-q", 3).state;
+    expect(slugs(state)).toEqual(["a", null, null]);
+  });
+
+  it("with every tab pinned, takes the place of the board on screen and keeps its choices", () => {
+    const prefs: ViewPrefs = { ...DEFAULT_PREFS, font: "mono" };
+    let state = pinnedTabs(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]);
+    state = setTabPrefs(state, "t-j", prefs);
+    const opened = openPasted(state, pasted(), "t-p", 20);
+    expect(opened.full).toBe(true);
+    expect(opened.tabId).toBe("t-j");
+    expect(tabById(opened.state, "t-j")).toMatchObject({ slug: null, preview: false, prefs });
+  });
+});
+
+describe("tab choices", () => {
+  const mono: ViewPrefs = { ...DEFAULT_PREFS, font: "mono", designShown: false };
+
+  it("gives the choices made last to tabs that have none, and only to them", () => {
+    let state = pinnedTabs(["a", "b"]);
+    state = setTabPrefs(state, "t-a", mono);
+    state = fillPrefs(state, DEFAULT_PREFS);
+    expect(tabById(state, "t-a")?.prefs).toBe(mono);
+    expect(tabById(state, "t-b")?.prefs).toBe(DEFAULT_PREFS);
+    expect(fillPrefs(state, mono)).toBe(state);
+  });
+
+  it("keeps a tab's choices when its board changes or it moves in its history", () => {
+    let state = openPreview(emptyTabs(), entry("a"), "t1", 1).state;
+    state = setTabPrefs(state, "t1", mono);
+    state = openPreview(state, entry("b"), "t2", 2).state;
+    expect(tabById(state, "t1")?.prefs).toBe(mono);
+    state = navigateInTab(state, "t1", entry("c"));
+    expect(tabById(state, "t1")?.prefs).toBe(mono);
+    expect(setTabPrefs(state, "t1", mono)).toBe(state);
   });
 });
 

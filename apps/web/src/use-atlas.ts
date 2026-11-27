@@ -39,6 +39,7 @@ import {
   cachePlan,
   close,
   emptyTabs,
+  fillPrefs,
   type Opened,
   openNew,
   openPasted,
@@ -53,7 +54,9 @@ import {
   tabById,
   tabRoute,
   traverseTab,
+  setTabPrefs as withTabPrefs,
 } from "./tabs.ts";
+import type { ViewPrefs } from "./view-prefs.ts";
 
 /** Boards opened in this browser, shown like an atlas when the server serves none. */
 export interface LibraryState {
@@ -139,6 +142,8 @@ export interface AtlasHost {
    * on the canvas outside edit mode. A board loaded again in the background then waits.
    */
   hasUnsavedWork?: () => boolean;
+  /** The toolbar choices made last, which a new tab starts with. */
+  defaultPrefs?: () => ViewPrefs;
 }
 
 /**
@@ -154,8 +159,8 @@ export interface NodeFocus {
 /**
  * What leaving the board on screen costs, for the guard to ask about: "nav" moves within the
  * tab (Back, Forward, a node of the same board), "tab" replaces the board on screen or puts
- * another tab there, "pasted" also replaces or closes a pasted board, which cannot be shown
- * again.
+ * another tab there, "pasted" also replaces a pasted board, which cannot be shown again. A
+ * pasted board's tab is pinned, so that happens only when every tab is pinned already.
  */
 export type LeaveKind = "nav" | "tab" | "pasted";
 
@@ -274,15 +279,17 @@ function leaving(from: TabsState, to: TabsState): LeaveKind | null {
   return a === b ? null : "nav";
 }
 
-/** Whether a pasted board leaves its tab: the tab closed, or given another board or paste. */
+/**
+ * Whether a pasted board is replaced in its tab by another board or paste. Closing its tab is
+ * not asked about here: that asks only when the board holds unsaved work, as any tab does.
+ */
 function losesPasted(from: TabsState, to: TabsState): boolean {
   return from.tabs.some((tab) => {
     if (tab.slug !== null) return false;
     const after = to.tabs.find((t) => t.id === tab.id);
     return (
-      !after ||
-      after.slug !== null ||
-      currentEntry(after.history)?.id !== currentEntry(tab.history)?.id
+      after !== undefined &&
+      (after.slug !== null || currentEntry(after.history)?.id !== currentEntry(tab.history)?.id)
     );
   });
 }
@@ -379,7 +386,9 @@ export function useAtlas(host: AtlasHost) {
     setAtlas(value);
   }, []);
 
-  const commit = useCallback((next: TabsState) => {
+  const commit = useCallback((state: TabsState) => {
+    const defaults = hostRef.current.defaultPrefs;
+    const next = defaults ? fillPrefs(state, defaults()) : state;
     tabsRef.current = next;
     setTabs(next);
     const keep = cachePlan(next);
@@ -1104,8 +1113,8 @@ export function useAtlas(host: AtlasHost) {
   );
 
   /**
-   * Shows a board pasted or opened from a file in the preview tab (or a new one). It has no
-   * address: the address names the home, as before. False when the reader chose to stay.
+   * Shows a board pasted or opened from a file in a new pinned tab. It has no address: the
+   * address names the home, as before. False when the reader chose to stay.
    */
   const showPastedBoard = useCallback(
     (board: { scene: Scene; title: string; fileName: string }): boolean => {
@@ -1128,6 +1137,16 @@ export function useAtlas(host: AtlasHost) {
       return true;
     },
     [commit, keepView, mayLeave, present, setNotice, writeHistory],
+  );
+
+  /** Keeps how a tab shows its board: the toolbar choices made in it. */
+  const setTabPrefs = useCallback(
+    (id: string, prefs: ViewPrefs) => {
+      const state = tabsRef.current;
+      const next = withTabPrefs(state, id, prefs);
+      if (next !== state) commit(next);
+    },
+    [commit],
   );
 
   /** The title a tab shows: its board's in the atlas, or the pasted board's. */
@@ -1423,5 +1442,6 @@ export function useAtlas(host: AtlasHost) {
     closeTab,
     pinTab,
     showPastedBoard,
+    setTabPrefs,
   };
 }
