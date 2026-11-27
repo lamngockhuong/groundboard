@@ -62,7 +62,12 @@ type Viewer = Page | Frame;
 /** Waits until every board on screen is on its canvas. */
 async function settled(viewer: Viewer): Promise<void> {
   await viewer.getByText("Loading the board").waitFor({ state: "hidden", timeout: 30_000 });
-  await viewer.locator(".canvas .main-menu-trigger").first().waitFor({ timeout: 30_000 });
+  // A narrow window keeps the other pane's board hidden: the one in sight is waited for.
+  await viewer
+    .locator(".canvas .main-menu-trigger")
+    .filter({ visible: true })
+    .first()
+    .waitFor({ timeout: 30_000 });
   await viewer.waitForTimeout(700);
 }
 
@@ -233,11 +238,14 @@ describe("split view", () => {
       await handle.dblclick();
       expect(await handle.getAttribute("aria-valuenow")).toBe("50");
 
-      // Narrower than 1024px: one row of tabs, one board, no handle, no button to split.
+      // Narrower than 1024px: one row of tabs, one board in sight (the other pane's stays on
+      // the page, hidden), no handle, no button to split.
       await page.setViewportSize({ width: 900, height: 900 });
       await settled(page);
       expect(await page.locator(".split-one").count()).toBe(1);
-      expect(await page.locator(".excalidraw").count()).toBe(1);
+      expect(await page.locator(".pane:not([hidden]) .excalidraw").count()).toBe(1);
+      expect(await page.locator(".excalidraw").count()).toBe(2);
+      expect(await page.locator(".split-handle").count()).toBe(0);
       expect(await page.locator('[role="tab"] .tab-title').allTextContents()).toEqual(
         tabsBefore.flat(),
       );
@@ -295,17 +303,110 @@ describe("split view", () => {
       expect(await page.locator(".pane").count()).toBe(1);
       expect(await page.locator('.excalidraw[data-kept="1"]').count()).toBe(1);
       expect(await page.getByRole("button", { name: "Done" }).count()).toBe(1);
-      // A narrow window folds the other pane away; the focused board stays.
+      // A narrow window hides the other pane: neither board mounts again, and a change drawn on
+      // the right canvas (not saved) is still there when the window widens; nothing asks.
       await page.getByRole("button", { name: "Open beside" }).first().click();
       await settled(page);
+      await mark();
+      const canvas = await pane(page, 1).locator(".canvas").boundingBox();
+      if (!canvas) throw new Error("no canvas");
+      await page.mouse.click(canvas.x + 40, canvas.y + canvas.height - 160);
+      await page.keyboard.press("r");
+      await page.mouse.move(canvas.x + 60, canvas.y + canvas.height - 120);
+      await page.mouse.down();
+      await page.mouse.move(canvas.x + 140, canvas.y + canvas.height - 60, { steps: 4 });
+      await page.mouse.up();
+      await pane(page, 1).locator(".canvas-unsaved").waitFor();
       await pane(page, 0)
         .locator(".toolbar")
         .click({ position: { x: 5, y: 5 } });
+      let asked = 0;
+      page.on("dialog", (dialog) => {
+        asked += 1;
+        void dialog.dismiss();
+      });
       await page.setViewportSize({ width: 900, height: 900 });
       await page.waitForTimeout(500);
-      expect(await page.locator('.excalidraw[data-kept="1"]').count()).toBe(1);
+      expect(await page.locator('.excalidraw[data-kept="1"]').count()).toBe(2);
       expect(await page.getByRole("button", { name: "Done" }).count()).toBe(1);
-      await page.getByRole("button", { name: "Done" }).click();
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.waitForTimeout(500);
+      expect(await page.locator('.excalidraw[data-kept="1"]').count()).toBe(2);
+      expect(await pane(page, 1).locator(".canvas-unsaved").count()).toBe(1);
+      expect(asked).toBe(0);
+      await pane(page, 0).getByRole("button", { name: "Done" }).click();
+    } finally {
+      await context.close();
+      await server.close();
+    }
+  });
+
+  test("the atlas home takes the focused pane only, beside the other pane's board", async () => {
+    const server = await start({ atlas: { dir: atlasDir, root: fixtures } });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => localStorage.setItem("groundboard.locale", "en"));
+      await page.goto(`${server.origin}/#/board/web--checkout`);
+      await settled(page);
+      await sidebarLink(page, "Orders API").click({ modifiers: ["Alt"] });
+      await settled(page);
+      await page.getByRole("button", { name: "Open beside" }).click();
+      await settled(page);
+      await page.evaluate(
+        `document.querySelector(".pane:nth-child(3) .excalidraw").dataset.kept = "1"`,
+      );
+      await pane(page, 0)
+        .locator(".toolbar")
+        .click({ position: { x: 5, y: 5 } });
+      await page.locator(".sidebar a.nav-home").click();
+      await pane(page, 0).locator(".atlas-home").waitFor();
+      expect(page.url()).toMatch(/#\/$/);
+      expect(await paneTitle(pane(page, 1))).toBe("Orders API");
+      expect(await pane(page, 1).locator('.excalidraw[data-kept="1"]').count()).toBe(1);
+      expect(await paneTabs(pane(page, 0))).toEqual(["Checkout screen", "Orders API"]);
+      expect(await pane(page, 0).locator('[role="tab"][aria-selected="true"]').count()).toBe(0);
+      // A board chosen in the sidebar goes into the pane the home was in.
+      await sidebarLink(page, "Shop database").click();
+      await settled(page);
+      expect(await paneTitle(pane(page, 0))).toBe("Shop database");
+      expect(await pane(page, 1).locator('.excalidraw[data-kept="1"]').count()).toBe(1);
+    } finally {
+      await context.close();
+      await server.close();
+    }
+  });
+
+  test("a pane's own toolbar button turns the source panel off, from either pane", async () => {
+    const server = await start({ atlas: { dir: atlasDir, root: fixtures } });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => localStorage.setItem("groundboard.locale", "en"));
+      await page.goto(`${server.origin}/#/board/web--checkout`);
+      await settled(page);
+      await page.getByRole("button", { name: "Open beside" }).click();
+      await settled(page);
+      const toggle = (i: 0 | 1) => pane(page, i).getByRole("button", { name: "Sources panel" });
+      // One panel for both panes: either pane's button opens and closes it for both, and a
+      // click on the button of the pane not focused is never lost to the panes moving.
+      const pressed = async () => [
+        await toggle(0).getAttribute("aria-pressed"),
+        await toggle(1).getAttribute("aria-pressed"),
+      ];
+      await toggle(0).click();
+      expect(await page.locator(".source-panel").count()).toBe(0);
+      expect(await pressed()).toEqual(["false", "false"]);
+      await toggle(1).click();
+      expect(await page.locator(".source-panel").count()).toBe(1);
+      expect(await pressed()).toEqual(["true", "true"]);
+      await toggle(0).click();
+      expect(await page.locator(".source-panel").count()).toBe(0);
+      expect(await pressed()).toEqual(["false", "false"]);
+      // The button that opens a board beside is not the one of the source panel.
+      expect(await pane(page, 0).locator(".tab-actions .icon").innerHTML()).not.toBe(
+        await toggle(0).locator(".icon").innerHTML(),
+      );
     } finally {
       await context.close();
       await server.close();

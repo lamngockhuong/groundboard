@@ -28,17 +28,22 @@ export const SPLIT_NARROW = "(max-width: 1023px)";
 /** The left pane's share of the width, in percent: half and half until the reader drags it. */
 export const SPLIT_RATIO = { initial: 50, min: 25, max: 75, step: 2, bigStep: 10 } as const;
 
-/** The tabs whose boards are on screen: the focused pane's first, then the other pane's. */
-export function visibleTabIds(state: TabsState, twoPanes: boolean): string[] {
-  if (state.activeId === null) return [];
-  return twoPanes && state.otherId !== undefined
-    ? [state.activeId, state.otherId]
-    : [state.activeId];
+/**
+ * The tabs whose boards are on the page: the focused pane's first (none on the atlas home),
+ * then the other pane's. A narrow window hides the other pane's board without taking it off
+ * the page, so nothing on it is lost and widening shows it as it was.
+ */
+export function visibleTabIds(state: TabsState): string[] {
+  const ids = state.activeId === null ? [] : [state.activeId];
+  return state.otherId !== undefined ? [...ids, state.otherId] : ids;
 }
 
-/** Whether two panes show: two groups, a tab on screen, and room for both. */
+/**
+ * Whether two panes show: two groups, room for both, and something in each (the focused pane
+ * may show the atlas home beside the other pane's board).
+ */
 export const showsTwoPanes = (state: TabsState, wide: boolean): boolean =>
-  wide && state.activeId !== null && isSplit(state);
+  wide && isSplit(state) && (state.activeId !== null || state.otherId !== undefined);
 
 /** One group as its pane's tab bar shows it: its tabs, and the one on screen there. */
 export function groupView(state: TabsState, group: Group): TabsState {

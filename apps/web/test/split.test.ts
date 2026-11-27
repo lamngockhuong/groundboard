@@ -68,7 +68,7 @@ describe("openBeside", () => {
     expect(copy?.history).toEqual(tabById(state, "t-b")?.history);
     expect(copy?.history.entries[0]?.view).toEqual(view);
     expect(ids(next)).toEqual(["t-a", "t-b", "t-new"]);
-    expect(visibleTabIds(next, true)).toEqual(["t-new", "t-b"]);
+    expect(visibleTabIds(next)).toEqual(["t-new", "t-b"]);
     expect(showsTwoPanes(next, true)).toBe(true);
     expect(showsTwoPanes(next, false)).toBe(false);
   });
@@ -167,10 +167,18 @@ describe("narrowView", () => {
     const state = splitState();
     // Narrow: the reader picks the left group's tab from the one row; nothing else changes.
     const narrowed = activate(state, "t-b", 60);
-    expect(visibleTabIds(narrowed, false)).toEqual(["t-b"]);
     expect(groupView(narrowed, 0).tabs.map((t) => t.id)).toEqual(["t-a", "t-b"]);
     expect(groupView(narrowed, 1).tabs.map((t) => t.id)).toEqual(["t-a2"]);
-    expect(visibleTabIds(narrowed, true)).toEqual(["t-b", "t-a2"]);
+    // The other pane's board stays on the page, hidden while narrow.
+    expect(visibleTabIds(narrowed)).toEqual(["t-b", "t-a2"]);
+  });
+
+  it("keeps the other pane's board on the atlas home, beside the home", () => {
+    const home = { ...splitState(), activeId: null };
+    expect(visibleTabIds(home)).toEqual(["t-a"]);
+    expect(showsTwoPanes(home, true)).toBe(true);
+    expect(showsTwoPanes(home, false)).toBe(false);
+    expect(visibleTabIds(emptyTabs())).toEqual([]);
   });
 });
 

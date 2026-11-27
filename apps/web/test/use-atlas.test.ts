@@ -676,7 +676,7 @@ describe("useAtlas", () => {
       });
     });
 
-    it("asks about both boards when the home takes the screen", async () => {
+    it("puts the home in the focused pane only, asking about its board alone", async () => {
       api.fetchAtlasBoard.mockResolvedValue(ok);
       const h = wide();
       await mount(h);
@@ -690,14 +690,22 @@ describe("useAtlas", () => {
       const asked: (string | undefined)[] = [];
       latest.leaveGuard.current = (_kind, tabId) => {
         asked.push(tabId);
-        return tabId !== right;
+        return true;
       };
+      vi.mocked(h.closeScene).mockClear();
       await go("#/");
       await flush();
-      expect(asked).toEqual([left, right]);
-      // The right pane's board holds unsaved work: the reader stays.
-      expect(latest.tabs.activeId).toBe(left);
-      expect(window.location.hash).toBe("#/board/a");
+      expect(asked).toEqual([left]);
+      expect(latest.tabs.activeId).toBeNull();
+      expect(latest.tabs.otherId).toBe(right);
+      expect(h.closeScene).toHaveBeenCalledWith(left);
+      expect(h.closeScene).not.toHaveBeenCalledWith(right);
+      expect(h.closeAtlasBoard).not.toHaveBeenCalled();
+      // Back to a tab of the left pane: both boards on screen again.
+      await act(async () => latest.selectTab(left));
+      await flush();
+      expect(latest.tabs.otherId).toBe(right);
+      expect(h.showBoard).toHaveBeenLastCalledWith(expect.anything(), left);
     });
 
     it("says in the other pane why its board failed to load, and asks again when focused", async () => {
@@ -762,7 +770,7 @@ describe("useAtlas", () => {
       expect([...h.shown].sort()).toEqual(["b", "b"]);
     });
 
-    it("shows one board on a narrow screen, and the other pane's again when it widens", async () => {
+    it("keeps the other pane's board on the page while the window is narrow", async () => {
       api.fetchAtlasBoard.mockResolvedValue(ok);
       let h = wide();
       await mount(h);
@@ -772,15 +780,16 @@ describe("useAtlas", () => {
       await flush();
       await act(async () => latest.openBeside());
       await flush();
-      const other = latest.tabs.otherId as string;
+      vi.mocked(h.closeScene).mockClear();
+      vi.mocked(h.showBoard).mockClear();
       h = { ...h, twoPanes: false };
       await act(async () => root.render(createElement(Probe, { host: h })));
       await flush();
-      expect(h.closeScene).toHaveBeenCalledWith(other);
       h = { ...h, twoPanes: true };
       await act(async () => root.render(createElement(Probe, { host: h })));
       await flush();
-      expect(h.showBoard).toHaveBeenLastCalledWith(expect.anything(), other);
+      expect(h.closeScene).not.toHaveBeenCalled();
+      expect(h.showBoard).not.toHaveBeenCalled();
     });
   });
 });

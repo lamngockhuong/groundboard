@@ -30,7 +30,7 @@ import { parseInput, type Scene } from "./input.ts";
 import type { LayerId } from "./layers.ts";
 import type { LibraryEntry } from "./library.ts";
 import { isStaticMode } from "./mode.ts";
-import { canBack as hasBack, canForward as hasForward, type ViewState } from "./nav-history.ts";
+import { canBack as hasBack, canForward as hasForward } from "./nav-history.ts";
 import { type PaletteItem, paletteCommands } from "./palette.ts";
 import {
   MOTION_ALL_KEY,
@@ -55,7 +55,7 @@ import {
 import type { BoardNode, NodeCitations } from "./sources.ts";
 import { groupView, narrowView, SPLIT_NARROW, SPLIT_RATIO, showsTwoPanes } from "./split.ts";
 import { describeStamp } from "./stamp.ts";
-import { type Group, groupOf, tabById } from "./tabs.ts";
+import { focusedGroup, type Group, isSplit, tabById } from "./tabs.ts";
 import {
   applyStyle,
   applyTheme,
@@ -233,11 +233,6 @@ export function App() {
   const canvasReaders = useRef(new Map<string, CanvasReader>());
   /** The callbacks of each tab's editor, made once so the editor does not render again. */
   const handlers = useRef(new Map<string, TabHandlers>());
-  /**
-   * Where a board's canvas stood when its editor left the page while the board stayed shown
-   * (a narrow window folds the other pane away before the views are kept); read in its place.
-   */
-  const lastViews = useRef(new Map<string, ViewState>());
   /** Edits not saved on the board of that tab. */
   const hasDirtyEdits = (tabId: string) =>
     dirtyCheck.current?.tabId === tabId && dirtyCheck.current.check();
@@ -337,7 +332,6 @@ export function App() {
   const closeScene = useCallback((tabId?: string) => {
     if (tabId === undefined) {
       handlers.current.clear();
-      lastViews.current.clear();
       setBoards({});
       setCitations({});
       setNodes({});
@@ -346,7 +340,6 @@ export function App() {
     }
     setBoards((previous) => without(previous, tabId));
     handlers.current.delete(tabId);
-    lastViews.current.delete(tabId);
     setCitations((previous) => without(previous, tabId));
     setNodes((previous) => without(previous, tabId));
     setLocalFocus((previous) => without(previous, tabId));
@@ -437,8 +430,16 @@ export function App() {
     storeChange(change);
     lastPrefsRef.current = applyChange(lastPrefsRef.current, change);
     setLastPrefs(lastPrefsRef.current);
-    const tab = prefsTabOf(id);
-    if (tab) setTabPrefs(tab.id, applyChange(prefsOf(id), change));
+    // One source panel serves both panes: opening or closing it from either pane does it for
+    // the boards of both, so moving the focus never makes it come or go (and the panes jump).
+    const ids =
+      split && "sourcesOpen" in change
+        ? [groupView(tabs, 0).activeId, groupView(tabs, 1).activeId]
+        : [id];
+    for (const each of ids) {
+      const tab = each === null ? undefined : prefsTabOf(each);
+      if (tab) setTabPrefs(tab.id, applyChange(prefsOf(tab.id), change));
+    }
   };
 
   /** A board on screen has these layers: its tab keeps hidden only those of them. */
@@ -958,8 +959,7 @@ export function App() {
     viewReader.current = (slug, tabId) => {
       const id = tabId ?? focusedIdRef.current;
       if (id === null || boardsRef.current[id]?.slug !== slug) return null;
-      const reader = canvasReaders.current.get(id);
-      return reader ? reader.view() : (lastViews.current.get(id) ?? null);
+      return canvasReaders.current.get(id)?.view() ?? null;
     };
   }, [viewReader]);
 
@@ -977,19 +977,8 @@ export function App() {
         onSelectionChange: (found) => setCitations((previous) => ({ ...previous, [id]: found })),
         onNodes: (list) => setNodes((previous) => ({ ...previous, [id]: list })),
         registerCanvas: (reader) => {
-          if (reader) {
-            canvasReaders.current.set(id, reader);
-            lastViews.current.delete(id);
-            return;
-          }
-          let view: ViewState | null = null;
-          try {
-            view = canvasReaders.current.get(id)?.view() ?? null;
-          } catch {
-            // The canvas is gone already: nothing to keep.
-          }
-          if (view) lastViews.current.set(id, view);
-          canvasReaders.current.delete(id);
+          if (reader) canvasReaders.current.set(id, reader);
+          else canvasReaders.current.delete(id);
         },
         onPresentingChange: (presenting) =>
           setPresentingId((previous) => (presenting ? id : previous === id ? null : previous)),
@@ -1123,17 +1112,47 @@ export function App() {
       </main>
     ) : null;
 
+  /** The atlas home: in the page, or in the focused pane beside the other pane's board. */
+  const homeView = atlas ? (
+    <>
+      <AtlasHome
+        atlas={atlas}
+        {...(library
+          ? {
+              library: {
+                ...library,
+                onOpenFile: () => {
+                  setDrawerOpen(false);
+                  setFileOpen(true);
+                },
+                onClear: () => {
+                  if (window.confirm(t("library.clearConfirm"))) void clearLibrary();
+                },
+              },
+            }
+          : {})}
+      />
+      <IssueList issues={issues} />
+    </>
+  ) : null;
+
+  /** The tabs sit in two groups, one pane each, whether or not the window shows both. */
+  const grouped =
+    tabsShown && isSplit(tabs) && (tabs.activeId !== null || tabs.otherId !== undefined);
+
   /**
-   * A pane: its tab bar, the messages when it is the focused one, and its tab's board (or why
-   * there is none yet). Keyed by its tab, in one list whether one pane shows or two, so a board
-   * on screen keeps its editor (and the work in it) when a pane comes, goes or moves.
+   * A pane: its tab bar, and its tab's board (or why there is none yet, or the atlas home).
+   * Panes are keyed by their tab, in one list however many show, so a board on screen keeps its
+   * editor (and the work in it) when a pane comes, goes, moves or is hidden. With one pane
+   * showing, its tab bar holds every tab and the messages sit under it; with two, the messages
+   * sit above both, so moving the focus never moves a pane's content.
    */
-  const paneOf = (id: string, slot: "left" | "right" | "whole") => {
-    const tab = tabById(tabs, id);
-    const group: Group = tab ? groupOf(tab) : 0;
-    const focused = id === tabs.activeId;
+  const paneOf = (slot: "left" | "right" | "whole", group: Group, hidden = false) => {
+    const id = slot === "whole" ? tabs.activeId : groupView(tabs, group).activeId;
+    const tab = id === null ? undefined : tabById(tabs, id);
+    const focused = slot === "whole" || group === focusedGroup(tabs);
     const side =
-      slot === "whole" ? null : t(slot === "left" ? "split.leftPane" : "split.rightPane");
+      split && slot !== "whole" ? t(slot === "left" ? "split.leftPane" : "split.rightPane") : null;
     const bar =
       side === null
         ? {
@@ -1159,8 +1178,9 @@ export function App() {
           };
     return (
       <section
-        key={id}
+        key={id ?? "home"}
         className={side !== null && focused ? "pane pane-focused" : "pane"}
+        hidden={hidden}
         {...(side === null
           ? {}
           : {
@@ -1171,7 +1191,7 @@ export function App() {
               onFocusCapture: () => focusPane(group),
             })}
       >
-        {tabBarShown ? (
+        {tabBarShown && !hidden ? (
           <TabBar
             {...bar}
             title={tabTitle}
@@ -1180,9 +1200,11 @@ export function App() {
             onPin={pinTab}
           />
         ) : null}
-        {focused && !fileOpen ? messages : null}
-        {boards[id] ? (
-          editorOf(id, focused)
+        {focused && !split && !fileOpen ? messages : null}
+        {id === null ? (
+          <div className="start pane-home">{homeView}</div>
+        ) : boards[id] ? (
+          editorOf(id, focused && !hidden)
         ) : (
           <div className="pane-pending">
             {tab?.error !== undefined ? (
@@ -1197,28 +1219,35 @@ export function App() {
     );
   };
 
-  /** The tabs' boards: the focused pane's, or two side by side, with the source panel. */
+  /**
+   * The tabs' boards: the focused pane's, or two side by side, with the source panel. A narrow
+   * window hides the other pane rather than taking its board off the page.
+   */
   const atlasWorkspace =
-    atlasEnabled && tabs.activeId !== null ? (
+    atlasEnabled && (tabs.activeId !== null || grouped) ? (
       <main className="workspace">
         <div
           className={split ? "split" : "split split-one"}
           style={{ "--split": `${splitRatio}%` } as CSSProperties}
         >
-          {split
+          {grouped
             ? [
-                paneOf(groupView(tabs, 0).activeId ?? "", "left"),
-                <SplitHandle
-                  key="split-handle"
-                  ratio={splitRatio}
-                  onChange={(ratio) => {
-                    setSplitRatio(ratio);
-                    saveValue(SPLIT_RATIO_KEY, ratio);
-                  }}
-                />,
-                paneOf(groupView(tabs, 1).activeId ?? "", "right"),
+                paneOf("left", 0, !split && focusedGroup(tabs) !== 0),
+                ...(split
+                  ? [
+                      <SplitHandle
+                        key="split-handle"
+                        ratio={splitRatio}
+                        onChange={(ratio) => {
+                          setSplitRatio(ratio);
+                          saveValue(SPLIT_RATIO_KEY, ratio);
+                        }}
+                      />,
+                    ]
+                  : []),
+                paneOf("right", 1, !split && focusedGroup(tabs) !== 1),
               ]
-            : [paneOf(tabs.activeId, "whole")]}
+            : [paneOf("whole", 0)]}
         </div>
         {sourcePanel}
       </main>
@@ -1299,10 +1328,6 @@ export function App() {
         : {}),
       ...(tabsShown ? { onOpenInTab: (slug: string) => openPlace({ slug }, "new") } : {}),
     };
-    const openFile = () => {
-      setDrawerOpen(false);
-      setFileOpen(true);
-    };
     return (
       <div
         className={collapsed ? "app app-atlas sidebar-collapsed" : "app app-atlas"}
@@ -1348,6 +1373,7 @@ export function App() {
               </button>
             </header>
           ) : null}
+          {split && !fileOpen ? messages : null}
           {atlasWorkspace ?? (
             <>
               {/* On the home the tabs stay open in one row; none is on screen. */}
@@ -1362,23 +1388,7 @@ export function App() {
                 />
               ) : null}
               {fileOpen ? null : messages}
-              <main className="start">
-                <AtlasHome
-                  atlas={atlas}
-                  {...(library
-                    ? {
-                        library: {
-                          ...library,
-                          onOpenFile: openFile,
-                          onClear: () => {
-                            if (window.confirm(t("library.clearConfirm"))) void clearLibrary();
-                          },
-                        },
-                      }
-                    : {})}
-                />
-                <IssueList issues={issues} />
-              </main>
+              <main className="start">{homeView}</main>
             </>
           )}
         </div>

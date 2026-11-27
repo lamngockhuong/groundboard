@@ -1222,6 +1222,10 @@ code {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.pane[hidden] {
+  display: none;
+}
+
 .pane {
   display: flex;
   flex-direction: column;
