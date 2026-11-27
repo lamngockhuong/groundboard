@@ -13,8 +13,18 @@ export interface NodeStyle {
 }
 
 export const INK = "#1e1e1e";
-export const MUTED = "#868e96";
+/**
+ * Grey strokes and borders: rejected options, `relates` edges, group and container outlines.
+ * At least 3:1 on every surface a board draws them on (group tints included), in both themes.
+ */
+export const MUTED = "#7d848b";
+/** Grey text: rejected options, frame-like labels, wireframe placeholders; at least 4.5:1. */
+export const MUTED_TEXT = "#646a70";
 export const ACCENT = "#e03131";
+/** Warnings in text: sources not checked, a changed design; at least 4.5:1. */
+export const WARNING_TEXT = "#c44b0a";
+/** "Sources checked" in the title; at least 4.5:1. */
+export const CHECKED_TEXT = "#28863a";
 
 export const NODE_STYLES: Record<NodeKind, NodeStyle> = {
   step: {
@@ -46,11 +56,11 @@ export const NODE_STYLES: Record<NodeKind, NodeStyle> = {
     backgroundColor: "#f1f3f5",
     strokeStyle: "dashed",
     strokeWidth: 1,
-    textColor: MUTED,
+    textColor: MUTED_TEXT,
     opacity: 100,
   },
   question: {
-    strokeColor: "#f08c00",
+    strokeColor: "#bd6e00",
     backgroundColor: "#fff3bf",
     strokeStyle: "solid",
     strokeWidth: 1,
@@ -88,7 +98,7 @@ export const NODE_STYLES: Record<NodeKind, NodeStyle> = {
     backgroundColor: "transparent",
     strokeStyle: "solid",
     strokeWidth: 1,
-    textColor: MUTED,
+    textColor: MUTED_TEXT,
     opacity: 100,
   },
   element: {
@@ -105,7 +115,7 @@ export const NODE_STYLES: Record<NodeKind, NodeStyle> = {
     backgroundColor: "transparent",
     strokeStyle: "solid",
     strokeWidth: 1,
-    textColor: MUTED,
+    textColor: MUTED_TEXT,
     opacity: 100,
   },
   endpoint: {
@@ -122,7 +132,7 @@ export const NODE_STYLES: Record<NodeKind, NodeStyle> = {
     backgroundColor: "transparent",
     strokeStyle: "solid",
     strokeWidth: 1,
-    textColor: MUTED,
+    textColor: MUTED_TEXT,
     opacity: 100,
   },
   table: {
@@ -130,7 +140,7 @@ export const NODE_STYLES: Record<NodeKind, NodeStyle> = {
     backgroundColor: "transparent",
     strokeStyle: "solid",
     strokeWidth: 1,
-    textColor: MUTED,
+    textColor: MUTED_TEXT,
     opacity: 100,
   },
 };
@@ -158,9 +168,12 @@ export const FLOW_KINDS = [
 ] as const satisfies readonly NodeKind[];
 
 export const LINK_COLOR = "#1971c2";
-export const UNRESOLVED_COLOR = "#f08c00";
+/** Strokes of open questions and unresolved handlers; at least 3:1. */
+export const UNRESOLVED_COLOR = "#bd6e00";
+/** The "?" of an unresolved handler; at least 4.5:1. */
+export const UNRESOLVED_TEXT = "#9c5b00";
 /** The "spec" tag on claims backed only by a specification (documents, Figma, mockups, links). */
-export const SPEC_COLOR = "#1971c2";
+export const SPEC_COLOR = "#1864ab";
 /** Stroke of a claim backed only by a specification; no other part of a scene draws dotted. */
 export const SPEC_STROKE = "dotted" as const;
 
@@ -170,9 +183,9 @@ export const ROLE_STYLES: Record<
   { strokeColor: string; backgroundColor: string; textColor: string; rounded: boolean }
 > = {
   container: {
-    strokeColor: "#adb5bd",
+    strokeColor: MUTED,
     backgroundColor: "transparent",
-    textColor: MUTED,
+    textColor: MUTED_TEXT,
     rounded: false,
   },
   text: {
@@ -188,14 +201,14 @@ export const ROLE_STYLES: Record<
     rounded: false,
   },
   button: { strokeColor: INK, backgroundColor: "#e9ecef", textColor: INK, rounded: true },
-  input: { strokeColor: INK, backgroundColor: "#ffffff", textColor: MUTED, rounded: false },
+  input: { strokeColor: INK, backgroundColor: "#ffffff", textColor: MUTED_TEXT, rounded: false },
   checkbox: {
     strokeColor: "transparent",
     backgroundColor: "transparent",
     textColor: INK,
     rounded: false,
   },
-  image: { strokeColor: MUTED, backgroundColor: "#f8f9fa", textColor: MUTED, rounded: false },
+  image: { strokeColor: MUTED, backgroundColor: "#f8f9fa", textColor: MUTED_TEXT, rounded: false },
   icon: {
     strokeColor: "transparent",
     backgroundColor: "transparent",
