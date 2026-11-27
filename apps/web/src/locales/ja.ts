@@ -184,8 +184,7 @@ export const ja: Messages = {
   "tabs.problem": "表示できません",
   "tabs.full":
     "{count} 個のタブがすべて固定されているため、このタブでボードを開きました。別のボードを開くにはタブを閉じてください。",
-  "tabs.replacePastedConfirm":
-    "貼り付けたボードは、置き換えたり閉じたりすると再び開けません。続けますか？",
+  "tabs.replacePastedConfirm": "貼り付けたボードは、置き換えると再び開けません。続けますか？",
   "tabs.openInTab": "{title} を新しいタブで開く",
   "tabs.openInTabHint": "新しいタブで開く（Alt+クリック）",
   "tabs.leaveCanvasConfirm":

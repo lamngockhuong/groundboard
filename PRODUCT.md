@@ -50,8 +50,8 @@ authoritative. groundboard itself never calls an LLM and needs no API key.
   status (up to date, stale, invalid), a drawer on narrow screens; an atlas home with board
   counts, grounding across the atlas and the boards that need attention; previous and next
   board in the toolbar; tabs of open boards (a preview tab replaced by ordinary clicks, pinned
-  tabs for links opened in a new tab, each with its own Back and Forward and view, restored
-  after a reload); a Ctrl K command palette for boards, nodes of the open board and
+  tabs for links opened in a new tab and for boards pasted or opened from a file, each with its
+  own Back and Forward, view and toolbar choices, restored after a reload); a Ctrl K command palette for boards, nodes of the open board and
   refs; a double click on a link to another screen opens the board that defines it; deep links
   to a board and node; source panel with citations, quotes, a warning on
   each citation whose code changed, where a ref appears across boards and a button to open the

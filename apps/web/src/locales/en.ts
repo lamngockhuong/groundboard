@@ -194,7 +194,7 @@ export const en = {
   "tabs.full":
     "All {count} tabs are pinned, so the board opened in this tab. Close a tab to open another.",
   "tabs.replacePastedConfirm":
-    "The pasted board cannot be opened again once it is replaced or closed. Go on?",
+    "The pasted board cannot be opened again once it is replaced. Go on?",
   "tabs.openInTab": "Open {title} in a new tab",
   "tabs.openInTabHint": "Open in a new tab (Alt+click)",
   "tabs.leaveCanvasConfirm": "This board has changes that are not saved. Leave it and lose them?",

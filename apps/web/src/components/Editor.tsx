@@ -28,13 +28,11 @@ import {
   originalFamilies,
   READING_FONTS,
   type ReadingFontId,
-  readFontPreference,
-  saveFontPreference,
   withFontFamily,
 } from "../fonts.ts";
 import { LOCALES, type Locale, t, tn } from "../i18n.ts";
 import type { Scene } from "../input.ts";
-import { isLayerId, type LayerId, presentLayers, withLayersHidden } from "../layers.ts";
+import { type LayerId, presentLayers, withLayersHidden } from "../layers.ts";
 import {
   collectOverlay,
   lockForLayout,
@@ -46,14 +44,6 @@ import { safeExternalUrl } from "../links.ts";
 import { lockedItemAt } from "../locked-hit.ts";
 import { readMotionGraph, selectedBoardItems } from "../motion-graph.ts";
 import type { ViewState } from "../nav-history.ts";
-import {
-  DESIGN_SHOWN_KEY,
-  HIDDEN_LAYERS_KEY,
-  readFlag,
-  readList,
-  saveFlag,
-  saveValue,
-} from "../prefs.ts";
 import { hasReferences, missingReferencesNote, withReferencesShown } from "../references.ts";
 import { isNewTabClick } from "../shortcuts.ts";
 import {
@@ -66,6 +56,7 @@ import {
 } from "../sources.ts";
 import { useCanvasChanges } from "../use-canvas-changes.ts";
 import { usePresentation } from "../use-presentation.ts";
+import { DEFAULT_PREFS, keepLayers, type PrefChange, type ViewPrefs } from "../view-prefs.ts";
 import { EditPanel, type EditPanelHandle } from "./EditPanel.tsx";
 import { ExportMenu } from "./ExportMenu.tsx";
 import { type BoardHistory, HistoryNav } from "./HistoryNav.tsx";
@@ -181,6 +172,14 @@ interface EditorProps {
   context?: BoardContext | null;
   sourcesOpen: boolean;
   onToggleSources: () => void;
+  /**
+   * How the board is shown when it goes on screen: its tab's toolbar choices. Read once; the
+   * choices made here after that are reported through `onPrefsChange`.
+   */
+  prefs?: ViewPrefs;
+  onPrefsChange?: (change: PrefChange) => void;
+  /** The layers the board has, once it is on screen, so its tab keeps hidden only those. */
+  onLayers?: (present: LayerId[]) => void;
   /** Viewer theme; exports stay light whatever it is. */
   theme: "light" | "dark";
   /** Interface language; Excalidraw's own menus and hints follow it. */
@@ -314,6 +313,9 @@ export default function Editor({
   context = null,
   sourcesOpen,
   onToggleSources,
+  prefs: shownPrefs = DEFAULT_PREFS,
+  onPrefsChange,
+  onLayers,
   theme,
   locale,
   motionAll = false,
@@ -330,7 +332,7 @@ export default function Editor({
 }: EditorProps) {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const lastSelection = useRef("");
-  const [font, setFont] = useState<ReadingFontId>(readFontPreference);
+  const [font, setFont] = useState<ReadingFontId>(shownPrefs.font);
   // Excalidraw loads initialData after the API is handed over; text can switch font only then.
   const [sceneReady, setSceneReady] = useState(false);
   /** The scene on the canvas: the board's, or the last one rendered while editing. */
@@ -359,17 +361,22 @@ export default function Editor({
   const editReady = session !== null && work.current?.from === session;
   const editRef = useRef(edit);
   editRef.current = edit;
-  // Reference images show unless the reader hid them; the choice is kept across boards.
-  const [designShown, setDesignShown] = useState(() => readFlag(DESIGN_SHOWN_KEY, true));
+  // Reference images show unless the reader hid them in this tab.
+  const [designShown, setDesignShown] = useState(shownPrefs.designShown);
   const shownAtLoad = useRef(designShown);
   const hasDesign = useMemo(() => hasReferences(scene.elements), [scene]);
   const missingDesign = missingReferencesNote(context?.references);
-  // Layers the reader hid stay hidden on the next board too.
+  const layers = useMemo(() => presentLayers(scene.elements), [scene]);
+  // Layers the reader hid in this tab, of those this board has.
   const [hiddenLayers, setHiddenLayers] = useState<ReadonlySet<LayerId>>(
-    () => new Set(readList(HIDDEN_LAYERS_KEY).filter(isLayerId)),
+    () => new Set(keepLayers(shownPrefs, layers).hiddenLayers),
   );
   const hiddenAtLoad = useRef(hiddenLayers);
-  const layers = useMemo(() => presentLayers(scene.elements), [scene]);
+  const onLayersRef = useRef(onLayers);
+  onLayersRef.current = onLayers;
+  useEffect(() => {
+    onLayersRef.current?.(layers);
+  }, [layers]);
   const hasArrows = useMemo(
     () => readMotionGraph(rendered.elements, { includeDeleted: true }).arrows.length > 0,
     [rendered],
@@ -412,7 +419,7 @@ export default function Editor({
   const toggleDesign = () => {
     const next = !designShown;
     setDesignShown(next);
-    saveFlag(DESIGN_SHOWN_KEY, next);
+    onPrefsChange?.({ designShown: next });
     if (!api) return;
     // Not an undoable edit: undo must never bring back what the button hid.
     api.updateScene({
@@ -427,9 +434,10 @@ export default function Editor({
 
   const toggleLayer = (layer: LayerId) => {
     const next = new Set(hiddenLayers);
-    if (!next.delete(layer)) next.add(layer);
+    const hidden = !next.delete(layer);
+    if (hidden) next.add(layer);
     setHiddenLayers(next);
-    saveValue(HIDDEN_LAYERS_KEY, [...next]);
+    onPrefsChange?.({ layer, hidden });
     if (!api) return;
     // Like the Design button: not an undoable edit.
     api.updateScene({
@@ -825,7 +833,7 @@ export default function Editor({
 
   const pickFont = (id: ReadingFontId) => {
     setFont(id);
-    saveFontPreference(id);
+    onPrefsChange?.({ font: id });
   };
 
   const handleChange = useCallback(

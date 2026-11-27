@@ -26,6 +26,7 @@ import { ZipDialog } from "./components/ZipDialog.tsx";
 import type { ZipSource } from "./download.ts";
 import { type Locale, setLocale, t, useLocale } from "./i18n.ts";
 import { parseInput, type Scene } from "./input.ts";
+import type { LayerId } from "./layers.ts";
 import type { LibraryEntry } from "./library.ts";
 import { isStaticMode } from "./mode.ts";
 import type { PaletteItem } from "./palette.ts";
@@ -35,7 +36,6 @@ import {
   readNumber,
   SIDEBAR_COLLAPSED_KEY,
   SIDEBAR_WIDTH_KEY,
-  SOURCES_OPEN_KEY,
   saveFlag,
   saveValue,
 } from "./prefs.ts";
@@ -64,6 +64,14 @@ import {
   type ThemeStyle,
 } from "./theme.ts";
 import { type BoardCheck, type LeaveKind, type NodeFocus, useAtlas } from "./use-atlas.ts";
+import {
+  applyChange,
+  keepLayers,
+  type PrefChange,
+  readStoredPrefs,
+  storeChange,
+  type ViewPrefs,
+} from "./view-prefs.ts";
 
 // The editor pulls in several MB of Excalidraw; it is fetched only after the page is up.
 const loadEditor = () => import("./components/Editor.tsx");
@@ -163,7 +171,9 @@ export function App() {
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     readNumber(SIDEBAR_WIDTH_KEY, SIDEBAR_WIDTH.initial, SIDEBAR_WIDTH.min, SIDEBAR_WIDTH.max),
   );
-  const [sourcesOpen, setSourcesOpen] = useState(() => readFlag(SOURCES_OPEN_KEY, true));
+  /** The toolbar choices made last: what a new tab, or a board shown with no tab, starts with. */
+  const [lastPrefs, setLastPrefs] = useState<ViewPrefs>(readStoredPrefs);
+  const lastPrefsRef = useRef(lastPrefs);
   const [motionAll, setMotionAll] = useState(() => readFlag(MOTION_ALL_KEY, false));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [fileOpen, setFileOpen] = useState(false);
@@ -299,6 +309,7 @@ export function App() {
     closeTab,
     pinTab,
     showPastedBoard,
+    setTabPrefs,
   } = useAtlas({
     setBusy,
     clearMessages,
@@ -313,6 +324,7 @@ export function App() {
     notify: setNotice,
     hasUnsavedWork: () =>
       dirtyCheck.current?.() === true || canvasReader.current?.unsaved() === true,
+    defaultPrefs: () => lastPrefsRef.current,
   });
 
   /** Tabs show where the source has more than one board to keep open. */
@@ -322,8 +334,35 @@ export function App() {
   const boardHistory = { canBack, canForward, onBack: back, onForward: forward };
 
   /**
-   * A pasted board or scene: under an atlas it goes into the preview tab, with the home as its
-   * address (it has none of its own), so following an atlas link again reopens that board.
+   * The tab whose board is on screen, which keeps the toolbar choices made on it. None for a
+   * board shown with no tab (no atlas), or while the tab on screen waits for its board.
+   */
+  const prefsTab = (() => {
+    const tab = loaded ? activeTab(tabs) : undefined;
+    return tab && tab.slug === loaded?.slug ? tab : undefined;
+  })();
+  const viewPrefs = prefsTab?.prefs ?? lastPrefs;
+  const { sourcesOpen } = viewPrefs;
+
+  /** A choice made on the toolbar: kept by the tab on screen, and as the one made last. */
+  const changePrefs = (change: PrefChange) => {
+    storeChange(change);
+    lastPrefsRef.current = applyChange(lastPrefsRef.current, change);
+    setLastPrefs(lastPrefsRef.current);
+    if (prefsTab) setTabPrefs(prefsTab.id, applyChange(viewPrefs, change));
+  };
+
+  /** The board on screen has these layers: its tab keeps hidden only those of them. */
+  const presentLayersShown = (present: readonly LayerId[]) => {
+    if (!prefsTab) return;
+    const kept = keepLayers(viewPrefs, present);
+    if (kept !== viewPrefs) setTabPrefs(prefsTab.id, kept);
+  };
+
+  /**
+   * A pasted board or scene: under an atlas it opens in a pinned tab of its own, with the home
+   * as its address (it has none of its own), so following an atlas link again reopens that
+   * board.
    */
   const showPasted = useCallback(
     (scene: Scene, fileName: string, title: string) => {
@@ -738,12 +777,7 @@ export function App() {
     if (done) saveValue(SIDEBAR_WIDTH_KEY, width);
   };
 
-  const toggleSources = () => {
-    setSourcesOpen((value) => {
-      saveFlag(SOURCES_OPEN_KEY, !value);
-      return !value;
-    });
-  };
+  const toggleSources = () => changePrefs({ sourcesOpen: !sourcesOpen });
 
   // Over the board, not above it: a line in the flow would push the page down and back up.
   const loadingBoard =
@@ -795,7 +829,7 @@ export function App() {
       if (kind !== "nav" && canvasReader.current?.unsaved()) {
         return window.confirm(t("tabs.leaveCanvasConfirm"));
       }
-      // A pasted board has no address to come back to: losing it always asks.
+      // A pasted board has no address to come back to: replacing it always asks.
       if (kind === "pasted") return window.confirm(t("tabs.replacePastedConfirm"));
       return true;
     };
@@ -883,6 +917,9 @@ export function App() {
           context={context}
           sourcesOpen={sourcesOpen}
           onToggleSources={toggleSources}
+          prefs={viewPrefs}
+          onPrefsChange={changePrefs}
+          onLayers={presentLayersShown}
           theme={theme}
           locale={locale}
           motionAll={motionAll}

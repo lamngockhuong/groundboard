@@ -200,20 +200,37 @@ describe("tabs", () => {
       expect(await selectedTab(page)).toBe("Shop background jobs");
       expect((await tabTitles(page)).length).toBe(before.length + 1);
 
-      // A pasted board takes the preview tab's place, and is gone after a reload.
+      // A pasted board opens in a pinned tab of its own, asking nothing, and is gone after a
+      // reload; the preview tab keeps its board.
       const count = (await tabTitles(page)).length;
+      const pasteAsked: string[] = [];
+      const onPasteDialog = (dialog: { message: () => string; accept: () => Promise<void> }) => {
+        pasteAsked.push(dialog.message());
+        void dialog.accept();
+      };
+      page.on("dialog", onPasteDialog);
       await page.getByRole("button", { name: "Open file", exact: true }).first().click();
       const pasted = readFileSync(path.join(atlasDir, "place-order.board.json"), "utf8");
       await page.locator(".file-dialog textarea").fill(pasted);
       await page.locator(".file-dialog").getByRole("button", { name: "Render" }).click();
       await waitForBoard(page);
-      expect(await tabTitles(page)).toHaveLength(count);
-      expect(await viewerPreviewTitle(page)).toBe("Place order (web)");
+      expect(await tabTitles(page)).toHaveLength(count + 1);
+      expect(await selectedTab(page)).toBe("Place order (web)");
+      expect(await page.locator(".tab.active.preview").count()).toBe(0);
+      expect(await viewerPreviewTitle(page)).toBe("Cart screen (mobile)");
       expect(new URL(page.url()).hash).toBe("#/");
+      // An ordinary click goes to the preview tab; the pasted board stays open.
+      await sidebarLink(page, "Cart screen").click();
+      await waitForBoard(page);
+      expect(await tabTitles(page)).toContain("Place order (web)");
+      expect(pasteAsked).toEqual([]);
+      page.off("dialog", onPasteDialog);
+      await page.getByRole("tab", { name: "Place order (web)" }).click();
+      await waitForBoard(page);
       // The address names the home: the reload shows it, with the other tabs kept.
       await page.reload();
       await page.locator(".atlas-home").waitFor({ timeout: 30_000 });
-      expect(await tabTitles(page)).toHaveLength(count - 1);
+      expect(await tabTitles(page)).toHaveLength(count);
       expect(await tabTitles(page)).not.toContain("Place order (web)");
       await page.keyboard.press("Alt+1");
       await waitForBoard(page);
@@ -264,12 +281,13 @@ describe("tabs", () => {
         void dialog.dismiss();
       });
       await page.keyboard.press("Escape");
+      const stay = await selectedTab(page);
       await page.keyboard.press("Alt+2");
       await page.waitForTimeout(400);
       expect(asked).toHaveLength(1);
       expect(asked[0]).toMatch(/not saved/);
       expect(await page.locator(".canvas-unsaved").count()).toBe(1);
-      expect(await selectedTab(page)).toBe("Shop background jobs");
+      expect(await selectedTab(page)).toBe(stay);
     } finally {
       await context.close();
       await server.close();
@@ -331,6 +349,70 @@ describe("tabs", () => {
         await page.locator(".sidebar .nav-group a.nav-item .nav-label").allTextContents()
       ).slice(0, 3);
       await exercise(page, page, titles);
+    } finally {
+      await context.close();
+      await server.close();
+    }
+  });
+
+  test("each tab keeps its own toolbar choices, and a new tab starts with the last made", async () => {
+    const server = await start({ atlas: { dir: atlasDir, root: fixtures } });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => localStorage.setItem("groundboard.locale", "en"));
+      await page.goto(`${server.origin}/#/board/web--checkout`);
+      await waitForBoard(page);
+      await sidebarLink(page, "Cart screen").click({ modifiers: ["Alt"] });
+      await waitForBoard(page);
+      const font = page.locator(".font-picker select");
+      const design = page.locator(".toolbar-actions button[aria-pressed]", { hasText: "Design" });
+      const sources = page.getByRole("button", { name: "Sources panel", exact: true });
+      const choices = async () => ({
+        title: await boardTitle(page),
+        font: await font.inputValue(),
+        design: (await design.count()) > 0 ? await design.getAttribute("aria-pressed") : null,
+        sources: await sources.getAttribute("aria-pressed"),
+        panel: await page.locator(".source-panel").count(),
+      });
+      expect(await choices()).toMatchObject({ font: "sans", sources: "true", panel: 1 });
+
+      // Tab A (checkout): switch the font, close the source panel, and hide the design images
+      // when the board has any (the fixtures cache no Figma image, so it may have none).
+      await page.getByRole("tab").first().click();
+      await waitForBoard(page);
+      if ((await design.count()) > 0) await design.click();
+      await font.selectOption("mono");
+      await sources.click();
+      const a = await choices();
+      expect(a).toMatchObject({ font: "mono", sources: "false", panel: 0 });
+      expect(a.design).not.toBe("true");
+
+      // Tab B kept its own.
+      await page.keyboard.press("Alt+2");
+      await waitForBoard(page);
+      const b = await choices();
+      expect(b).toMatchObject({ font: "sans", sources: "true", panel: 1 });
+      // Back to A: its choices come back.
+      await page.keyboard.press("Alt+1");
+      await waitForBoard(page);
+      expect(await choices()).toEqual(a);
+
+      // A reload keeps each tab's choices.
+      await page.reload();
+      await waitForBoard(page);
+      expect(await choices()).toEqual(a);
+      await page.keyboard.press("Alt+2");
+      await waitForBoard(page);
+      expect(await choices()).toEqual(b);
+
+      // A new tab starts with the choices made last (tab A's).
+      await page.keyboard.press("Control+k");
+      await page.locator(".palette input[role=combobox]").fill("Orders API");
+      await page.keyboard.press("Control+Enter");
+      await waitForBoard(page);
+      expect(await selectedTab(page)).toBe(await boardTitle(page));
+      expect(await choices()).toMatchObject({ font: "mono", sources: "false", panel: 0 });
     } finally {
       await context.close();
       await server.close();

@@ -248,7 +248,7 @@ the code.
   `repeat(auto-fit, minmax(10rem, 1fr))`, the grounding card, the "Needs attention" card.
 - **Workspace:** the editor fills the remaining space; the source panel is a 22rem column on
   the right with a sticky header. The panel toggle in the toolbar hides it and widens the
-  canvas; the choice is kept in `localStorage`.
+  canvas; each tab keeps its own choice (see Tabs below).
 - **Board toolbar:** the actions sit in three groups parted by a hairline: what the board is
   doing (design, edit, present), how it reads (layers, font), and what leaves it (export,
   source panel). All are ghost controls. When the board column is narrower than 80rem the
@@ -441,8 +441,18 @@ tab has its own Back and Forward, and choosing a tab again restores its view. Ch
 closing a tab, or replacing the preview tab's board, asks first when the board holds unsaved
 edits or changes made on the canvas outside edit mode. "Atlas home" closes no tab. The tabs
 are kept for the browser tab, never in the address: a reload brings them back, and a deep link
-opens its board in the preview tab beside them. A board pasted or opened from a file is a
-preview tab with the home as its address, and a reload does not bring it back.
+opens its board in the preview tab beside them. A board pasted or opened from a file opens in
+a new tab that is pinned from the start, so an ordinary click never replaces it and nothing
+asks before it opens; closing it asks only when it holds unsaved changes, as any tab does. Its
+address is the home, and a reload does not bring it back. Only with all ten tabs pinned can a
+board take its place, and that asks first, since the pasted board cannot be opened again.
+
+Each tab keeps its own toolbar choices: whether the design images show, the layers hidden, the
+reading font, and whether the source panel is open. Choosing another tab puts its choices back
+on the toolbar and the canvas; a reload keeps them with the tabs. A new tab starts with the
+choices made last in any tab (kept in `localStorage`); a choice made in one tab leaves the
+other open tabs as they were. A tab keeps hidden only the
+layers its board has. Without tabs (no atlas, or one board), the choices made last apply.
 
 On a screen board, a click on the numbered tag or the list line of a link to another screen
 selects it and shows its sources; a double click opens the board that defines that screen

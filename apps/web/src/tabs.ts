@@ -9,11 +9,13 @@ import {
   type ViewState,
 } from "./nav-history.ts";
 import type { Route } from "./route.ts";
+import type { ViewPrefs } from "./view-prefs.ts";
 
 /**
  * The viewer's tabs: boards kept open side by side in one pane, each with its own history of
  * places. One tab at most is a preview: an ordinary click shows its board there, replacing the
  * last one, until the tab is pinned (opened as a new tab, edited, or its title double-clicked).
+ * A board pasted or opened from a file is pinned from the start: it cannot be shown again.
  * Pure functions over an immutable state; `use-atlas.ts` keeps it and the browser in step.
  */
 
@@ -28,6 +30,8 @@ export interface Tab {
   lastUsed: number;
   /** Why its board cannot be shown: missing from the atlas, or invalid. */
   error?: string;
+  /** How its board is shown; absent until `fillPrefs` gives it the choices made last. */
+  prefs?: ViewPrefs;
 }
 
 export interface TabsState {
@@ -124,6 +128,18 @@ export function setTabError(state: TabsState, id: string, error: string | undefi
   });
 }
 
+/** Keeps a tab's toolbar choices; the same state when they are the ones it has. */
+export function setTabPrefs(state: TabsState, id: string, prefs: ViewPrefs): TabsState {
+  if (tabById(state, id)?.prefs === prefs) return state;
+  return update(state, id, (tab) => ({ ...tab, prefs }));
+}
+
+/** Gives every tab that has no choices of its own these: a new tab starts with the last made. */
+export function fillPrefs(state: TabsState, prefs: ViewPrefs): TabsState {
+  if (state.tabs.every((tab) => tab.prefs)) return state;
+  return { ...state, tabs: state.tabs.map((tab) => (tab.prefs ? tab : { ...tab, prefs })) };
+}
+
 export function pin(state: TabsState, id: string): TabsState {
   return update(state, id, (tab) => (tab.preview ? { ...tab, preview: false } : tab));
 }
@@ -167,11 +183,18 @@ function reuse(state: TabsState, tab: Tab, entry: NavEntry, now: number): TabsSt
   return activate(moved, tab.id, now);
 }
 
-/** Every tab pinned and at the limit: the board goes into the tab on screen (or used last). */
+/**
+ * Every tab pinned and at the limit: the board goes into the tab on screen (or used last). A
+ * tab holding a pasted board starts a new history: that board cannot be shown again.
+ */
 function intoCurrent(state: TabsState, entry: NavEntry, now: number): Opened {
   const target = activeTab(state) ?? state.tabs.reduce((a, b) => (b.lastUsed > a.lastUsed ? b : a));
+  const moved =
+    target.slug === null
+      ? update(state, target.id, (tab) => restart(tab, entry, now))
+      : navigateInTab(state, target.id, entry);
   return {
-    state: activate(navigateInTab(state, target.id, entry), target.id, now),
+    state: activate(moved, target.id, now),
     tabId: target.id,
     // A preview tab on screen was simply replaced: only pinned tabs make the bar full.
     full: !target.preview,
@@ -182,10 +205,17 @@ function newTab(id: string, entry: NavEntry, preview: boolean, now: number): Tab
   return { id, slug: slugOf(entry.route), preview, history: startStack(entry), lastUsed: now };
 }
 
+/** The same tab, with a history that starts at the entry; its pin and choices stay. */
+function restart(tab: Tab, entry: NavEntry, now: number): Tab {
+  return {
+    ...newTab(tab.id, entry, tab.preview, now),
+    ...(tab.prefs ? { prefs: tab.prefs } : {}),
+  };
+}
+
 /**
  * An ordinary click on a board: the tab showing it already, else the preview tab (its history
- * goes on, so Back returns to the board it showed), else a new preview tab. A preview tab
- * holding a pasted board starts a new history: that board cannot be shown again.
+ * goes on, so Back returns to the board it showed), else a new preview tab.
  */
 export function openPreview(state: TabsState, entry: NavEntry, tabId: string, now: number): Opened {
   const slug = slugOf(entry.route);
@@ -194,10 +224,7 @@ export function openPreview(state: TabsState, entry: NavEntry, tabId: string, no
     return { state: reuse(state, existing, entry, now), tabId: existing.id, full: false };
   const preview = state.tabs.find((tab) => tab.preview);
   if (preview) {
-    const replaced =
-      preview.slug === null
-        ? update(state, preview.id, () => newTab(preview.id, entry, true, now))
-        : navigateInTab(state, preview.id, entry);
+    const replaced = navigateInTab(state, preview.id, entry);
     return { state: activate(replaced, preview.id, now), tabId: preview.id, full: false };
   }
   const room = makeRoom(state);
@@ -217,31 +244,25 @@ export function openNew(state: TabsState, entry: NavEntry, tabId: string, now: n
 }
 
 /**
- * A board pasted or opened from a file: shown in the preview tab, replacing what it held, or in
- * a new preview tab. Its history starts again, since it has no address to come back to.
+ * A board pasted or opened from a file: a new pinned tab, so no ordinary click replaces it.
+ * Its history holds that one entry, since it has no address to come back to. With every tab
+ * pinned and at the limit it takes the place of the board on screen.
  */
 export function openPasted(state: TabsState, entry: NavEntry, tabId: string, now: number): Opened {
-  const preview = state.tabs.find((tab) => tab.preview);
-  if (preview) {
-    const replaced = update(state, preview.id, () => ({
-      ...newTab(preview.id, entry, true, now),
-      slug: null,
-    }));
-    return { state: activate(replaced, preview.id, now), tabId: preview.id, full: false };
-  }
   const room = makeRoom(state);
   if (!room) {
-    // Every tab pinned: the pasted board takes the place of the one on screen.
     const target =
       activeTab(state) ?? state.tabs.reduce((a, b) => (b.lastUsed > a.lastUsed ? b : a));
     const replaced = update(state, target.id, (tab) => ({
-      ...newTab(target.id, entry, tab.preview, now),
+      ...restart(tab, entry, now),
       slug: null,
+      preview: false,
     }));
-    return { state: activate(replaced, target.id, now), tabId: target.id, full: true };
+    // A preview tab on screen was simply replaced: only pinned tabs make the bar full.
+    return { state: activate(replaced, target.id, now), tabId: target.id, full: !target.preview };
   }
   return {
-    state: insert(room, { ...newTab(tabId, entry, true, now), slug: null }),
+    state: insert(room, { ...newTab(tabId, entry, false, now), slug: null }),
     tabId,
     full: false,
   };
