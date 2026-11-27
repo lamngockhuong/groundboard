@@ -565,3 +565,121 @@ describe("missing flows", () => {
     ]);
   });
 });
+
+describe("shared layouts", () => {
+  const logout = (id: string, parentId: string, ref: string) => ({
+    id,
+    kind: "element",
+    role: "button",
+    label: "Log out",
+    parentId,
+    ref,
+    action: "logs out",
+    sourceIds: ["pay"],
+  });
+  const callsLogout = (from: string) => ({
+    id: `${from}-call`,
+    from,
+    toRef: "api:auth/logout",
+    kind: "calls",
+    sourceIds: ["pay"],
+  });
+
+  function layoutBoard(layout = true) {
+    return {
+      schemaVersion: 1,
+      title: "Layout",
+      question: "What is in the shared header?",
+      nodes: [
+        { ...screen("layout", "web:layout", "r-cart"), ...(layout ? { layout: true } : {}) },
+        logout("logout", "layout", "web:layout/header-logout"),
+      ],
+      edges: [callsLogout("logout")],
+      sources: [src.cart, src.pay],
+    };
+  }
+
+  function routeBoard(name: "cart" | "checkout", layouts = ["web:layout"]) {
+    return {
+      schemaVersion: 1,
+      title: name,
+      question: `What is on ${name}?`,
+      nodes: [
+        { ...screen(name, `web:${name}`, `r-${name}`), layouts },
+        logout("logout", name, `${layouts[0]}/header-logout`),
+      ],
+      edges: [callsLogout("logout")],
+      sources: [src[name], src.pay],
+    };
+  }
+
+  const flowWarning = (warnings: string[] | undefined) =>
+    (warnings ?? []).filter((w) => w.includes("have no flow yet"));
+  // The endpoint the button calls is not drawn here, so its ref dangles; that is not under test.
+  const layoutProblems = (problems: Array<{ path: string; message: string }>) =>
+    problems.filter((p) => p.path !== "api:auth/logout");
+
+  test("screens carry the layout's ref without defining it twice; one flow covers them all", async () => {
+    write("overview-web.board.json", overview());
+    write("web--layout.board.json", layoutBoard());
+    write("web--cart.board.json", routeBoard("cart"));
+    write("web--checkout.board.json", routeBoard("checkout"));
+    const atlas = await buildAtlas(dir, root);
+    expect(layoutProblems(atlas.problems)).toEqual([]);
+    const entry = atlas.refs.find((r) => r.ref === "web:layout/header-logout");
+    expect(entry?.definedIn).toEqual([{ slug: "web--layout", nodeId: "logout", kind: "element" }]);
+    expect(entry?.usedIn.map((u) => u.slug)).toEqual(["web--cart", "web--checkout"]);
+    expect(entry?.needsFlow).toBe(true);
+    const layout = atlas.refs.find((r) => r.ref === "web:layout");
+    expect(layout?.definedIn).toEqual([
+      { slug: "web--layout", nodeId: "layout", kind: "screen", layout: true },
+    ]);
+    expect(layout?.usedIn).toEqual([
+      { slug: "web--cart", nodeId: "cart", asLayout: true },
+      { slug: "web--checkout", nodeId: "checkout", asLayout: true },
+    ]);
+    expect(flowWarning(atlas.warnings)).toEqual([
+      expect.stringContaining("1 element(s) that call an API or change state have no flow yet"),
+    ]);
+
+    write("log-out.board.json", {
+      schemaVersion: 1,
+      title: "Log out",
+      question: "How does a user log out?",
+      nodes: [
+        {
+          id: "click",
+          kind: "step",
+          label: "Clicks log out",
+          ref: "web:layout/header-logout",
+          sourceIds: ["pay"],
+        },
+      ],
+      sources: [src.pay],
+    });
+    expect(flowWarning((await buildAtlas(dir, root)).warnings)).toEqual([]);
+  });
+
+  test("a screen's copy asks for a flow even when the layout board draws no call", async () => {
+    write("web--layout.board.json", { ...layoutBoard(), edges: [] });
+    write("web--cart.board.json", routeBoard("cart"));
+    const atlas = await buildAtlas(dir, root);
+    expect(atlas.refs.find((r) => r.ref === "web:layout/header-logout")?.needsFlow).toBe(true);
+  });
+
+  test("a layout that is not marked layout, or that no board draws, is a problem", async () => {
+    write("web--layout.board.json", layoutBoard(false));
+    write("web--cart.board.json", routeBoard("cart"));
+    write("web--checkout.board.json", routeBoard("checkout", ["web:footer"]));
+    const messages = layoutProblems((await buildAtlas(dir, root)).problems).map((p) => p.message);
+    expect(messages).toEqual([
+      expect.stringContaining(
+        "`web:footer` is used in web--checkout (checkout) but no board defines it",
+      ),
+      expect.stringContaining("`web:footer/header-logout` is used in web--checkout (logout)"),
+      expect.stringContaining(
+        "`web:layout` is listed in the layouts of web--cart (cart) but is not a layout",
+      ),
+    ]);
+  });
+});

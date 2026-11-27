@@ -153,9 +153,11 @@ add a suffix when that collides: `/account/orders/:id` becomes `account-orders-d
 
 | Field | On | Notes |
 |---|---|---|
-| `ref` | any node | On a `screen` or `element` it defines the ref (once per board); on any other kind it points at one. |
+| `ref` | any node | On a `screen` or `element` it defines the ref (once per board); on any other kind, and on an element carrying a ref of one of its screen's `layouts`, it points at one. |
 | `platform` | `screen`, required | `web` or `mobile`; must match the ref. |
 | `stateOf` | `screen` | The id of the screen on this board whose state this frame draws. See "States of a screen". |
+| `layout` | `screen` | `true` on a screen that is a shared layout (header, footer, sidebar) drawn once, not a route. See "Shared layouts". |
+| `layouts` | `screen` | The refs of the layout screens this screen is drawn in, e.g. `["web:layout"]`, at most 5. See "Shared layouts". |
 | `layoutFrom` | `screen`, required | Where the wireframe layout came from: `figma` (a Figma frame), `screenshot` (the running app), `mockup` (a client mockup), `doc` (a document describes the screen but gives no layout; such a screen has no elements), or `code` (inferred from code; the screen must cite a code source). |
 | `parentId` | `element`, required | The screen, or the element that contains it. At most 8 levels, no cycle. |
 | `role` | `element`, required | `container`, `text`, `button`, `link`, `input`, `checkbox`, `image`, `icon` or `bar`. |
@@ -167,7 +169,8 @@ add a suffix when that collides: `/account/orders/:id` becomes `account-orders-d
 Children are laid out in the order they appear in `nodes`. Rules:
 
 1. An element's `parentId` names a `screen` or `element` on the same board; no cycle; at most 8 deep.
-2. An element's `ref` starts with its screen's `ref` and `/`.
+2. An element's `ref` starts with its screen's `ref` and `/`, or with one of the screen's
+   `layouts` and `/`.
 3. Elements take no `groupId`. A screen takes one only when it has no elements and no states:
    it is then drawn as a box that can sit in a group, while a frame cannot.
 4. An interactive element (role `button`, `link`, `input` or `checkbox`, or the `from` of a
@@ -179,12 +182,14 @@ Children are laid out in the order they appear in `nodes`. Rules:
 6. A `navigates` edge starts at a screen or element, ends at a screen (`to`) or names a screen on
    another board (`toRef`), and cites a source that can back it, as in rule 4.
 7. Every id in an edge's `sourceIds` is a source id.
-8. A board defines each ref once.
+8. A board defines each ref once. An element carrying a layout's ref defines nothing, so the same
+   layout ref may appear on several of its elements.
 9. The fields above are rejected on any other kind.
 10. Among code sources, only those cited by a claim need a `quote`; a `doc` always has one.
 11. A screen with `layoutFrom: "code"` cites a code source; a screen with `layoutFrom: "doc"` has
     no elements.
-12. A state screen (`stateOf`) follows the rules in "States of a screen".
+12. A state screen (`stateOf`) follows the rules in "States of a screen", and takes no `layout`
+    or `layouts`: it is drawn in its screen's layouts.
 13. `width` is a positive integer. On an element, its parent has `direction: "row"`, and the
     fixed widths of the row, its 8px gaps and at least 8px for each child without `width` fit
     in the row's inner width (the frame width less 12px of padding on each side, at every
@@ -196,6 +201,28 @@ another `screen` node: the atlas allows a screen to be defined once on an overvi
 its own board. On a screen board, such an edge out of a frame or one of its elements is drawn as
 a numbered tag on its source and a line in a list beside the frame naming the target, not as an
 arrow; on an overview board it stays an arrow to a dashed box.
+
+### Shared layouts
+
+The header, footer or sidebar that wraps many screens (a layout route, an `AppLayout`
+component) is drawn once, on its own board, so that one flow covers its Log out button on every
+screen instead of one flow per screen:
+
+- The layout board (`web--layout.board.json`) has one `screen` node with `"layout": true` and a
+  ref such as `web:layout`, cites the layout component, and holds the shared elements with their
+  handlers and edges: `web:layout/header-logout`, `web:layout/footer-privacy-policy`. Several
+  layouts (one per role, say) each get a board and a ref: `web:layout-admin`.
+- A screen drawn in it lists it: `"layouts": ["web:layout"]`. Its own copies of the shared
+  elements carry the layout's refs (`web:layout/header-logout`), so they point at the layout's
+  element instead of defining one per screen; the screen's own elements keep refs under the
+  screen's ref.
+- A layout is not a route: leave it off the overview and never navigate to it.
+- The atlas reports a `layouts` entry that no board defines, or whose screen lacks
+  `"layout": true`. A flow node carrying `web:layout/header-logout` covers the button on every
+  screen; while none does, the button counts once among the elements with no flow yet, and the
+  viewer marks every screen's copy of it.
+- Per-screen refs (`web:cart/header-logout`) stay valid; an atlas moves to a layout one screen
+  at a time, keeping the element's `id`.
 
 ### States of a screen
 

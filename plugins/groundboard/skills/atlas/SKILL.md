@@ -79,6 +79,11 @@ nested in another becomes a child group with `parentId` (`_enrolled` inside
 `_enrollment-target-user`). Only follow layouts the router declares; a screen under no layout
 stays outside every group.
 
+A layout that renders chrome (a header, a footer, a sidebar with controls) is not a screen: do
+not add a `screen` node for it. `/groundboard:screen` draws it once on a layout board
+(`"layout": true`, a ref such as `web:layout`), and each screen board lists it in `layouts`.
+Name each such layout in the report, with the screens under it.
+
 ### 4. Find every navigation
 
 Search the screens' code for navigation calls: `navigate(`, `router.push(`, `<Link to=`,
@@ -91,7 +96,7 @@ drawing another edge: parallel arrows say nothing one arrow does not, and `valid
 about them. Cite the line of each call with a quote such as `navigate("/checkout")`. A tab bar that
 switches screens without a call in the code is not an edge; mention it in the report. Neither is
 a link in a layout shared by many screens (a menu, a sidebar, a header): it does not lead from
-any one screen, so leave it out and list it in the report.
+any one screen, so leave it out and list it in the report; the layout board draws it.
 
 ### 2S. From the specification (no code yet)
 

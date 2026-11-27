@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "title": "Shared layout",
+  "question": "What do the header and footer shared by every screen do?",
+  "nodes": [
+    {
+      "id": "layout",
+      "kind": "screen",
+      "label": "Layout",
+      "ref": "web:layout",
+      "platform": "web",
+      "layoutFrom": "code",
+      "layout": true,
+      "sourceIds": ["layout"]
+    },
+    {
+      "id": "header",
+      "kind": "element",
+      "role": "container",
+      "label": "Header",
+      "parentId": "layout",
+      "direction": "row",
+      "sourceIds": ["layout"]
+    },
+    {
+      "id": "logout",
+      "kind": "element",
+      "role": "button",
+      "label": "Log out",
+      "parentId": "header",
+      "ref": "web:layout/header-logout",
+      "action": "Logs the user out",
+      "sourceIds": ["logout"]
+    },
+    {
+      "id": "privacy",
+      "kind": "element",
+      "role": "link",
+      "label": "Privacy policy",
+      "parentId": "layout",
+      "ref": "web:layout/footer-privacy-policy",
+      "action": "Opens the privacy policy",
+      "sourceIds": ["privacy"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "logout-call",
+      "from": "logout",
+      "toRef": "api:auth/logout",
+      "kind": "calls",
+      "sourceIds": ["logout"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "layout",
+      "kind": "code",
+      "path": "src/AppLayout.tsx",
+      "line": 1,
+      "quote": "export function AppLayout"
+    },
+    {
+      "id": "logout",
+      "kind": "code",
+      "path": "src/AppLayout.tsx",
+      "line": 7,
+      "quote": "onClick={() => logout.mutate()}"
+    },
+    {
+      "id": "privacy",
+      "kind": "code",
+      "path": "src/AppLayout.tsx",
+      "line": 13,
+      "quote": "<a href=\"/privacy\">Privacy policy</a>"
+    }
+  ]
+}

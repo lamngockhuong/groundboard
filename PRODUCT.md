@@ -64,7 +64,8 @@ authoritative. groundboard itself never calls an LLM and needs no API key.
   board that defines it; a "No flow yet" line on an element that calls an API or changes state
   with no flow covering it, with a button that copies a ready request for the board skill, a
   mark on each such element on the canvas (a "Flow hints" layer, hidden while presenting and
-  never exported), and their count with a list of links on the atlas home; reading-font switch; export to `.excalidraw`, PNG and SVG from one
+  never exported), and their count with a list of links on the atlas home, a control of a
+  shared layout (a header's Log out) counted once and marked on every screen that shows it; reading-font switch; export to `.excalidraw`, PNG and SVG from one
   menu; light, dark and system theme.
 - Edit mode: change a node's or arrow's text, add and remove nodes and arrows, drag boxes and
   draw notes, with one undo history for all of it. Content goes into the board file, marked

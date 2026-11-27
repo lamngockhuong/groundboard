@@ -129,7 +129,10 @@ navigations) are backed by code, by the specification only, or unresolved:
 `grounding: code 12, spec 30, none 4`. `--require spec` fails only on unresolved claims.
 It also warns, without failing, about elements that call an API or change state (a `calls` or
 `transition` edge) that no flow covers yet, and about such elements that have no `ref`, so no
-flow can point at them.
+flow can point at them. A header or footer shared by many screens is drawn once on a layout
+board (`"layout": true`); each screen lists it in `layouts` and its copies of the shared
+controls carry the layout's refs (`web:layout/header-logout`), so one flow covers the Log out
+button on every screen and it counts once.
 
 Browse it: everyone on the team runs, in the repository,
 

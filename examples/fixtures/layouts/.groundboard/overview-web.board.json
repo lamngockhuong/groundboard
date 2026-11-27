@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "title": "Overview web",
+  "question": "Which screens are there?",
+  "nodes": [
+    {
+      "id": "cart",
+      "kind": "screen",
+      "label": "Cart",
+      "ref": "web:cart",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["r-cart"]
+    },
+    {
+      "id": "orders",
+      "kind": "screen",
+      "label": "Orders",
+      "ref": "web:orders",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["r-orders"]
+    }
+  ],
+  "edges": [],
+  "sources": [
+    {
+      "id": "r-cart",
+      "kind": "code",
+      "path": "src/routes.tsx",
+      "line": 2,
+      "quote": "path=\"/cart\""
+    },
+    {
+      "id": "r-orders",
+      "kind": "code",
+      "path": "src/routes.tsx",
+      "line": 3,
+      "quote": "path=\"/orders\""
+    }
+  ]
+}

@@ -512,6 +512,78 @@ const DOC = { id: "req", kind: "doc", path: "docs/requirements.md", line: 4, quo
 const LINK = { id: "lnk", kind: "link", url: "https://docs.example.com/spec", title: "Spec" };
 const MOCKUP = { id: "mock", kind: "mockup", label: "Checkout mockup" };
 
+describe("shared layouts", () => {
+  /** The checkout screen drawn in `web:layout`, with the layout's Log out button. */
+  // biome-ignore lint/suspicious/noExplicitAny: test boards are mutated freely to build bad inputs
+  function inLayout(layouts: unknown = ["web:layout"]): Record<string, any> {
+    const b = screenBoard();
+    b.nodes[0].layouts = layouts;
+    b.nodes.push({
+      id: "logout",
+      kind: "element",
+      role: "button",
+      label: "Log out",
+      parentId: "form",
+      ref: "web:layout/header-logout",
+      action: "logs out",
+      sourceIds: ["handler"],
+    });
+    return b;
+  }
+
+  test("an element may carry a ref of a layout its screen lists", () => {
+    expect(issuesOf(inLayout())).toEqual([]);
+  });
+
+  test("the same layout element may appear twice on a board; a screen's own may not", () => {
+    const b = inLayout();
+    b.nodes.push({ ...b.nodes.at(-1), id: "logout-2" });
+    expect(issuesOf(b)).toEqual([]);
+    b.nodes.push({ ...b.nodes[2], id: "pay-2" });
+    expectOneIssue(b, "nodes[6].ref", /defined more than once/);
+  });
+
+  test("without layouts, a ref of another screen is refused and the fix is named", () => {
+    const b = inLayout();
+    delete b.nodes[0].layouts;
+    expectOneIssue(b, "nodes[4].ref", /must start with `web:checkout\/`.*`layouts`/);
+  });
+
+  test("a ref of a screen not in layouts is refused", () => {
+    const b = inLayout();
+    b.nodes.at(-1).ref = "web:footer/privacy";
+    expectOneIssue(b, "nodes[4].ref", /`web:checkout\/` or `web:layout\/`/);
+  });
+
+  test.each([
+    [["web:layout/header"], /a layout is a screen ref/],
+    [["mobile:layout"], /web screen but lists the mobile layout/],
+    [["web:checkout"], /its own ref/],
+    [["web:layout", "web:layout"], /twice/],
+  ])("layouts %j is refused", (layouts, pattern) => {
+    const issues = issuesOf(inLayout(layouts));
+    expect(
+      issues.some((i) => i.path.startsWith("nodes[0].layouts") && pattern.test(i.message)),
+    ).toBe(true);
+  });
+
+  test("layout and layouts belong to a screen, and not to a state", () => {
+    const b = inLayout();
+    b.nodes[1].layout = true;
+    expectOneIssue(b, "nodes[1].layout");
+    const s = screenBoard();
+    s.nodes.push({
+      id: "busy",
+      kind: "screen",
+      label: "Busy",
+      stateOf: "checkout",
+      layouts: ["web:layout"],
+      sourceIds: ["route"],
+    });
+    expect(issuesOf(s).map((i) => i.path)).toContain(`nodes[${s.nodes.length - 1}].layouts`);
+  });
+});
+
 describe("widths", () => {
   /** The screen board with the checkout screen's children side by side. */
   function rowBoard() {

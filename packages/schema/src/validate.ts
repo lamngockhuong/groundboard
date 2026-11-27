@@ -1,4 +1,5 @@
 import type * as z from "zod";
+import { layoutPointerIds } from "./atlas-shape.ts";
 import {
   type Board,
   type BoardNode,
@@ -128,6 +129,8 @@ const NODE_FIELD_KINDS: ReadonlyArray<[keyof BoardNode, ReadonlyArray<string>]> 
   ["layoutFrom", ["screen"]],
   ["platform", ["screen"]],
   ["stateOf", ["screen"]],
+  ["layout", ["screen"]],
+  ["layouts", ["screen"]],
   ["width", ["screen", "element"]],
 ];
 
@@ -411,6 +414,14 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
         `state screen \`${node.id}\` must not have a ref; it is a state of \`${node.stateOf}\`, defines no atlas ref, and its elements' refs extend the root's ref`,
       );
     }
+    for (const field of ["layout", "layouts"] as const) {
+      if (node[field] !== undefined) {
+        add(
+          ["nodes", i, field],
+          `state screen \`${node.id}\` must not have ${field}; a state is drawn in its root's layouts`,
+        );
+      }
+    }
     const root = roots.has(node.id) ? rootOf(node) : undefined;
     if (root === undefined) return;
     for (const field of ["platform", "layoutFrom", "width"] as const) {
@@ -482,6 +493,28 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
         `screen node \`${node.id}\` has platform \`${node.platform}\` but ref \`${node.ref}\``,
       );
     }
+    const listed = new Set<string>();
+    node.layouts?.forEach((layout, j) => {
+      const at = ["nodes", i, "layouts", j];
+      const target = parseRef(layout);
+      if (target === null) return; // reported by the structural check
+      if (!("platform" in target) || target.element !== undefined) {
+        add(
+          at,
+          `screen \`${node.id}\` lists \`${layout}\` in layouts; a layout is a screen ref such as \`web:layout\``,
+        );
+      } else if ("platform" in parsed && target.platform !== parsed.platform) {
+        add(
+          at,
+          `screen \`${node.id}\` is a ${parsed.platform} screen but lists the ${target.platform} layout \`${layout}\``,
+        );
+      } else if (layout === node.ref) {
+        add(at, `screen \`${node.id}\` lists its own ref \`${layout}\` in layouts`);
+      } else if (listed.has(layout)) {
+        add(at, `screen \`${node.id}\` lists the layout \`${layout}\` twice`);
+      }
+      listed.add(layout);
+    });
   });
 
   // Elements: parent is a screen or element, the tree is acyclic and bounded, each element
@@ -532,15 +565,23 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
     const root = owner === undefined ? undefined : rootOf(owner);
     if (node.ref !== undefined && root?.ref !== undefined) {
       const parsed = parseRef(node.ref);
+      const prefixes = [root.ref, ...(root.layouts ?? [])];
       if (
         parsed !== null &&
-        (!("platform" in parsed) || parsed.element === undefined || parsed.screenRef !== root.ref)
+        (!("platform" in parsed) ||
+          parsed.element === undefined ||
+          !prefixes.includes(parsed.screenRef))
       ) {
+        const allowed = prefixes.map((p) => `\`${p}/\``).join(" or ");
+        const hint =
+          root.layouts === undefined
+            ? `; an element shared with other screens carries its layout's ref once the screen lists that layout in \`layouts\``
+            : "";
         add(
           ["nodes", i, "ref"],
           owner !== root
-            ? `element \`${node.id}\` belongs to state \`${owner?.id}\` of screen \`${root.ref}\`, so its ref must start with \`${root.ref}/\``
-            : `element \`${node.id}\` belongs to screen \`${root.ref}\`, so its ref must start with \`${root.ref}/\``,
+            ? `element \`${node.id}\` belongs to state \`${owner?.id}\` of screen \`${root.ref}\`, so its ref must start with ${allowed}${hint}`
+            : `element \`${node.id}\` belongs to screen \`${root.ref}\`, so its ref must start with ${allowed}${hint}`,
         );
       }
     }
@@ -584,10 +625,13 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
 
   checkWidths(board, nodes, rootOf, add);
 
-  // Refs: a board defines each ref at most once (on a screen or an element).
+  // Refs: a board defines each ref at most once (on a screen or an element). An element that
+  // carries a ref of one of its screen's layouts points at it, so it may appear more than once.
   const definedRefs = new Set<string>();
+  const pointers = layoutPointerIds(board);
   board.nodes.forEach((node, i) => {
     if ((node.kind !== "screen" && node.kind !== "element") || node.ref === undefined) return;
+    if (pointers.has(node.id)) return;
     if (definedRefs.has(node.ref)) {
       add(
         ["nodes", i, "ref"],

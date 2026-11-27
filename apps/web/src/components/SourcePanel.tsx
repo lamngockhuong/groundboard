@@ -38,6 +38,24 @@ const groundingLabel = (grounding: Grounding) => t(`grounding.${grounding}`);
 /** Node kinds that define their ref (a screen, an element, a resource, an endpoint...). */
 const DEFINING_KINDS: ReadonlySet<string> = DEFINERS;
 
+/**
+ * Whether a node points at its ref rather than defining it: a node of a kind that never defines
+ * one, or a node of a defining kind that the atlas lists among the ref's uses, such as a screen's
+ * copy of a shared layout's element.
+ */
+function pointsAtRef(
+  node: Pick<NodeCitations, "kind" | "ref" | "nodeId" | "edgeId">,
+  atlas: AtlasIndex | null,
+  currentSlug: string | null,
+): boolean {
+  if (node.ref === undefined || node.edgeId !== undefined) return false;
+  if (!DEFINING_KINDS.has(node.kind)) return true;
+  const entry = atlas?.refs.find((r) => r.ref === node.ref);
+  const isSelf = (p: AtlasPlace) =>
+    p.slug === currentSlug && p.nodeId === node.nodeId && p.edgeId === undefined;
+  return entry?.usedIn.some(isSelf) === true && !entry.definedIn.some(isSelf);
+}
+
 /** `dir/` and `file` of a repository path; `dir` is empty for a file at the root. */
 function splitPath(path: string): { dir: string; file: string } {
   const at = path.lastIndexOf("/");
@@ -213,7 +231,10 @@ function Appearances({
   for (const place of used) byNode.set(place.nodeId, [...(byNode.get(place.nodeId) ?? []), place]);
   const total = defined.length + used.length;
   if (total === 0) return null;
-  const definesIt = DEFINING_KINDS.has(node.kind) && node.edgeId === undefined;
+  const definesIt =
+    DEFINING_KINDS.has(node.kind) &&
+    node.edgeId === undefined &&
+    !pointsAtRef(node, atlas, currentSlug);
 
   const placeButton = (place: Place, via?: string) => (
     <button type="button" className="link" onClick={() => onOpen(place)}>
@@ -349,9 +370,9 @@ function NodeSources({
   onOpen?: (place: AtlasPlace) => void;
 }) {
   const isEdge = node.edgeId !== undefined;
-  // A defining kind (REF_DEFINERS) defines its ref; any other node, and an edge, points at one.
-  const target =
-    node.toRef ?? (node.ref !== undefined && !DEFINING_KINDS.has(node.kind) ? node.ref : undefined);
+  // A defining kind (REF_DEFINERS) defines its ref unless it is a copy of a shared layout's
+  // element; any other node, and an edge, points at one.
+  const target = node.toRef ?? (pointsAtRef(node, atlas, currentSlug) ? node.ref : undefined);
   const refName = node.ref ?? node.toRef;
   // An arrow drawn as a numbered tag has no text of its own: it is named by where it starts.
   const title = node.label ?? (isEdge ? node.fromLabel : undefined);

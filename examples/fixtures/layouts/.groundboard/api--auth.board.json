@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "title": "Auth API",
+  "question": "Which endpoints does auth have?",
+  "nodes": [
+    {
+      "id": "auth",
+      "kind": "resource",
+      "label": "auth",
+      "ref": "api:auth",
+      "sourceIds": ["api-logout"]
+    },
+    {
+      "id": "logout",
+      "kind": "endpoint",
+      "label": "Log out",
+      "parentId": "auth",
+      "method": "POST",
+      "path": "/api/logout",
+      "ref": "api:auth/logout",
+      "sourceIds": ["api-logout"]
+    }
+  ],
+  "edges": [],
+  "sources": [
+    {
+      "id": "api-logout",
+      "kind": "code",
+      "path": "src/api.ts",
+      "line": 1,
+      "quote": "fetch(\"/api/logout\", { method: \"POST\" })"
+    }
+  ]
+}

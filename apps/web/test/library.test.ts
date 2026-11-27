@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { missingFlowSet } from "../src/flow-hints.ts";
+import { missingFlowPlaces, missingFlowSet } from "../src/flow-hints.ts";
 import {
   clearEntries,
   type LibraryEntry,
@@ -103,6 +103,32 @@ describe("missing flows in the library index", () => {
       "web:users-upload/import",
       "web:users-upload/mismatch-upload-again",
     ]);
+  });
+
+  it("counts an element shared by a layout once, under the layout board", () => {
+    const index = buildLibraryIndex(fixtureEntries("layouts/.groundboard"));
+    expect(index.problems).toEqual([]);
+    expect([...missingFlowSet(index)]).toEqual(["web:layout/header-logout"]);
+    expect(missingFlowPlaces(index)).toEqual([
+      {
+        slug: "web--layout",
+        title: "Shared layout",
+        items: [{ ref: "web:layout/header-logout", nodeId: "logout" }],
+      },
+    ]);
+    const entry = index.refs.find((r) => r.ref === "web:layout/header-logout");
+    expect(entry?.definedIn).toEqual([{ slug: "web--layout", nodeId: "logout" }]);
+    expect(entry?.usedIn.map((u) => u.slug)).toEqual(["web--cart", "web--orders"]);
+  });
+
+  it("reports a screen listed as a layout that is not marked as one", () => {
+    const entries = fixtureEntries("layouts/.groundboard").map((e) => {
+      if (e.slug !== "web--layout" || e.input.type !== "board") return e;
+      const board = structuredClone(e.input.board) as { nodes: Array<Record<string, unknown>> };
+      delete board.nodes[0]?.layout;
+      return { ...e, input: { type: "board" as const, board } };
+    });
+    expect(buildLibraryIndex(entries).problems.map((p) => p.path)).toEqual(["web:layout"]);
   });
 
   it("counts a flow step as covering the element", () => {
