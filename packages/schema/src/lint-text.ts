@@ -12,7 +12,9 @@ type Matcher = { test(text: string): boolean };
  * Order matters: a card-length digit run is reported as a card number, not a phone number.
  */
 const PATTERNS: ReadonlyArray<[string, Matcher]> = [
-  ["an email address", /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/],
+  // One local-part character before the `@` is enough to find an address, and a longer run
+  // would be rescanned from every start position: quadratic on a long word with no `@`.
+  ["an email address", /[A-Za-z0-9._%+-]@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/],
   ["a card number", /(?<!\d)\d(?:[ -]?\d){12,18}(?!\d)/],
   ["a phone number", /(?<!\d)\+?\d(?:[ .()-]{0,2}\d){8,}(?!\d)/],
   // `/home/<name>` or `/Users/<name>` that starts a path: not a route segment such as
@@ -40,8 +42,22 @@ const SECRET_PLACEHOLDERS: readonly RegExp[] = [
  * An assignment whose name says secret, password, passwd, token, api key or private key:
  * `password: "..."`, `API_TOKEN=...`, `"client_secret": "..."`.
  */
-const SECRET_ASSIGNMENT =
-  /(?<![A-Za-z0-9_])[A-Za-z0-9_]*(?:secret|password|passwd|token|api[_-]?key|private[_-]?key)[A-Za-z0-9_]*["']?\s*(?::=|:(?!:)|=(?![=>]))\s*(?:(["'`])([^"'`\n]*)\1|([^\s"'`,;)}\]]+))/gi;
+const ASSIGNED_NAME = /(?<![A-Za-z0-9_])(?=([A-Za-z0-9_]+))\1["']?\s*(?::=|:(?!:)|=(?![=>]))\s*/g;
+
+/** The value of an assignment, read where its name and operator end. */
+const ASSIGNED_VALUE = /(["'`])([^"'`\n]*)\1|([^\s"'`,;)}\]]+)/y;
+
+/** The words of a name that holds a secret. */
+const SECRET_NAME = /secret|password|passwd|token|api_?key|private_?key/i;
+
+/**
+ * Whether an assigned name holds a secret: a word of it does, or it is the `key` of `api-key`
+ * or `private-key`.
+ */
+function isSecretName(text: string, start: number, name: string): boolean {
+  if (SECRET_NAME.test(name)) return true;
+  return /^key/i.test(name) && /(?:api|private)-$/i.test(text.slice(Math.max(0, start - 8), start));
+}
 
 /**
  * Whether the value of such an assignment looks real. A quoted value must have no space (a
@@ -58,15 +74,35 @@ function looksLikeSecretValue(quoted: string | undefined, bare: string | undefin
   return /^[A-Za-z0-9+/=_-]{6,}$/.test(value) && /\d/.test(value) && /[A-Za-z]/.test(value);
 }
 
+/**
+ * Finds a secret assignment in linear time. Each name is matched whole, once, and its value is
+ * read only when the name holds a secret: a single pattern that looked for the keyword inside
+ * the name, or read the value of every name, would rescan a long identifier after each place
+ * the keyword occurs, or a chain such as `a=a=a=...` from each name. An assignment whose value
+ * is read is skipped as a whole, as a global match would skip it.
+ */
 const SECRET_ASSIGNMENT_MATCHER: Matcher = {
-  test: (text) =>
-    [...text.matchAll(SECRET_ASSIGNMENT)].some((m) => looksLikeSecretValue(m[2], m[3])),
+  test(text) {
+    const names = new RegExp(ASSIGNED_NAME);
+    const value = new RegExp(ASSIGNED_VALUE);
+    for (let m = names.exec(text); m !== null; m = names.exec(text)) {
+      if (!isSecretName(text, m.index, m[1] as string)) continue;
+      value.lastIndex = names.lastIndex;
+      const v = value.exec(text);
+      if (v === null) continue;
+      if (looksLikeSecretValue(v[2], v[3])) return true;
+      names.lastIndex = value.lastIndex;
+    }
+    return false;
+  },
 };
 
 /**
- * Patterns that suggest a secret. Order matters: the kinds a vendor prefix identifies come
- * first so the warning names them ("a GitHub token"), and the long token mixing letters and
- * digits comes last, since a GitHub token or a JWT is one too. A token body must hold a digit,
+ * Patterns that suggest a secret. Every pattern here and in PATTERNS runs in linear time on
+ * long text, and lintBoardText only asks whether one matches, never for the matched text.
+ * Order matters: the kinds a vendor prefix identifies come first so the warning names them
+ * ("a GitHub token"), and the long token mixing letters and digits comes last, since a GitHub
+ * token or a JWT is one too. A token body must hold a digit,
  * so a placeholder such as `ghp_xxxx...` is not reported.
  */
 export const CREDENTIAL_PATTERNS: ReadonlyArray<[string, Matcher]> = [
@@ -84,7 +120,9 @@ export const CREDENTIAL_PATTERNS: ReadonlyArray<[string, Matcher]> = [
   ["a Slack token", /(?<![A-Za-z0-9])xox[abposr]-(?=[A-Za-z0-9-]*\d)[A-Za-z0-9-]{10,}/],
   ["a Stripe secret key", /(?<![A-Za-z0-9])[rs]k_live_(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{16,}/],
   ["a JWT", /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],
-  ["a URL with a password", /[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s/@]+@/i],
+  // The scheme is matched from its last letter: `[a-z][a-z0-9+.-]*` would rescan a long run
+  // of letters from every start position, quadratic when no `://` follows.
+  ["a URL with a password", /[a-z][0-9+.-]*:\/\/[^\s/:@]+:[^\s/@]+@/i],
   ["a password or secret assigned in the text", SECRET_ASSIGNMENT_MATCHER],
   [
     "an access token",
