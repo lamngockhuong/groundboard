@@ -329,9 +329,10 @@ stay the browser's own new tab.
 
 ### Tab bar
 One row above the board toolbar, on the surface colour with a hairline bottom border: Back and
-Forward first, apart from the tabs by a hairline, then the tabs, which scroll sideways when
-they overflow; hidden when the source has a single board. Each tab is
-the board title cut short with an ellipsis, at most 14rem, and a close button that shows on
+Forward first, apart from the tabs by a hairline, then the tabs. Tabs shrink like a browser's
+down to 7.5rem; past that the row scrolls sideways with no scrollbar (a vertical wheel scrolls
+it too) and a fade on either edge marks tabs hidden there; hidden when the source has a single board. Each tab is
+the board title cut short with an ellipsis, 7.5rem to 14rem wide, and a close button that shows on
 the tab on screen, on hover and on focus. The tab on screen is panel-white, semibold, with a
 2px indigo line along its bottom. The preview tab, the one an ordinary click replaces, sets
 its title in italics and is named "preview" to screen readers too. A tab whose board cannot

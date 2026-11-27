@@ -32,6 +32,42 @@ export function TabBar({ history, tabs, title, onSelect, onClose, onPin }: TabBa
     el?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [tabs.activeId]);
 
+  // No scrollbar: tabs shrink first, as in a browser; past that the row scrolls with the
+  // wheel (a vertical wheel scrolls it sideways), and a fade on either edge says more tabs are
+  // hidden there. The tab on screen and the focused tab scroll into view on their own.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const mark = () => {
+      const max = list.scrollWidth - list.clientWidth;
+      list.toggleAttribute("data-more-start", list.scrollLeft > 1);
+      list.toggleAttribute("data-more-end", max - list.scrollLeft > 1);
+    };
+    const onWheel = (event: WheelEvent) => {
+      if (list.scrollWidth <= list.clientWidth) return;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (delta === 0) return;
+      event.preventDefault();
+      list.scrollLeft += delta;
+    };
+    mark();
+    list.addEventListener("scroll", mark, { passive: true });
+    list.addEventListener("wheel", onWheel, { passive: false });
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(mark) : null;
+    observer?.observe(list);
+    return () => {
+      list.removeEventListener("scroll", mark);
+      list.removeEventListener("wheel", onWheel);
+      observer?.disconnect();
+    };
+  }, []);
+
+  // A tab opened or closed changes the row's width without resizing the list itself.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs whenever the tabs change.
+  useEffect(() => {
+    listRef.current?.dispatchEvent(new Event("scroll"));
+  }, [tabs]);
+
   const focusTab = (index: number) => {
     const buttons = listRef.current?.querySelectorAll<HTMLElement>('[role="tab"]');
     if (!buttons || buttons.length === 0) return;
