@@ -64,34 +64,19 @@ export async function renderCommand(args: string[], io: CliIO): Promise<number> 
   const input = positionals[0] as string;
   const direction = parseDirection(values.direction);
   const board = await readJsonInput(input === "-" ? "-" : path.resolve(io.cwd, input), io);
-  const checkRoot = values["check-sources"];
-  const cacheDir =
-    input === "-"
-      ? path.resolve(io.cwd, ".groundboard", FIGMA_CACHE_DIR)
-      : path.resolve(path.dirname(path.resolve(io.cwd, input)), FIGMA_CACHE_DIR);
-  const overlay =
-    values.overlay && input.endsWith(BOARD_FILE_SUFFIX)
-      ? await overlayBeside(path.resolve(io.cwd, input))
-      : undefined;
-  if (overlay?.status === "invalid") io.stderr(`warning: ${overlay.warning}\n`);
-  const result = await renderBoard(board, {
-    direction,
-    ...(overlay?.status === "ok" ? { overlay: overlay.overlay } : {}),
-    ...(checkRoot !== undefined ? { checkSourcesRoot: path.resolve(io.cwd, checkRoot) } : {}),
-    ...(values.references ? { references: { dir: cacheDir } } : {}),
-  });
-  if (result.references && result.references.frames > result.references.cached) {
-    const { frames, cached } = result.references;
-    io.stderr(
-      `note: ${cached} of ${frames} Figma frame(s) have a cached reference image in ${path.relative(io.cwd, cacheDir) || "."}\n`,
-    );
-  }
-  for (const warning of result.warnings) io.stderr(`warning: ${warning}\n`);
-  if (!result.ok || !result.scene) {
-    io.stderr(`${input}: ${result.issues.length} issue(s)\n${formatIssues(result.issues)}`);
-    return EXIT.invalid;
-  }
-  const json = `${JSON.stringify(result.scene, null, 2)}\n`;
+  const scene = await sceneFromBoard(
+    board,
+    input,
+    {
+      direction,
+      overlay: values.overlay ?? true,
+      references: values.references ?? false,
+      ...(values["check-sources"] !== undefined ? { checkSources: values["check-sources"] } : {}),
+    },
+    io,
+  );
+  if (typeof scene === "number") return scene;
+  const json = `${JSON.stringify(scene, null, 2)}\n`;
   const output = values.output ?? defaultOutput(input);
   if (output === "-") {
     io.stdout(json);
@@ -107,6 +92,56 @@ export async function renderCommand(args: string[], io: CliIO): Promise<number> 
   }
   io.stderr(`wrote ${output}\n`);
   return EXIT.ok;
+}
+
+export interface SceneOptions {
+  direction: "right" | "down";
+  /** Apply `<board>.overlay.json` beside a `<board>.board.json`. */
+  overlay: boolean;
+  references: boolean;
+  checkSources?: string;
+}
+
+/**
+ * Lays out and renders a parsed board read from `input` (`-` for stdin), applying the overlay
+ * beside it, and prints the notes and warnings. The scene, or the exit code when the board is
+ * invalid.
+ */
+export async function sceneFromBoard(
+  board: unknown,
+  input: string,
+  options: SceneOptions,
+  io: CliIO,
+): Promise<object | number> {
+  const cacheDir =
+    input === "-"
+      ? path.resolve(io.cwd, ".groundboard", FIGMA_CACHE_DIR)
+      : path.resolve(path.dirname(path.resolve(io.cwd, input)), FIGMA_CACHE_DIR);
+  const overlay =
+    options.overlay && input.endsWith(BOARD_FILE_SUFFIX)
+      ? await overlayBeside(path.resolve(io.cwd, input))
+      : undefined;
+  if (overlay?.status === "invalid") io.stderr(`warning: ${overlay.warning}\n`);
+  const result = await renderBoard(board, {
+    direction: options.direction,
+    ...(overlay?.status === "ok" ? { overlay: overlay.overlay } : {}),
+    ...(options.checkSources !== undefined
+      ? { checkSourcesRoot: path.resolve(io.cwd, options.checkSources) }
+      : {}),
+    ...(options.references ? { references: { dir: cacheDir } } : {}),
+  });
+  if (result.references && result.references.frames > result.references.cached) {
+    const { frames, cached } = result.references;
+    io.stderr(
+      `note: ${cached} of ${frames} Figma frame(s) have a cached reference image in ${path.relative(io.cwd, cacheDir) || "."}\n`,
+    );
+  }
+  for (const warning of result.warnings) io.stderr(`warning: ${warning}\n`);
+  if (!result.ok || !result.scene) {
+    io.stderr(`${input}: ${result.issues.length} issue(s)\n${formatIssues(result.issues)}`);
+    return EXIT.invalid;
+  }
+  return result.scene;
 }
 
 /** The overlay beside a board file, `<name>.overlay.json` next to `<name>.board.json`. */

@@ -9,7 +9,25 @@
       "changelog-path": "CHANGELOG.md",
       "prerelease": true,
       "prerelease-type": "rc",
+      "versioning": "prerelease",
+      "component": "groundboard"
+    },
+    "packages/png": {
+      "release-type": "node",
+      "package-name": "@groundboard/png",
+      "component": "png",
+      "include-component-in-tag": true,
+      "changelog-path": "CHANGELOG.md",
+      "prerelease": true,
+      "prerelease-type": "rc",
       "versioning": "prerelease"
     }
-  }
+  },
+  "plugins": [
+    {
+      "type": "linked-versions",
+      "groupName": "groundboard",
+      "components": ["groundboard", "png"]
+    }
+  ]
 }

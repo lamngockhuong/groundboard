@@ -5,6 +5,7 @@
 
 import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { privatePackageNames } from "../../../scripts/private-packages.mjs";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(packageDir, "../..");
@@ -39,16 +40,25 @@ function repositoryUrl(pkg) {
   return repo ? repo.replace(/^git\+/, "").replace(/\.git$/, "") : (pkg.homepage ?? "");
 }
 
-/** Collects `dependencies` (and installed optional ones) of each root, transitively. */
-export function collect(roots) {
+/**
+ * Collects `dependencies` (and installed optional ones) of each root, transitively. `pick` names
+ * the packages a root starts from (its `dependencies` by default); packages named in `skip` are
+ * left out with everything only they bring in.
+ */
+export function collect(
+  roots,
+  { pick = (pkg) => Object.keys(pkg.dependencies ?? {}), skip = [] } = {},
+) {
   const seen = new Map();
+  const internal = new Set(privatePackageNames());
   const visit = (name, fromDir) => {
+    if (skip.includes(name)) return;
     const dir = resolvePackageDir(name, fromDir);
     if (!dir) return;
     const pkg = readJson(path.join(dir, "package.json"));
     const key = `${pkg.name}@${pkg.version}`;
     if (seen.has(key)) return;
-    if (pkg.name.startsWith("@groundboard/")) return;
+    if (internal.has(pkg.name)) return;
     seen.set(key, {
       name: pkg.name,
       version: pkg.version,
@@ -62,7 +72,7 @@ export function collect(roots) {
   };
   for (const root of roots) {
     const pkg = readJson(path.join(root, "package.json"));
-    for (const dep of Object.keys(pkg.dependencies ?? {})) visit(dep, root);
+    for (const dep of pick(pkg)) visit(dep, root);
   }
   return [...seen.values()].sort(
     (a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version),
@@ -108,10 +118,15 @@ function render(packages, fonts) {
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
-const roots = [packageDir];
-const webDir = path.join(repoRoot, "apps", "web");
-if (existsSync(path.join(webDir, "package.json"))) roots.push(webDir);
-const packages = collect(roots);
-const fonts = fontLicences();
-writeFileSync(path.join(outDir, "THIRD_PARTY_NOTICES.md"), render(packages, fonts));
-console.log(`THIRD_PARTY_NOTICES.md: ${packages.length} packages, ${fonts.length} font families`);
+// Imported by packages/png/scripts/generate-notices.mjs for `collect`; writes only when run.
+const invokedDirectly =
+  process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname;
+if (invokedDirectly) {
+  const roots = [packageDir];
+  const webDir = path.join(repoRoot, "apps", "web");
+  if (existsSync(path.join(webDir, "package.json"))) roots.push(webDir);
+  const packages = collect(roots);
+  const fonts = fontLicences();
+  writeFileSync(path.join(outDir, "THIRD_PARTY_NOTICES.md"), render(packages, fonts));
+  console.log(`THIRD_PARTY_NOTICES.md: ${packages.length} packages, ${fonts.length} font families`);
+}

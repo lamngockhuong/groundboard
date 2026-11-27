@@ -226,6 +226,7 @@ npx groundboard figma entry board.json --frame frame.xml --image frame.png
                                                         # writes the frame's Figma cache entry
 npx groundboard validate board.json --check-sources .   # exit 3 on any issue
 npx groundboard schema                                  # the board JSON Schema
+npx groundboard png board.json                          # writes board.png (needs @groundboard/png)
 ```
 
 `--check-sources <root>` resolves every cited path under `<root>` (no `..` or symlink escape,
@@ -234,6 +235,45 @@ appear in the cited lines, ignoring whitespace. Without it the board says
 "Sources NOT checked" in its title.
 
 Exit codes: 0 ok, 1 I/O error, 2 bad arguments, 3 invalid board or failed source check.
+
+### Draw a board as PNG
+
+`groundboard png` draws a board, or an `.excalidraw` scene, as a PNG image, so an agent can look
+at the board it drew. A board is laid out as `render` does it, its layout overlay included. It
+runs Excalidraw's own export in Node and rasterises it with resvg: no browser, no network, nothing
+leaves the machine.
+
+The drawing code, Excalidraw and the fonts (a 16.5 MB download, about 32 MB installed) live in a
+separate package, `@groundboard/png`, so `npx groundboard` stays as light as before. Without it,
+`png` prints the one command that adds it:
+
+```sh
+npx -y -p groundboard@<version> -p @groundboard/png@<version> groundboard png board.json
+npm install @groundboard/png@<version>                   # next to a project or global install
+```
+
+```sh
+groundboard png .groundboard/checkout.board.json         # writes .groundboard/checkout.png
+groundboard png board.excalidraw -o out/board.png --theme dark
+groundboard png board.json --max-edge 2400 --min-text 10
+```
+
+- `--font` picks the reading font as the viewer's font menu does; the default, `sans`, is the
+  font the viewer opens boards in, so the image shows what a reader sees. `board` keeps the font
+  each text was drawn in.
+- `--theme dark` uses the viewer's dark theme (about twice as slow to draw).
+- The image's long edge is at most `--max-edge` pixels (default 1568, the size above which Claude
+  downscales an image). When fitting the board there would draw its smallest text under
+  `--min-text` pixels (default 8), the board is drawn at scale 1 or more and cut into tiles
+  `<name>-r<row>c<col>.png`, each at most `--max-edge`, neighbours overlapping by 48 px.
+- The path of every image written is printed on stdout, one per line.
+
+Known limits: a line of text that holds a character its font lacks, such as `→` in Excalifont
+(the hand-drawn font, which groundboard writes in screen-board reference lists), is drawn wholly
+in a fallback font, where the viewer swaps only that character; the text stays readable. Frame
+names and the "system" font, which Excalidraw sets in Helvetica, are drawn in Assistant, because
+Liberation Sans, Excalidraw's Helvetica stand-in, is not shipped for its licence. Boards with
+embedded Figma images (`--references`) have not been tested at size.
 
 ## Use it from any MCP client
 
@@ -566,7 +606,7 @@ pnpm -r build
 pnpm test                       # needs the build: end-to-end tests spawn the built CLI
 pnpm -C packages/groundboard exec playwright install --only-shell chromium   # once
 pnpm test:browser               # needs the build: the served viewer reaches nothing off the machine
-node scripts/check-pack.mjs     # pack, inspect and smoke-test the npm tarball
+node scripts/check-pack.mjs     # pack, inspect and smoke-test the npm tarballs
 pnpm -C apps/web build:hosted   # the hosted editor, with the sample boards, into apps/web/dist-hosted
 ```
 
@@ -576,11 +616,14 @@ pnpm -C apps/web build:hosted   # the hosted editor, with the sample boards, int
 | `packages/layout`            | Text measurement, elkjs layout, worker-thread runner                         |
 | `packages/render-excalidraw` | `LaidOutBoard` to `.excalidraw` scene                                        |
 | `packages/groundboard`       | The published package: pipeline, source check, CLI, MCP, HTTP server         |
+| `packages/png`               | `@groundboard/png`, the optional package behind `groundboard png`            |
 | `apps/web`                   | The viewer (Vite, React, `@excalidraw/excalidraw`), bundled into the package |
 | `apps/site`                  | The project site: the home page of groundboard.ohnice.app, plain HTML        |
 | `plugins/groundboard`        | The Claude Code plugin; the repository is its own marketplace                |
 
-Only `groundboard` is published; the other packages are private and bundled into it.
+`groundboard` and `@groundboard/png` are published, at the same version. The packages marked
+`"private": true` are internal and bundled into `groundboard` (`scripts/private-packages.mjs`
+lists them for the build and for `scripts/check-pack.mjs`).
 
 TypeScript is pinned to 7.0.2. A tsdown build emits declarations with it; tsdown prints a
 deprecation notice for the 7.0 generator and asks for 7.1 once that ships.
@@ -602,8 +645,10 @@ passes silently.
 Releases are cut by [release-please](https://github.com/googleapis/release-please) from
 conventional commits. When a release pull request is merged, the release workflow:
 
-1. publishes `groundboard` to npm with provenance through trusted publishing (no stored token);
-   pre-release versions go to the `next` dist-tag;
+1. publishes `@groundboard/png`, then `groundboard`, to npm with provenance through trusted
+   publishing (no stored token); pre-release versions go to the `next` dist-tag. The two are
+   released together at one version (release-please's `linked-versions`), because the CLI names
+   `@groundboard/png@<its own version>`; `@groundboard/png` is tagged `png-v<version>`;
 2. builds and pushes `ghcr.io/lamngockhuong/groundboard:<version>` (and `latest` for stable versions);
 3. only after the npm publish succeeded, opens a pull request that moves the plugin's pinned
    version and every skill's metadata version (`scripts/bump-plugin-version.mjs`), so the
@@ -624,7 +669,8 @@ Versions are pre-releases (`0.1.0-rc.N`) until the first stable release; to cut 
 - Run the denylist over the whole history: `node scripts/check-denylist.mjs --all`.
 - Run a secrets scan over the whole history (for example `gitleaks detect`).
 - Run `node scripts/check-pack.mjs` and read the file list it prints.
-- Confirm npm trusted publishing is configured for the `groundboard` package and this repository.
+- Confirm npm trusted publishing is configured for the `groundboard` and `@groundboard/png`
+  packages and this repository.
 
 ## License
 

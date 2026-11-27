@@ -26,11 +26,14 @@ git config core.hooksPath .githooks                                          # o
 | `packages/layout`            | Text measurement, elkjs layout, worker-thread runner                         |
 | `packages/render-excalidraw` | `LaidOutBoard` to `.excalidraw` scene                                        |
 | `packages/groundboard`       | The published package: pipeline, source check, CLI, MCP, HTTP server         |
+| `packages/png`               | `@groundboard/png`, the optional package behind `groundboard png`            |
 | `apps/web`                   | The viewer (Vite, React, `@excalidraw/excalidraw`), bundled into the package |
 | `plugins/groundboard`        | The Claude Code plugin and its skills; the repository is its own marketplace |
 | `examples/fixtures`          | A small project with a screen atlas, used by the tests and by `pnpm dev`     |
 
-Only `groundboard` is published; the other packages are private and bundled into it.
+`groundboard` and `@groundboard/png` are published, at the same version. The packages marked
+`"private": true` are internal and bundled into `groundboard` (`scripts/private-packages.mjs`
+lists them for the build and for `scripts/check-pack.mjs`).
 
 ## Development loop
 
@@ -96,7 +99,7 @@ pnpm -r typecheck
 pnpm -r build
 pnpm test                       # needs the build: end-to-end tests spawn the built CLI
 pnpm test:browser               # needs the build: Chromium checks of the served viewer
-node scripts/check-pack.mjs     # pack, inspect and smoke-test the npm tarball
+node scripts/check-pack.mjs     # pack, inspect and smoke-test the npm tarballs
 ```
 
 While working, run the tests you touched first, for example

@@ -51,6 +51,7 @@
   },
   "devDependencies": {
     "@groundboard/layout": "workspace:*",
+    "@groundboard/png": "workspace:*",
     "@groundboard/render-excalidraw": "workspace:*",
     "@groundboard/schema": "workspace:*",
     "@groundboard/web": "workspace:*",

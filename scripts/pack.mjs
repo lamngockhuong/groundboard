@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Stages the published `groundboard` package and packs it.
+// Stages a published package, `groundboard` (the default) or `@groundboard/png`, and packs it.
 //
-//   node scripts/pack.mjs [--stage <dir>] [--out <dir>]
+//   node scripts/pack.mjs [--package groundboard|png] [--stage <dir>] [--out <dir>]
 //
 // The stage holds exactly what npm publishes: the built output, README, LICENSE, a package.json
 // without devDependencies or scripts (so no `workspace:` specifier or private package name can
@@ -23,18 +23,34 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
-const packageDir = path.join(repoRoot, "packages", "groundboard");
 const BUILD = "dist";
 
-export function stagePackage(stage) {
+/** The published packages: their folder, a file the build must have made, and their README. */
+export const PUBLISHED = {
+  groundboard: {
+    dir: path.join(repoRoot, "packages", "groundboard"),
+    entry: "cli.mjs",
+    readme: path.join(repoRoot, "README.md"),
+  },
+  png: {
+    dir: path.join(repoRoot, "packages", "png"),
+    entry: "index.mjs",
+    readme: path.join(repoRoot, "packages", "png", "README.md"),
+  },
+};
+
+export function stagePackage(stage, name = "groundboard") {
+  const published = PUBLISHED[name];
+  if (!published) throw new Error(`unknown package ${JSON.stringify(name)}`);
+  const packageDir = published.dir;
   const built = path.join(packageDir, BUILD);
-  if (!existsSync(path.join(built, "cli.mjs"))) {
+  if (!existsSync(path.join(built, published.entry))) {
     throw new Error(`${built} is missing; run "pnpm -r build" first`);
   }
   rmSync(stage, { recursive: true, force: true });
   mkdirSync(stage, { recursive: true });
   cpSync(built, path.join(stage, BUILD), { recursive: true });
-  cpSync(path.join(repoRoot, "README.md"), path.join(stage, "README.md"));
+  cpSync(published.readme, path.join(stage, "README.md"));
   cpSync(path.join(repoRoot, "LICENSE"), path.join(stage, "LICENSE"));
 
   const pkg = JSON.parse(readFileSync(path.join(packageDir, "package.json"), "utf8"));
@@ -70,10 +86,17 @@ const invokedDirectly =
   process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname;
 if (invokedDirectly) {
   const { values } = parseArgs({
-    options: { stage: { type: "string" }, out: { type: "string" } },
+    options: {
+      package: { type: "string", default: "groundboard" },
+      stage: { type: "string" },
+      out: { type: "string" },
+    },
   });
   const work = mkdtempSync(path.join(tmpdir(), "groundboard-pack-"));
-  const stage = stagePackage(path.resolve(values.stage ?? path.join(work, "package")));
+  const stage = stagePackage(
+    path.resolve(values.stage ?? path.join(work, "package")),
+    values.package,
+  );
   const tarball = packStage(stage, path.resolve(values.out ?? work));
   console.log(JSON.stringify({ stage, tarball }));
 }

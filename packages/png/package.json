@@ -1,0 +1,49 @@
+{
+  "name": "@groundboard/png",
+  "version": "0.1.0-rc.1",
+  "description": "PNG rendering for groundboard: draws an Excalidraw scene to an image in Node, without a browser.",
+  "license": "MIT",
+  "author": "Lam Ngoc Khuong",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lamngockhuong/groundboard.git",
+    "directory": "packages/png"
+  },
+  "homepage": "https://github.com/lamngockhuong/groundboard#readme",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && node scripts/build-fonts.mjs && node scripts/generate-notices.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2"
+  },
+  "devDependencies": {
+    "@excalidraw/excalidraw": "0.18.1",
+    "@types/node": "catalog:",
+    "fontkit": "2.0.4",
+    "linkedom": "0.18.12",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wawoff2": "2.0.1"
+  }
+}

@@ -22,7 +22,8 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      # The package lives at packages/groundboard, so release-please names its outputs after that path;
+      # The CLI lives at packages/groundboard, so release-please names its outputs after that path;
+      # packages/png (@groundboard/png) is released with it at the same version (linked-versions).
       # the bare release_created, version and tag_name are set only for a package at the repository root.
       release_created: ${{ steps.release.outputs['packages/groundboard--release_created'] || steps.existing.outputs.release_created }}
       version: ${{ steps.release.outputs['packages/groundboard--version'] || steps.existing.outputs.version }}
@@ -65,14 +66,26 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
       - run: node scripts/check-pack.mjs
+      # @groundboard/png first: the CLI names @groundboard/png@<its own version> in its install
+      # command, so that version must exist before the CLI does. release-please links their
+      # versions; a version already on npm (a re-run after a partial publish) is skipped.
       - name: Publish
         env:
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
+          node scripts/pack.mjs --package png --stage "$RUNNER_TEMP/stage-png" --out "$RUNNER_TEMP/pack"
           node scripts/pack.mjs --stage "$RUNNER_TEMP/stage" --out "$RUNNER_TEMP/pack"
           tag=latest
           case "$VERSION" in *-*) tag=next ;; esac
-          npm publish "$RUNNER_TEMP/pack/groundboard-$VERSION.tgz" --provenance --access public --tag "$tag"
+          publish() {
+            if npm view "$1@$VERSION" version > /dev/null 2>&1; then
+              echo "$1@$VERSION is already on npm"
+              return
+            fi
+            npm publish "$2" --provenance --access public --tag "$tag"
+          }
+          publish @groundboard/png "$RUNNER_TEMP/pack/groundboard-png-$VERSION.tgz"
+          publish groundboard "$RUNNER_TEMP/pack/groundboard-$VERSION.tgz"
 
   # 2. The image, built from the same commit.
   publish-image:
