@@ -174,6 +174,21 @@ export const vi: Messages = {
   "editor.backHint": "Quay lại chỗ vừa xem ({key})",
   "editor.forward": "Tiến tới",
   "editor.forwardHint": "Tiến tới chỗ đã rời ({key})",
+  "tabs.label": "Board đang mở",
+  "tabs.preview": "xem trước",
+  "tabs.previewHint":
+    "Tab xem trước: board mở tiếp theo sẽ thay vào đây. Bấm đúp hoặc nhấn Enter trên tab để giữ tab lại.",
+  "tabs.close": "Đóng {title}",
+  "tabs.closeHint": "Đóng tab ({key})",
+  "tabs.problem": "không hiển thị được",
+  "tabs.full":
+    "Cả {count} tab đều đã ghim nên board được mở trong tab này. Đóng bớt một tab để mở board khác.",
+  "tabs.replacePastedConfirm":
+    "Board đã dán sẽ không mở lại được sau khi bị thay hoặc bị đóng. Vẫn tiếp tục?",
+  "tabs.openInTab": "Mở {title} trong tab mới",
+  "tabs.openInTabHint": "Mở trong tab mới (Alt+click)",
+  "tabs.leaveCanvasConfirm": "Board này có thay đổi chưa lưu. Rời board và bỏ các thay đổi đó?",
+  "palette.newTab": "{key} để mở trong tab mới",
   "editor.boardsInGroup": "Các board trong nhóm này",
   "editor.hideDesign": "Ẩn ảnh tham chiếu Figma và các dấu trên đó",
   "editor.showDesign": "Hiện ảnh tham chiếu Figma bên cạnh wireframe",

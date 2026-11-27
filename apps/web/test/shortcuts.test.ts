@@ -3,9 +3,13 @@ import { readFlag, saveFlag } from "../src/prefs.ts";
 import {
   historyKeyWins,
   isHistoryKey,
+  isNewTabClick,
+  isNewTabEnter,
   isPageKey,
   isPaletteKey,
+  isTabKey,
   isViewerKey,
+  newTabEnterLabel,
   paletteKeyLabel,
 } from "../src/shortcuts.ts";
 
@@ -97,6 +101,57 @@ describe("paletteKeyLabel", () => {
     expect(paletteKeyLabel("MacIntel")).toBe("⌘K");
     expect(paletteKeyLabel("Win32")).toBe("Ctrl K");
     expect(paletteKeyLabel("Linux x86_64")).toBe("Ctrl K");
+  });
+});
+
+describe("tab keys", () => {
+  it("reads Alt and a digit from the key's place, as macOS's Option changes the character", () => {
+    document.body.innerHTML = '<div id="x"></div><input id="i" />';
+    const x = document.getElementById("x") as Element;
+    expect(isTabKey(press("¡", x, { code: "Digit1", altKey: true }))).toEqual({
+      type: "select",
+      n: 1,
+    });
+    expect(isTabKey(press("9", x, { code: "Digit9", altKey: true }))).toEqual({
+      type: "select",
+      n: 9,
+    });
+    expect(isTabKey(press("∑", x, { code: "KeyW", altKey: true }))).toEqual({ type: "close" });
+    expect(isTabKey(press("0", x, { code: "Digit0", altKey: true }))).toBeNull();
+    expect(isTabKey(press("1", x, { code: "Digit1" }))).toBeNull();
+  });
+
+  it("leaves Alt and a digit alone with Ctrl, Cmd or Shift, and in a field", () => {
+    document.body.innerHTML = '<div id="x"></div><input id="i" />';
+    const x = document.getElementById("x") as Element;
+    const i = document.getElementById("i") as Element;
+    const alt = { code: "Digit2", altKey: true };
+    expect(isTabKey(press("2", x, { ...alt, ctrlKey: true }))).toBeNull();
+    expect(isTabKey(press("2", x, { ...alt, metaKey: true }))).toBeNull();
+    expect(isTabKey(press("@", x, { ...alt, shiftKey: true }))).toBeNull();
+    expect(isTabKey(press("2", i, alt))).toBeNull();
+  });
+
+  it("takes Alt and a left click as a new tab, and leaves Ctrl, Cmd and the middle button to the browser", () => {
+    const click = { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, button: 0 };
+    expect(isNewTabClick({ ...click, altKey: true })).toBe(true);
+    expect(isNewTabClick(click)).toBe(false);
+    expect(isNewTabClick({ ...click, altKey: true, ctrlKey: true })).toBe(false);
+    expect(isNewTabClick({ ...click, altKey: true, metaKey: true })).toBe(false);
+    expect(isNewTabClick({ ...click, altKey: true, shiftKey: true })).toBe(false);
+    expect(isNewTabClick({ ...click, altKey: true, button: 1 })).toBe(false);
+  });
+
+  it("opens in a new tab with Ctrl Enter, or Cmd Enter on Apple platforms", () => {
+    const key = { key: "Enter", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false };
+    expect(isNewTabEnter({ ...key, ctrlKey: true }, false)).toBe(true);
+    expect(isNewTabEnter({ ...key, metaKey: true }, false)).toBe(false);
+    expect(isNewTabEnter({ ...key, metaKey: true }, true)).toBe(true);
+    expect(isNewTabEnter({ ...key, ctrlKey: true }, true)).toBe(false);
+    expect(isNewTabEnter(key, false)).toBe(false);
+    expect(isNewTabEnter({ ...key, ctrlKey: true, shiftKey: true }, false)).toBe(false);
+    expect(newTabEnterLabel("MacIntel")).toBe("⌘Enter");
+    expect(newTabEnterLabel("Linux x86_64")).toBe("Ctrl+Enter");
   });
 });
 

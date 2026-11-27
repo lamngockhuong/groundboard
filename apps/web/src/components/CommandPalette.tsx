@@ -3,6 +3,7 @@ import type { AtlasIndex } from "../api.ts";
 import { groupSingular, statusLabel } from "../atlas-nav.ts";
 import { t, tn } from "../i18n.ts";
 import { type PaletteItem, searchPalette } from "../palette.ts";
+import { isNewTabEnter, newTabEnterLabel } from "../shortcuts.ts";
 import type { BoardNode } from "../sources.ts";
 import { Icon } from "./Icon.tsx";
 import { Modal } from "./Modal.tsx";
@@ -10,8 +11,11 @@ import { Modal } from "./Modal.tsx";
 interface CommandPaletteProps {
   atlas: AtlasIndex | null;
   nodes: readonly BoardNode[];
-  onPick: (item: PaletteItem) => void;
+  /** `newTab`: Ctrl Enter (⌘ Enter) asked for a new tab of the viewer. */
+  onPick: (item: PaletteItem, newTab: boolean) => void;
   onClose: () => void;
+  /** Whether Ctrl Enter opens a board or ref in a new tab; false where there are no tabs. */
+  tabs?: boolean;
 }
 
 function ItemText({ item }: { item: PaletteItem }) {
@@ -65,7 +69,13 @@ const itemKey = (item: PaletteItem) =>
  * Jump to a board, a node of the board on screen, or a ref. A modal dialog whose input is a
  * combobox over one listbox of results; arrows move, Enter opens, Esc closes.
  */
-export function CommandPalette({ atlas, nodes, onPick, onClose }: CommandPaletteProps) {
+export function CommandPalette({
+  atlas,
+  nodes,
+  onPick,
+  onClose,
+  tabs = false,
+}: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const baseId = useId();
@@ -78,10 +88,10 @@ export function CommandPalette({ atlas, nodes, onPick, onClose }: CommandPalette
     document.getElementById(optionId(current))?.scrollIntoView({ block: "nearest" });
   });
 
-  const choose = (item: PaletteItem | undefined) => {
+  const choose = (item: PaletteItem | undefined, newTab = false) => {
     if (!item) return;
     onClose();
-    onPick(item);
+    onPick(item, newTab);
   };
 
   const onKey = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -102,7 +112,7 @@ export function CommandPalette({ atlas, nodes, onPick, onClose }: CommandPalette
         return;
       case "Enter":
         event.preventDefault();
-        return choose(flat[current]);
+        return choose(flat[current], tabs && isNewTabEnter(event));
     }
   };
 
@@ -175,6 +185,9 @@ export function CommandPalette({ atlas, nodes, onPick, onClose }: CommandPalette
         <p className="palette-empty" role="status">
           {flat.length > 0 ? "" : query.trim() === "" ? t("palette.nothing") : t("palette.noMatch")}
         </p>
+        {tabs && atlas ? (
+          <p className="palette-hint">{t("palette.newTab", { key: newTabEnterLabel() })}</p>
+        ) : null}
       </div>
     </Modal>
   );

@@ -7,7 +7,7 @@ import path from "node:path";
 import { serve } from "@hono/node-server";
 import { strToU8, zipSync } from "fflate";
 import { type Browser, chromium, type Page } from "playwright";
-import { afterAll, beforeAll, describe, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { renderBoard } from "../src/pipeline.ts";
 import { type AppOptions, createApp } from "../src/server/app.ts";
 
@@ -90,6 +90,10 @@ async function followChain(page: Page, origin: string): Promise<void> {
     await page.mouse.dblclick(box.x, box.y);
     await page.waitForURL(new RegExp(`#/board/${hop.to}`), { timeout: 15_000 });
     await waitForBoard(page);
+    // The link opened its board in a new tab of the viewer, beside the one it started from.
+    expect(await page.locator('[role="tab"][aria-selected="true"]').count()).toBe(1);
+    expect(await page.locator(".tab.active.preview").count()).toBe(0);
+    expect(await page.locator('[role="tab"]').count()).toBeGreaterThan(1);
     // The target is selected: the Sources panel names its node.
     await page
       .locator(".node-sources .node-id")

@@ -55,6 +55,7 @@ import {
   saveValue,
 } from "../prefs.ts";
 import { hasReferences, missingReferencesNote, withReferencesShown } from "../references.ts";
+import { isNewTabClick } from "../shortcuts.ts";
 import {
   type BoardNode,
   boardNodes,
@@ -143,9 +144,12 @@ export interface CanvasReader {
   /** Null while presenting or before the scene is on the canvas: nothing worth going back to. */
   view: () => ViewState | null;
   selectedCount: () => number;
+  /** Changes made on the canvas outside edit mode, which leaving the board throws away. */
+  unsaved: () => boolean;
 }
 
 export interface BoardStep {
+  slug: string;
   title: string;
   href: string;
 }
@@ -172,6 +176,8 @@ export interface BoardContext {
   allTags: string[];
   /** Saves new tags into the board file; resolves to an error message, or null. Absent when the server cannot write. */
   onSaveTags?: (tags: string[]) => Promise<string | null>;
+  /** Opens a board in a new tab of the viewer: Alt and a click on a step. */
+  onOpenInTab?: (slug: string) => void;
 }
 
 interface EditorProps {
@@ -243,10 +249,12 @@ function StepLink({
   step,
   dir,
   group,
+  onOpenInTab,
 }: {
   step: BoardStep | null;
   dir: "prev" | "next";
   group: string;
+  onOpenInTab?: ((slug: string) => void) | undefined;
 }) {
   const key = dir === "prev" ? "[" : "]";
   if (!step) {
@@ -269,6 +277,13 @@ function StepLink({
         title: step.title,
       })}
       title={t(dir === "prev" ? "editor.prevStep" : "editor.nextStep", { title: step.title, key })}
+      onClick={(event) => {
+        // Alt and a click opens a tab of the viewer; Ctrl, Cmd and the middle button are the
+        // browser's (Alt and a click on a link would download it in Chrome).
+        if (!onOpenInTab || !isNewTabClick(event)) return;
+        event.preventDefault();
+        onOpenInTab(step.slug);
+      }}
     >
       <Icon name={dir} size={18} />
     </a>
@@ -499,8 +514,8 @@ export default function Editor({
   }, [api, sceneReady, font, originals, onError]);
 
   // The viewer reads the canvas before it leaves the board, to come back to the same view.
-  const readerState = useRef({ api, sceneReady, presenting });
-  readerState.current = { api, sceneReady, presenting };
+  const readerState = useRef({ api, sceneReady, presenting, unsaved: canvasChanges.unsaved });
+  readerState.current = { api, sceneReady, presenting, unsaved: canvasChanges.unsaved };
   const registerCanvasRef = useRef(registerCanvas);
   registerCanvasRef.current = registerCanvas;
   useEffect(() => {
@@ -521,6 +536,7 @@ export default function Editor({
         const { api } = readerState.current;
         return api ? selectedIds(api.getAppState().selectedElementIds).length : 0;
       },
+      unsaved: () => readerState.current.unsaved,
     });
     return () => register?.(null);
   }, []);
@@ -955,10 +971,23 @@ export default function Editor({
               </button>
             </nav>
           ) : null}
+          {/* Back and Forward move through places, the steps through the group's boards: the
+              two pairs look alike, so a line keeps them apart. */}
+          {history && context ? <span className="toolbar-divider" aria-hidden="true" /> : null}
           {context ? (
             <nav className="board-steps" aria-label={t("editor.boardsInGroup")}>
-              <StepLink step={context.prev} dir="prev" group={context.group} />
-              <StepLink step={context.next} dir="next" group={context.group} />
+              <StepLink
+                step={context.prev}
+                dir="prev"
+                group={context.group}
+                onOpenInTab={context.onOpenInTab}
+              />
+              <StepLink
+                step={context.next}
+                dir="next"
+                group={context.group}
+                onOpenInTab={context.onOpenInTab}
+              />
             </nav>
           ) : null}
           <h2 className="board-title" title={title}>

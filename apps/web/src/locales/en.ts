@@ -182,6 +182,21 @@ export const en = {
   "editor.backHint": "Back to where you were ({key})",
   "editor.forward": "Forward",
   "editor.forwardHint": "Forward again ({key})",
+  "tabs.label": "Open boards",
+  "tabs.preview": "preview",
+  "tabs.previewHint":
+    "Preview: the next board you open replaces it. Double-click it, or press Enter on it, to keep it open.",
+  "tabs.close": "Close {title}",
+  "tabs.closeHint": "Close tab ({key})",
+  "tabs.problem": "cannot be shown",
+  "tabs.full":
+    "All {count} tabs are pinned, so the board opened in this tab. Close a tab to open another.",
+  "tabs.replacePastedConfirm":
+    "The pasted board cannot be opened again once it is replaced or closed. Go on?",
+  "tabs.openInTab": "Open {title} in a new tab",
+  "tabs.openInTabHint": "Open in a new tab (Alt+click)",
+  "tabs.leaveCanvasConfirm": "This board has changes that are not saved. Leave it and lose them?",
+  "palette.newTab": "{key} opens in a new tab",
   "editor.boardsInGroup": "Boards in this group",
   "editor.hideDesign": "Hide the Figma reference images and their marks",
   "editor.showDesign": "Show the Figma reference images beside the wireframes",

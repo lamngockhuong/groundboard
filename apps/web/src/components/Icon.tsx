@@ -40,6 +40,7 @@ const PATHS = {
   tag: "M3.5 12.5V4h8.5l8.5 8.5-8 8zM8 8h.01",
   layers: "m12 3 9 5-9 5-9-5zM3 12.5l9 5 9-5M3 16.5l9 5 9-5",
   settings: "M4 7h9m4 0h3M4 17h3m4 0h9M15 5v4M9 15v4",
+  tabNew: "M3 20V8h6V5h7v3h5v12zM12 11v6M9 14h6",
   link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
 } as const;
 
