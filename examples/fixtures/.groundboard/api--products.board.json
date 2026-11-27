@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "title": "Products API",
+  "question": "Which endpoints does the products resource serve?",
+  "tags": ["API"],
+  "nodes": [
+    {
+      "id": "products",
+      "kind": "resource",
+      "label": "Products",
+      "ref": "api:products",
+      "pathPrefix": "/api"
+    },
+    {
+      "id": "list-products",
+      "kind": "endpoint",
+      "label": "List the products on sale",
+      "parentId": "products",
+      "method": "GET",
+      "path": "/api/products",
+      "ref": "api:products/get",
+      "sourceIds": ["route-get"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "list-reads",
+      "from": "list-products",
+      "toRef": "db:products",
+      "kind": "reads",
+      "label": "archived_at IS NULL",
+      "sourceIds": ["find-products"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "route-get",
+      "path": "server/catalog-routes.ts",
+      "line": 7,
+      "quote": "router.get(\"/products\", async (_req, res) => {"
+    },
+    {
+      "id": "find-products",
+      "path": "server/catalog-routes.ts",
+      "line": 8,
+      "quote": "const products = await db.findMany(\"products\", { archived_at: null });"
+    }
+  ]
+}

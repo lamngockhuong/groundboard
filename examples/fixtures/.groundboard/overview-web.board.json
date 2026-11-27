@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "title": "Shop web screens",
   "question": "Which screens does the web app have and how do they connect?",
+  "tags": ["Web"],
   "nodes": [
     {
       "id": "home",
@@ -38,6 +39,16 @@
       "platform": "web",
       "layoutFrom": "code",
       "sourceIds": ["route-checkout"]
+    },
+    {
+      "id": "account",
+      "kind": "screen",
+      "label": "Account",
+      "ref": "web:account",
+      "platform": "web",
+      "layoutFrom": "doc",
+      "sourceIds": ["doc-account"],
+      "detail": "Not built yet: drawn from the requirements."
     }
   ],
   "edges": [
@@ -96,6 +107,14 @@
       "kind": "navigates",
       "label": "Back to cart",
       "sourceIds": ["nav-checkout-cart"]
+    },
+    {
+      "id": "home-account",
+      "from": "home",
+      "to": "account",
+      "kind": "navigates",
+      "label": "header link",
+      "sourceIds": ["doc-reach"]
     }
   ],
   "sources": [
@@ -164,6 +183,20 @@
       "path": "shop-web/src/screens/Checkout.tsx",
       "line": 46,
       "quote": "<Link to=\"/cart\">Back to cart</Link>"
+    },
+    {
+      "id": "doc-account",
+      "kind": "doc",
+      "path": "docs/requirements/account.md",
+      "line": 11,
+      "quote": "The page shows the email the customer signs in with."
+    },
+    {
+      "id": "doc-reach",
+      "kind": "doc",
+      "path": "docs/requirements/account.md",
+      "line": 7,
+      "quote": "The header of the product list links to the account page."
     }
   ]
 }

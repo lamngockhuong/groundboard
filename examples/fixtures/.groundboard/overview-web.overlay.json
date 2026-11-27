@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "nodes": { "account": { "dx": 60, "dy": 0 } },
+  "notes": [
+    {
+      "id": "account-note",
+      "type": "text",
+      "x": 0,
+      "y": 0,
+      "width": 260,
+      "height": 50,
+      "text": "Not built yet: the client\nwants it before launch",
+      "fontSize": 16,
+      "strokeColor": "#c2410c",
+      "anchor": { "nodeId": "account", "dx": 0, "dy": -60 }
+    }
+  ]
+}

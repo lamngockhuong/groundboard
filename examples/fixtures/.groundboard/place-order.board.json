@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "title": "Place order (web)",
   "question": "What happens when a customer presses Pay on the checkout screen?",
+  "tags": ["Flows", "Checkout"],
   "nodes": [
     {
       "id": "press",

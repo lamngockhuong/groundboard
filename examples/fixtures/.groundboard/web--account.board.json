@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "title": "Account screen (not built yet)",
+  "question": "What should the account screen show and do, according to the requirements?",
+  "tags": ["Web", "Spec"],
+  "nodes": [
+    {
+      "id": "account",
+      "kind": "screen",
+      "label": "Account",
+      "ref": "web:account",
+      "platform": "web",
+      "layoutFrom": "mockup",
+      "sourceIds": ["doc-shows", "mockup", "doc-delete", "wiki-deletion"],
+      "detail": "No code yet: every claim on this board comes from the requirements, the client's mockup or the wiki."
+    },
+    {
+      "id": "title",
+      "kind": "element",
+      "role": "text",
+      "label": "Account",
+      "parentId": "account",
+      "sourceIds": ["mockup"]
+    },
+    {
+      "id": "email",
+      "kind": "element",
+      "role": "text",
+      "label": "Sign-in email (read only)",
+      "parentId": "account",
+      "sourceIds": ["doc-shows"]
+    },
+    {
+      "id": "actions",
+      "kind": "element",
+      "role": "container",
+      "label": "Actions",
+      "parentId": "account",
+      "direction": "row",
+      "sourceIds": ["mockup"]
+    },
+    {
+      "id": "change-password",
+      "kind": "element",
+      "role": "button",
+      "label": "Change password",
+      "parentId": "actions",
+      "ref": "web:account/change-password",
+      "action": "Sends a reset link to the sign-in email",
+      "sourceIds": ["doc-password"]
+    },
+    {
+      "id": "delete",
+      "kind": "element",
+      "role": "button",
+      "label": "Delete account",
+      "parentId": "actions",
+      "ref": "web:account/delete-account",
+      "unresolved": "Product owner and finance: what happens to orders that are not delivered yet when the account is deleted?"
+    },
+    {
+      "id": "export",
+      "kind": "element",
+      "role": "link",
+      "label": "Export my orders (CSV)",
+      "parentId": "account",
+      "ref": "web:account/export-orders",
+      "action": "Downloads the customer's orders as a CSV file",
+      "manual": true,
+      "detail": "Added in the viewer during a review with the client; no requirement covers it yet."
+    }
+  ],
+  "edges": [],
+  "sources": [
+    {
+      "id": "doc-shows",
+      "kind": "doc",
+      "path": "docs/requirements/account.md",
+      "line": 11,
+      "quote": "The page shows the email the customer signs in with. The email cannot be changed here."
+    },
+    {
+      "id": "doc-password",
+      "kind": "doc",
+      "path": "docs/requirements/account.md",
+      "line": 15,
+      "quote": "\"Change password\" sends a reset link to that email; the password is never typed on this page."
+    },
+    {
+      "id": "doc-delete",
+      "kind": "doc",
+      "path": "docs/requirements/account.md",
+      "line": 17,
+      "endLine": 18,
+      "quote": "\"Delete account\" removes the account after the customer confirms. What happens to orders that are not delivered yet is still open"
+    },
+    {
+      "id": "wiki-deletion",
+      "kind": "link",
+      "url": "https://wiki.example.com/shop/account-deletion",
+      "title": "Account deletion (product wiki)",
+      "quote": "Open orders on a deleted account: to be decided with finance.",
+      "retrievedAt": "2026-11-20"
+    },
+    {
+      "id": "mockup",
+      "kind": "mockup",
+      "label": "Account page mockup from the client (kept in the shared drive)"
+    }
+  ]
+}

@@ -4,7 +4,16 @@
 // accepted by hand.
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { type Board, lintBoardText, parseBoard } from "@groundboard/schema";
+import {
+  type Board,
+  EDGE_KINDS,
+  ELEMENT_ROLES,
+  lintBoardText,
+  NODE_KINDS,
+  parseBoard,
+  parseOverlay,
+  TRIGGER_TYPES,
+} from "@groundboard/schema";
 import { describe, expect, test } from "vitest";
 import { buildAtlas } from "../src/atlas.ts";
 import { validateBoard } from "../src/pipeline.ts";
@@ -53,14 +62,23 @@ function treeOf(board: Board): Tree[] {
 describe("examples/fixtures/.groundboard", () => {
   test("holds the expected boards", () => {
     expect(names.sort()).toEqual([
+      "add-to-cart.board.json",
+      "api--cart.board.json",
       "api--orders.board.json",
+      "api--products.board.json",
+      "checkout-payment.board.json",
       "mobile--cart.board.json",
+      "mobile--order-detail.board.json",
+      "order-lifecycle.board.json",
       "overview-batch.board.json",
       "overview-db.board.json",
       "overview-mobile.board.json",
       "overview-web.board.json",
       "place-order.board.json",
+      "track-order.board.json",
+      "web--account.board.json",
       "web--checkout.board.json",
+      "web--products.board.json",
     ]);
   });
 
@@ -82,6 +100,40 @@ describe("examples/fixtures/.groundboard", () => {
     expect(atlas.boards.map((b) => b.status)).toEqual(names.map(() => "ok"));
   });
 
+  test("shows every kind of node, edge, source, element role and job trigger", () => {
+    const boards = names.map((name) => load(name.replace(/\.board\.json$/, "")));
+    const nodes = boards.flatMap((b) => b.nodes);
+    const used = (values: (string | undefined)[]) => [...new Set(values)].sort();
+    expect(used(nodes.map((n) => n.kind))).toEqual([...NODE_KINDS].sort());
+    expect(used(boards.flatMap((b) => b.edges.map((e) => e.kind)))).toEqual([...EDGE_KINDS].sort());
+    expect(used(boards.flatMap((b) => b.sources.map((s) => s.kind)))).toEqual(
+      ["code", "doc", "figma", "link", "mockup"].sort(),
+    );
+    expect(used(nodes.filter((n) => n.kind === "element").map((n) => n.role))).toEqual(
+      [...ELEMENT_ROLES].sort(),
+    );
+    expect(used(nodes.map((n) => n.trigger?.type).filter(Boolean))).toEqual(
+      [...TRIGGER_TYPES].sort(),
+    );
+  });
+
+  test("shows tags, screen states, unresolved and hand-edited claims, and a layout overlay", () => {
+    const boards = names.map((name) => load(name.replace(/\.board\.json$/, "")));
+    for (const [i, board] of boards.entries()) {
+      expect(board.tags?.length ?? 0, names[i]).toBeGreaterThan(0);
+    }
+    const nodes = boards.flatMap((b) => b.nodes);
+    expect(nodes.some((n) => n.stateOf)).toBe(true);
+    expect(nodes.some((n) => n.kind === "element" && n.unresolved)).toBe(true);
+    expect(nodes.some((n) => n.manual)).toBe(true);
+    const overlays = readdirSync(atlasDir).filter((n) => n.endsWith(".overlay.json"));
+    expect(overlays.length).toBeGreaterThan(0);
+    for (const name of overlays) {
+      const overlay = parseOverlay(JSON.parse(readFileSync(path.join(atlasDir, name), "utf8")));
+      expect(overlay.ok, name).toBe(true);
+    }
+  });
+
   test.each(Object.entries(expected.screens))(
     "%s defines exactly the expected screens",
     (slug, refs) => {
@@ -93,8 +145,9 @@ describe("examples/fixtures/.groundboard", () => {
       expect(defined).toEqual(refs);
       for (const edge of board.edges.filter((e) => e.kind === "navigates")) {
         const cited = edge.sourceIds.map((id) => board.sources.find((s) => s.id === id));
+        // A screen that is not built yet is reached as the requirements say, cited as a doc.
         expect(
-          cited.some((s) => s?.kind === "code" && s.quote),
+          cited.some((s) => (s?.kind === "code" || s?.kind === "doc") && s.quote),
           edge.id,
         ).toBe(true);
       }

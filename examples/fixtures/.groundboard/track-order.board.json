@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "title": "Track an order (mobile)",
+  "question": "What happens after a customer places an order on the phone, until they see its status?",
+  "tags": ["Flows", "Mobile", "Orders"],
+  "nodes": [
+    {
+      "id": "place",
+      "kind": "step",
+      "label": "Customer presses Place order",
+      "ref": "mobile:cart/place-order",
+      "sourceIds": ["submit"]
+    },
+    {
+      "id": "open",
+      "kind": "step",
+      "label": "Open the order detail with the new order id",
+      "ref": "mobile:order-detail",
+      "sourceIds": ["nav"]
+    },
+    {
+      "id": "fetch",
+      "kind": "step",
+      "label": "GET /api/orders/:id",
+      "ref": "api:orders/get-id",
+      "sourceIds": ["fetch", "route"]
+    },
+    {
+      "id": "read",
+      "kind": "step",
+      "label": "Read the order row",
+      "ref": "db:orders",
+      "sourceIds": ["find"]
+    },
+    {
+      "id": "ok",
+      "kind": "decision",
+      "label": "Did the request succeed?",
+      "sourceIds": ["not-ok"]
+    },
+    {
+      "id": "show",
+      "kind": "step",
+      "label": "Show the order number and status",
+      "ref": "mobile:order-detail/status",
+      "sourceIds": ["to-loaded"]
+    },
+    {
+      "id": "fail",
+      "kind": "step",
+      "label": "Show \"The order could not be loaded.\"",
+      "sourceIds": ["to-failed"]
+    },
+    {
+      "id": "retry",
+      "kind": "step",
+      "label": "Customer presses Try again",
+      "ref": "mobile:order-detail/try-again",
+      "sourceIds": ["try-again"]
+    }
+  ],
+  "edges": [
+    { "id": "e1", "from": "place", "to": "open" },
+    { "id": "e2", "from": "open", "to": "fetch" },
+    { "id": "e3", "from": "fetch", "to": "read" },
+    { "id": "e4", "from": "read", "to": "ok" },
+    { "id": "e5", "from": "ok", "to": "show", "label": "yes" },
+    { "id": "e6", "from": "ok", "to": "fail", "label": "no" },
+    { "id": "e7", "from": "fail", "to": "retry" },
+    { "id": "e8", "from": "retry", "to": "fetch", "label": "fetch again" }
+  ],
+  "sources": [
+    {
+      "id": "submit",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 12,
+      "quote": "const { orderId } = await submitOrder(lines);"
+    },
+    {
+      "id": "nav",
+      "path": "shop-mobile/src/screens/CartScreen.tsx",
+      "line": 13,
+      "quote": "navigation.navigate(\"OrderDetail\", { orderId });"
+    },
+    {
+      "id": "fetch",
+      "path": "shop-mobile/src/orders.ts",
+      "line": 9,
+      "quote": "const response = await fetch(`/api/orders/${orderId}`);"
+    },
+    {
+      "id": "route",
+      "path": "server/orders-routes.ts",
+      "line": 14,
+      "quote": "router.get(\"/orders/:id\", async (req, res) => {"
+    },
+    {
+      "id": "find",
+      "path": "server/orders-routes.ts",
+      "line": 15,
+      "quote": "const order = await db.findOne(\"orders\", { id: req.params.id });"
+    },
+    {
+      "id": "not-ok",
+      "path": "shop-mobile/src/orders.ts",
+      "line": 10,
+      "quote": "if (!response.ok) throw new Error(`order ${orderId} could not be loaded`);"
+    },
+    {
+      "id": "to-loaded",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 17,
+      "quote": "(order) => setLoad({ state: \"loaded\", order }),"
+    },
+    {
+      "id": "to-failed",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 18,
+      "quote": "() => setLoad({ state: \"failed\" }),"
+    },
+    {
+      "id": "try-again",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 29,
+      "quote": "<Button title=\"Try again\" onPress={reload} />"
+    }
+  ]
+}

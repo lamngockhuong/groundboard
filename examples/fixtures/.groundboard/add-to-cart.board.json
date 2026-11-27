@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "title": "Add to cart (web)",
+  "question": "What happens when a customer presses Add to cart on a product?",
+  "tags": ["Flows", "Checkout"],
+  "nodes": [
+    {
+      "id": "press",
+      "kind": "step",
+      "label": "Customer presses Add to cart",
+      "ref": "web:products/add-to-cart",
+      "sourceIds": ["on-add"]
+    },
+    {
+      "id": "post",
+      "kind": "step",
+      "label": "POST /api/cart/lines with the product id",
+      "ref": "api:cart/post-lines",
+      "sourceIds": ["post", "route"]
+    },
+    {
+      "id": "insert",
+      "kind": "step",
+      "label": "Insert a cart line (quantity defaults to 1)",
+      "ref": "db:cart-lines",
+      "sourceIds": ["insert"]
+    },
+    {
+      "id": "open-cart",
+      "kind": "step",
+      "label": "Open the cart",
+      "ref": "web:cart",
+      "sourceIds": ["nav"]
+    },
+    {
+      "id": "archived",
+      "kind": "question",
+      "label": "Can a product archived meanwhile still be added to the cart? (Backend)"
+    }
+  ],
+  "edges": [
+    { "id": "e1", "from": "press", "to": "post" },
+    { "id": "e2", "from": "post", "to": "insert" },
+    { "id": "e3", "from": "insert", "to": "open-cart" },
+    { "id": "e4", "from": "insert", "to": "archived", "kind": "relates" }
+  ],
+  "sources": [
+    {
+      "id": "on-add",
+      "path": "shop-web/src/screens/ProductDetail.tsx",
+      "line": 8,
+      "endLine": 9,
+      "quote": "const onAdd = async () => { await addToCart(id);"
+    },
+    {
+      "id": "post",
+      "path": "shop-web/src/api.ts",
+      "line": 22,
+      "quote": "fetch(\"/api/cart/lines\", { method: \"POST\", body: JSON.stringify({ productId }) })"
+    },
+    {
+      "id": "route",
+      "path": "server/catalog-routes.ts",
+      "line": 12,
+      "quote": "router.post(\"/cart/lines\", async (req, res) => {"
+    },
+    {
+      "id": "insert",
+      "path": "server/catalog-routes.ts",
+      "line": 13,
+      "quote": "const line = await db.insert(\"cart_lines\", {"
+    },
+    {
+      "id": "nav",
+      "path": "shop-web/src/screens/ProductDetail.tsx",
+      "line": 10,
+      "quote": "navigate(\"/cart\")"
+    }
+  ]
+}
