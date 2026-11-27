@@ -134,6 +134,11 @@ export const vi: Messages = {
   "grounding.none": "Chưa có căn cứ",
   "home.attention": "Cần xem lại",
   "home.allClear": "Mọi board đều khớp với mã nguồn.",
+  "home.missingFlows": "Thiếu flow",
+  "home.missingFlowsTitle_one": "{count} phần tử chưa có flow",
+  "home.missingFlowsTitle_other": "{count} phần tử chưa có flow",
+  "home.missingFlowsHint":
+    "Các phần tử gọi API hoặc đổi trạng thái mà chưa có flow nào trỏ tới. Mở một phần tử để sao chép lệnh gửi cho dev.",
   "home.notValid": "không hợp lệ",
   "home.notValidIssues_one": "không hợp lệ: {count} lỗi",
   "home.notValidIssues_other": "không hợp lệ: {count} lỗi",

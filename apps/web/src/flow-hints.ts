@@ -1,5 +1,6 @@
 import { missingFlowRefs } from "@groundboard/schema";
 import type { AtlasIndex } from "./api.ts";
+import { orderedBoards } from "./atlas-nav.ts";
 import { t } from "./i18n.ts";
 
 /**
@@ -19,6 +20,38 @@ export function missingFlowSet(atlas: AtlasIndex | null): ReadonlySet<string> {
   );
   const missing = missingFlowRefs(atlas.refs, (slug) => kinds.get(slug));
   return missing.length === 0 ? EMPTY : new Set(missing);
+}
+
+/** The elements with no flow yet on one screen board, in ref order. */
+export interface MissingFlowGroup {
+  slug: string;
+  title: string;
+  items: Array<{ ref: string; nodeId: string }>;
+}
+
+/**
+ * Where the elements with no flow yet are, grouped by the screen board that defines each one,
+ * the boards in sidebar order. Reads the same set as the source panel and the canvas marks.
+ */
+export function missingFlowPlaces(atlas: AtlasIndex | null): MissingFlowGroup[] {
+  const missing = missingFlowSet(atlas);
+  if (atlas === null || missing.size === 0) return [];
+  const screens = new Set(
+    atlas.boards.filter((b) => b.kind === "screen" && b.status !== "invalid").map((b) => b.slug),
+  );
+  const bySlug = new Map<string, MissingFlowGroup["items"]>();
+  for (const entry of atlas.refs) {
+    if (!missing.has(entry.ref)) continue;
+    const place = entry.definedIn.find((p) => screens.has(p.slug));
+    if (place === undefined) continue;
+    const items = bySlug.get(place.slug) ?? [];
+    items.push({ ref: entry.ref, nodeId: place.nodeId });
+    bySlug.set(place.slug, items);
+  }
+  return orderedBoards(atlas).flatMap((board) => {
+    const items = bySlug.get(board.slug);
+    return items ? [{ slug: board.slug, title: board.title, items }] : [];
+  });
 }
 
 /** Longest label a prompt quotes; a longer one is cut with an ellipsis. */

@@ -140,6 +140,11 @@ export const en = {
   "grounding.none": "Unresolved",
   "home.attention": "Needs attention",
   "home.allClear": "Every board matches the code.",
+  "home.missingFlows": "Missing flows",
+  "home.missingFlowsTitle_one": "{count} element with no flow",
+  "home.missingFlowsTitle_other": "{count} elements with no flow",
+  "home.missingFlowsHint":
+    "Elements that call an API or change state, but no flow points at them yet. Open one to copy a request for a developer.",
   "home.notValid": "not valid",
   "home.notValidIssues_one": "not valid: {count} issue",
   "home.notValidIssues_other": "not valid: {count} issues",

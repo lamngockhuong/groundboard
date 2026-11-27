@@ -133,6 +133,11 @@ export const ja: Messages = {
   "grounding.none": "未解決",
   "home.attention": "要確認",
   "home.allClear": "すべてのボードがコードと一致しています。",
+  "home.missingFlows": "フロー未作成",
+  "home.missingFlowsTitle_one": "フローのない要素 {count} 件",
+  "home.missingFlowsTitle_other": "フローのない要素 {count} 件",
+  "home.missingFlowsHint":
+    "API を呼ぶか状態を変えるのに、まだどのフローからも指されていない要素です。開くと開発者への依頼をコピーできます。",
   "home.notValid": "無効",
   "home.notValidIssues_one": "無効: 問題 {count} 件",
   "home.notValidIssues_other": "無効: 問題 {count} 件",

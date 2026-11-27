@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { AtlasBoard, AtlasIndex } from "../src/api.ts";
-import { flowHintBoxes, flowPrompt, missingFlowSet } from "../src/flow-hints.ts";
+import { flowHintBoxes, flowPrompt, missingFlowPlaces, missingFlowSet } from "../src/flow-hints.ts";
 import { setLocale } from "../src/i18n.ts";
 
 afterEach(() => setLocale("en"));
@@ -138,5 +138,52 @@ describe("flowHintBoxes", () => {
     ];
     expect(flowHintBoxes(elements, missing)).toHaveLength(1);
     expect(flowHintBoxes(elements, new Set())).toEqual([]);
+  });
+});
+
+describe("missingFlowPlaces", () => {
+  const ref = (
+    name: string,
+    slug: string,
+    nodeId: string,
+    usedIn: AtlasIndex["refs"][number]["usedIn"] = [],
+  ) => ({ ref: name, definedIn: [{ slug, nodeId }], usedIn, needsFlow: true as const });
+
+  const index = {
+    boards: [
+      board("web--upload", "screen"),
+      board("overview-web", "overview"),
+      board("place-order", "flow"),
+      board("web--cart", "screen"),
+      board("api--orders", "api"),
+    ],
+    refs: [
+      ref("web:cart/pay", "web--cart", "pay"),
+      ref("web:cart/save", "web--cart", "save", [{ slug: "place-order", nodeId: "s" }]),
+      ref("web:upload/import", "web--upload", "import"),
+      ref("web:upload/pick", "web--upload", "pick"),
+      // Defined only on a board that is not a screen: no place to open.
+      ref("web:odd/thing", "api--orders", "thing"),
+    ],
+    problems: [],
+  } as unknown as AtlasIndex;
+
+  it("groups the elements with no flow by screen board, in sidebar order", () => {
+    expect(missingFlowPlaces(index)).toEqual([
+      {
+        slug: "web--upload",
+        title: "web--upload",
+        items: [
+          { ref: "web:upload/import", nodeId: "import" },
+          { ref: "web:upload/pick", nodeId: "pick" },
+        ],
+      },
+      { slug: "web--cart", title: "web--cart", items: [{ ref: "web:cart/pay", nodeId: "pay" }] },
+    ]);
+  });
+
+  it("is empty when nothing is missing or there is no atlas", () => {
+    expect(missingFlowPlaces(null)).toEqual([]);
+    expect(missingFlowPlaces({ ...index, refs: [index.refs[1]] } as AtlasIndex)).toEqual([]);
   });
 });

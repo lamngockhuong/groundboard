@@ -3140,6 +3140,64 @@ dialog::backdrop {
   font-weight: 600;
 }
 
+.stat-button {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stat-button:hover {
+  border-color: var(--warn-line);
+}
+
+.missing-flows > summary {
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  list-style: none;
+}
+
+.missing-flows > summary::-webkit-details-marker {
+  display: none;
+}
+
+.missing-flows > summary h3 {
+  margin: 0;
+}
+
+.missing-flows:not([open]) > summary {
+  border-bottom: 0;
+}
+
+.missing-flows-hint {
+  margin: 0;
+  padding: 0.7rem 1.25rem 0;
+  font-size: 0.9rem;
+}
+
+.missing-flows-group {
+  padding: 0.7rem 1.25rem;
+}
+
+.missing-flows-group + .missing-flows-group {
+  border-top: 1px solid var(--line);
+}
+
+.missing-flows-group h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.missing-flows-group ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .attention-clear {
   display: flex;
   align-items: center;
