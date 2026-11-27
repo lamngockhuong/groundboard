@@ -55,6 +55,7 @@
     "@groundboard/schema": "workspace:*",
     "@groundboard/web": "workspace:*",
     "@modelcontextprotocol/client": "~2.4.0",
+    "groundboard-png": "workspace:*",
     "playwright": "1.65.1",
     "tsdown": "catalog:"
   }
