@@ -1,4 +1,5 @@
-import type { Board, BoardNode, NodeKind } from "./board.ts";
+import type { Board, BoardEdge, BoardNode, NodeKind } from "./board.ts";
+import { FLOW_EDGE_KINDS } from "./edges.ts";
 import { parseRef, type RefNamespace, rootRefOf } from "./ref.ts";
 import { columnRefs } from "./table.ts";
 
@@ -60,6 +61,28 @@ export interface RefPlace {
   edgeId?: string;
   /** The kind of the node that defines the ref, for a definition. */
   kind?: NodeKind;
+  /** On an element's definition: the element calls an API or changes state, so a flow should cover it. */
+  needsFlow?: true;
+}
+
+/** The ids of the nodes an edge that calls an API or changes state starts from. */
+function flowSourceIds(board: Pick<Board, "edges">): Set<string> {
+  const ids = new Set<string>();
+  for (const edge of board.edges) {
+    if ((FLOW_EDGE_KINDS as readonly BoardEdge["kind"][]).includes(edge.kind)) ids.add(edge.from);
+  }
+  return ids;
+}
+
+/**
+ * The elements that call an API or change state but carry no ref, so no flow can point at them.
+ * Their ids, in board order.
+ */
+export function unlinkedFlowElements(board: Pick<Board, "nodes" | "edges">): string[] {
+  const sources = flowSourceIds(board);
+  return board.nodes
+    .filter((n) => n.kind === "element" && n.ref === undefined && sources.has(n.id))
+    .map((n) => n.id);
 }
 
 /** The refs a board defines and the refs it points at, each with the node or edge it is on. */
@@ -69,10 +92,15 @@ export function refsOf(board: Pick<Board, "nodes" | "edges">): {
 } {
   const defined: RefPlace[] = [];
   const used: RefPlace[] = [];
+  // An element needs a flow when it starts a `calls` or `transition` edge on its own board.
+  const sources = flowSourceIds(board);
   for (const node of board.nodes) {
     if (node.ref !== undefined) {
-      if (definesRef(node)) defined.push({ ref: node.ref, nodeId: node.id, kind: node.kind });
-      else used.push({ ref: node.ref, nodeId: node.id });
+      if (definesRef(node)) {
+        const place: RefPlace = { ref: node.ref, nodeId: node.id, kind: node.kind };
+        if (node.kind === "element" && sources.has(node.id)) place.needsFlow = true;
+        defined.push(place);
+      } else used.push({ ref: node.ref, nodeId: node.id });
     }
     const parsed = node.ref === undefined ? null : parseRef(node.ref);
     const derive = parsed ? REF_DEFINERS[parsed.namespace].deriveChildren : undefined;
@@ -110,7 +138,32 @@ export const refRoot = (ref: string): string => rootRefOf(ref) ?? ref;
 export interface RefUse {
   ref: string;
   definedIn: ReadonlyArray<{ slug: string; nodeId: string; kind?: NodeKind }>;
-  usedIn: ReadonlyArray<{ slug: string; nodeId: string }>;
+  usedIn: ReadonlyArray<{ slug: string; nodeId: string; edgeId?: string }>;
+  /** An element that calls an API or changes state, so a flow should cover it. */
+  needsFlow?: boolean;
+}
+
+/**
+ * Whether a flow covers a ref: some node that is not on a screen board carries it. A node, not
+ * an edge's `toRef`, and on a board of known kind (an invalid board counts for nothing).
+ */
+export function hasFlow(
+  entry: Pick<RefUse, "usedIn">,
+  boardKind: (slug: string) => AtlasBoardKind | undefined,
+): boolean {
+  return entry.usedIn.some((u) => {
+    if (u.edgeId !== undefined) return false;
+    const kind = boardKind(u.slug);
+    return kind !== undefined && kind !== "screen";
+  });
+}
+
+/** The refs that need a flow and have none, in the order given. */
+export function missingFlowRefs(
+  refs: readonly RefUse[],
+  boardKind: (slug: string) => AtlasBoardKind | undefined,
+): string[] {
+  return refs.filter((r) => r.needsFlow === true && !hasFlow(r, boardKind)).map((r) => r.ref);
 }
 
 const KIND_NAMES: Partial<Record<NodeKind, string>> = {
