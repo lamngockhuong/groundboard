@@ -33,10 +33,11 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      # No dependency cache: this builds whatever ref it is given, and a cache it saved could be
+      # restored by workflows on the default branch.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-          cache: pnpm
       - run: pnpm install --frozen-lockfile
       # The viewer with the samples; the workspace packages it imports are read from source.
       - run: pnpm -C apps/web build:hosted
