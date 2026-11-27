@@ -133,3 +133,14 @@ jobs:
           git push origin "$branch"
           gh pr create --title "chore(plugin): pin groundboard@$VERSION" \
             --body "npm now has groundboard@$VERSION; this points the Claude Code plugin at it."
+
+  # 4. The project site and the hosted editor, from the released tag.
+  deploy-pages:
+    needs: [release-please, publish-npm]
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml
+    with:
+      ref: ${{ needs.release-please.outputs.tag_name }}
