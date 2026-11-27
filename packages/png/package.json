@@ -37,7 +37,7 @@
   "devDependencies": {
     "@excalidraw/excalidraw": "0.18.1",
     "@types/node": "catalog:",
-    "fontkit": "2.0.4",
+    "fontkit": "3.0.0",
     "linkedom": "0.18.12",
     "react": "19.3.1",
     "react-dom": "19.3.1",
