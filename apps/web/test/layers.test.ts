@@ -115,6 +115,17 @@ describe("layerOf", () => {
   });
 });
 
+describe("flow-hint layer", () => {
+  it("is never an element's layer, so hiding it leaves the scene as it is", () => {
+    expect(scene.map(layerOf)).not.toContain("flowHints");
+    expect(presentLayers(scene)).not.toContain("flowHints");
+    const hidden = withLayersHidden(scene, new Set(["flowHints"] as const));
+    hidden.forEach((element, i) => {
+      expect(element).toBe(scene[i]);
+    });
+  });
+});
+
 describe("withLayersHidden", () => {
   it("hides the elements of hidden layers and brings them back, bumping only what changed", () => {
     const hidden = withLayersHidden(scene, new Set(["arrows"] as const));

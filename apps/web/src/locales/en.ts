@@ -260,6 +260,8 @@ export const en = {
   "layer.marks.hint": "action dots, ? and spec tags",
   "layer.notes": "Legend & notes",
   "layer.notes.hint": "legend and the notes under the title",
+  "layer.flowHints": "Flow hints",
+  "layer.flowHints.hint": "elements that call an API or change state with no flow yet",
 
   // Tags
   "tags.tooLong": "A tag is at most {max} characters.",

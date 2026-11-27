@@ -5,7 +5,14 @@ import { isReferenceElement } from "./references.ts";
  * `layer.<id>` in the messages. Reference images have their own Design button and are never
  * in a layer here.
  */
-export const LAYERS = [{ id: "arrows" }, { id: "refs" }, { id: "marks" }, { id: "notes" }] as const;
+export const LAYERS = [
+  { id: "arrows" },
+  { id: "refs" },
+  { id: "marks" },
+  { id: "notes" },
+  // Marks drawn over the canvas, not scene elements: `layerOf` never returns it.
+  { id: "flowHints" },
+] as const;
 
 export type LayerId = (typeof LAYERS)[number]["id"];
 

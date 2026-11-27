@@ -1390,6 +1390,24 @@ body.resizing .split-handle {
   pointer-events: none;
 }
 
+/* Marks over the canvas on elements with no flow yet; never part of the scene. */
+.flow-hint-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.flow-hint-mark {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--warn);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--warn-line);
+}
+
 .motion-flow,
 .motion-draw {
   fill: none;

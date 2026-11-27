@@ -23,6 +23,7 @@ import { originLabel } from "../atlas-nav.ts";
 import type { EditResult, RawBoard } from "../board-edit.ts";
 import { downloadBlob } from "../download.ts";
 import { EditHistory } from "../edit-history.ts";
+import { flowHintBoxes } from "../flow-hints.ts";
 import {
   familyFor,
   originalFamilies,
@@ -59,6 +60,7 @@ import { usePresentation } from "../use-presentation.ts";
 import { DEFAULT_PREFS, keepLayers, type PrefChange, type ViewPrefs } from "../view-prefs.ts";
 import { EditPanel, type EditPanelHandle } from "./EditPanel.tsx";
 import { ExportMenu } from "./ExportMenu.tsx";
+import { FlowHintOverlay } from "./FlowHintOverlay.tsx";
 import { type BoardHistory, HistoryNav } from "./HistoryNav.tsx";
 import { Icon } from "./Icon.tsx";
 import { LayersMenu } from "./LayersMenu.tsx";
@@ -188,6 +190,8 @@ interface EditorProps {
   locale: Locale;
   /** Every arrow in view runs, not only the arrows of the selected node. */
   motionAll?: boolean;
+  /** Refs of elements that call an API or change state with no flow yet; marked on the canvas. */
+  missingFlows?: ReadonlySet<string>;
   fileName: string;
   /**
    * Put the canvas back where a view left it, else select this board node and scroll to it;
@@ -318,6 +322,8 @@ const selectionKey = (ids: Readonly<Record<string, boolean>>) =>
     .sort()
     .join(",");
 
+const NO_MISSING_FLOWS: ReadonlySet<string> = new Set();
+
 export default function Editor({
   scene,
   title,
@@ -330,6 +336,7 @@ export default function Editor({
   theme,
   locale,
   motionAll = false,
+  missingFlows = NO_MISSING_FLOWS,
   fileName,
   focus = null,
   history,
@@ -382,7 +389,13 @@ export default function Editor({
   const shownAtLoad = useRef(designShown);
   const hasDesign = useMemo(() => hasReferences(scene.elements), [scene]);
   const missingDesign = missingReferencesNote(context?.references);
-  const layers = useMemo(() => presentLayers(scene.elements), [scene]);
+  const layers = useMemo(() => {
+    const present = presentLayers(scene.elements);
+    // The flow-hint marks are drawn over the canvas, so the scene alone does not show them.
+    return flowHintBoxes(scene.elements, missingFlows).length > 0
+      ? [...present, "flowHints" as const]
+      : present;
+  }, [scene, missingFlows]);
   // Layers the reader hid in this tab, of those this board has.
   const [hiddenLayers, setHiddenLayers] = useState<ReadonlySet<LayerId>>(
     () => new Set(keepLayers(shownPrefs, layers).hiddenLayers),
@@ -1225,6 +1238,11 @@ export default function Editor({
           selection={selected}
           arrowsHidden={hiddenLayers.has("arrows")}
           drawing={presentation.drawing}
+        />
+        <FlowHintOverlay
+          api={api}
+          missing={missingFlows}
+          hidden={presenting || hiddenLayers.has("flowHints")}
         />
         {presentation.view ? (
           <PresentControls

@@ -1076,6 +1076,7 @@ export function App() {
           theme={theme}
           locale={locale}
           motionAll={motionAll}
+          missingFlows={missingFlows}
           fileName={board.fileName}
           focus={board.slug !== null ? focusOf(id) : (localFocus[id] ?? focusOf(id))}
           {...(atlas && !tabBarShown ? { history: boardHistory } : {})}

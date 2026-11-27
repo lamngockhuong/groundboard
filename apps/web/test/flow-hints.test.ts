@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { AtlasBoard, AtlasIndex } from "../src/api.ts";
-import { flowPrompt, missingFlowSet } from "../src/flow-hints.ts";
+import { flowHintBoxes, flowPrompt, missingFlowSet } from "../src/flow-hints.ts";
 import { setLocale } from "../src/i18n.ts";
 
 afterEach(() => setLocale("en"));
@@ -79,5 +79,64 @@ describe("flowPrompt", () => {
     expect(flowPrompt(args)).toBe(
       "/groundboard:board Upload で Import を押したときのフローを描いて (`web:users-upload/import`)",
     );
+  });
+});
+
+describe("flowHintBoxes", () => {
+  const data = (nodeId: string, ref?: string, kind = "element") => ({
+    groundboard: { nodeId, kind, ...(ref ? { ref } : {}) },
+  });
+  const missing = new Set(["web:s/pay", "web:s/old"]);
+
+  it("gives one box per element with no flow, from the node's own element", () => {
+    const elements = [
+      {
+        id: "node/pay/action",
+        x: 90,
+        y: 0,
+        width: 8,
+        height: 8,
+        customData: data("pay", "web:s/pay"),
+      },
+      { id: "node/pay", x: 10, y: 20, width: 80, height: 30, customData: data("pay", "web:s/pay") },
+      {
+        id: "label/pay",
+        x: 12,
+        y: 22,
+        width: 40,
+        height: 10,
+        customData: data("pay", "web:s/pay"),
+      },
+      { id: "node/ok", x: 0, y: 0, width: 10, height: 10, customData: data("ok", "web:s/ok") },
+      {
+        id: "node/old",
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        isDeleted: true,
+        customData: data("old", "web:s/old"),
+      },
+      {
+        id: "node/scr",
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        customData: data("scr", "web:s/pay", "screen"),
+      },
+      { id: "plain", x: 0, y: 0 },
+    ];
+    expect(flowHintBoxes(elements, missing)).toEqual([
+      { nodeId: "pay", ref: "web:s/pay", x: 10, y: 20, width: 80, height: 30 },
+    ]);
+  });
+
+  it("reads the `node-<id>` ids of older scenes, and nothing with an empty set", () => {
+    const elements = [
+      { id: "node-pay", x: 1, y: 2, width: 3, height: 4, customData: data("pay", "web:s/pay") },
+    ];
+    expect(flowHintBoxes(elements, missing)).toHaveLength(1);
+    expect(flowHintBoxes(elements, new Set())).toEqual([]);
   });
 });

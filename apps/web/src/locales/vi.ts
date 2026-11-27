@@ -251,6 +251,8 @@ export const vi: Messages = {
   "layer.marks.hint": "chấm hành động, dấu ? và tag đặc tả",
   "layer.notes": "Chú giải & ghi chú",
   "layer.notes.hint": "chú giải và các ghi chú dưới tiêu đề",
+  "layer.flowHints": "Gợi ý flow",
+  "layer.flowHints.hint": "nút gọi API hoặc đổi trạng thái mà chưa có flow",
 
   "tags.tooLong": "Mỗi tag dài tối đa {max} ký tự.",
   "tags.tooMany": "Mỗi board có tối đa {max} tag.",

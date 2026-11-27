@@ -251,6 +251,8 @@ export const ja: Messages = {
   "layer.marks.hint": "アクションの点、? と仕様タグ",
   "layer.notes": "凡例とメモ",
   "layer.notes.hint": "凡例とタイトル下のメモ",
+  "layer.flowHints": "フローのヒント",
+  "layer.flowHints.hint": "API を呼ぶか状態を変えるのにフローがまだない要素",
 
   "tags.tooLong": "タグは {max} 文字以内です。",
   "tags.tooMany": "1 つのボードに付けられるタグは {max} 個までです。",

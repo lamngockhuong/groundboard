@@ -58,3 +58,61 @@ export async function copyText(text: string): Promise<boolean> {
     return false;
   }
 }
+
+/** Where a mark goes: the box of an element that has no flow yet, in scene coordinates. */
+export interface FlowHintBox {
+  nodeId: string;
+  ref: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface SceneElementLike {
+  id?: unknown;
+  isDeleted?: boolean;
+  x?: unknown;
+  y?: unknown;
+  width?: unknown;
+  height?: unknown;
+  customData?: unknown;
+}
+
+/**
+ * The boxes of the elements whose ref has no flow yet, one per board node: the node's own
+ * element (`node/<id>`, or `node-<id>` in older scenes), not its marks or labels. Deleted
+ * elements are skipped.
+ */
+export function flowHintBoxes(
+  elements: readonly unknown[],
+  missing: ReadonlySet<string>,
+): FlowHintBox[] {
+  if (missing.size === 0) return [];
+  const boxes = new Map<string, FlowHintBox & { main: boolean }>();
+  for (const item of elements) {
+    if (typeof item !== "object" || item === null) continue;
+    const el = item as SceneElementLike;
+    if (el.isDeleted === true) continue;
+    const data = (el.customData as { groundboard?: Record<string, unknown> } | null | undefined)
+      ?.groundboard;
+    if (data?.kind !== "element" || typeof data.nodeId !== "string") continue;
+    if (typeof data.ref !== "string" || !missing.has(data.ref)) continue;
+    if (typeof el.x !== "number" || typeof el.y !== "number") continue;
+    const nodeId = data.nodeId;
+    const main = el.id === `node/${nodeId}` || el.id === `node-${nodeId}`;
+    const known = boxes.get(nodeId);
+    // The node's own element wins over any other element that carries its data.
+    if (known && (known.main || !main)) continue;
+    boxes.set(nodeId, {
+      nodeId,
+      ref: data.ref,
+      x: el.x,
+      y: el.y,
+      width: typeof el.width === "number" ? el.width : 0,
+      height: typeof el.height === "number" ? el.height : 0,
+      main,
+    });
+  }
+  return [...boxes.values()].map(({ main: _main, ...box }) => box);
+}
