@@ -166,6 +166,8 @@ export const en = {
   "editor.staleTitle": "The code changed since this board was made",
   "editor.stale_one": "Stale · {count} source",
   "editor.stale_other": "Stale · {count} sources",
+  "editor.groupSteps": "Boards in {group}",
+  "editor.groupPositionLong": "Board {index} of {count} in {group}",
   "editor.prevBoard": "Previous board: {title}",
   "editor.nextBoard": "Next board: {title}",
   "editor.prevStep": "Previous: {title} ({key})",

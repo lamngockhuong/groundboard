@@ -328,8 +328,9 @@ Alt and a click on the row does the same, while Ctrl or Cmd and a click and the 
 stay the browser's own new tab.
 
 ### Tab bar
-One row above the board toolbar, on the surface colour with a hairline bottom border, that
-scrolls sideways when it overflows; hidden when the source has a single board. Each tab is
+One row above the board toolbar, on the surface colour with a hairline bottom border: Back and
+Forward first, apart from the tabs by a hairline, then the tabs, which scroll sideways when
+they overflow; hidden when the source has a single board. Each tab is
 the board title cut short with an ellipsis, at most 14rem, and a close button that shows on
 the tab on screen, on hover and on focus. The tab on screen is panel-white, semibold, with a
 2px indigo line along its bottom. The preview tab, the one an ordinary click replaces, sets
@@ -346,13 +347,17 @@ lists invalid then stale boards, each with a status chip, a link, the board kind
 reason in words; with none, one green line with a check says every board matches the code.
 
 ### Board toolbar
-Back and Forward buttons (`Alt+←` and `Alt+→`, arrows rather than chevrons, disabled when
-there is nowhere to go), a divider, previous and next board buttons (`[` and `]`; Alt and a
-click opens the board in a new tab), a breadcrumb `<Group> › <Title>`, a status chip
-("Stale · N sources" or "Up to date"), the layout-origin badge, then the reading font, the
-Export menu and the source panel toggle (pressed while the panel shows). At the start or end
-of a group the step button is disabled and its label says why. A pasted board under an atlas
-shows Back and Forward and the title; without an atlas, the title only.
+Back and Forward (`Alt+←` and `Alt+→`, arrows rather than chevrons, disabled when there is
+nowhere to go) lead the tab bar, as in a browser; where there is no tab bar they lead the
+toolbar instead. The toolbar starts with the group stepper: one bordered control holding the
+group's name, the previous board (`[`), where the board sits in its group ("2/5", read out as
+"Board 2 of 5 in Screens") and the next board (`]`); Alt and a click on a step opens the board
+in a new tab. The chevrons sit inside the group's control so they read as moving through the
+group, never as history. Then the board title, a status chip ("Stale · N sources" or "Up to
+date"), the layout-origin badge, then the reading font, the Export menu and the source panel
+toggle (pressed while the panel shows). At the start or end of a group the step button is
+disabled and its label says why. A pasted board under an atlas shows Back and Forward and the
+title; without an atlas, the title only.
 
 ### Export menu
 A secondary "Export" button with `aria-haspopup="menu"` opens a lifted menu of three items

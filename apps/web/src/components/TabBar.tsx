@@ -1,9 +1,12 @@
 import { type KeyboardEvent, useEffect, useRef } from "react";
 import { t } from "../i18n.ts";
 import type { Tab, TabsState } from "../tabs.ts";
+import { type BoardHistory, HistoryNav } from "./HistoryNav.tsx";
 import { Icon } from "./Icon.tsx";
 
 interface TabBarProps {
+  /** Back and Forward within the tab on screen, at the start of the bar as in a browser. */
+  history?: BoardHistory;
   tabs: TabsState;
   title: (tab: Tab) => string;
   onSelect: (id: string) => void;
@@ -18,7 +21,7 @@ interface TabBarProps {
  * A preview tab's title is set in italics and named "preview" to screen readers too; a tab
  * whose board cannot be shown carries a warning icon and words, not a colour alone.
  */
-export function TabBar({ tabs, title, onSelect, onClose, onPin }: TabBarProps) {
+export function TabBar({ history, tabs, title, onSelect, onClose, onPin }: TabBarProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const focusIndex = tabs.tabs.findIndex((tab) => tab.id === tabs.activeId);
 
@@ -79,6 +82,7 @@ export function TabBar({ tabs, title, onSelect, onClose, onPin }: TabBarProps) {
 
   return (
     <div className="tab-bar">
+      {history ? <HistoryNav history={history} className="tab-history" /> : null}
       <div ref={listRef} className="tab-list" role="tablist" aria-label={t("tabs.label")}>
         {tabs.tabs.map((tab, index) => {
           const selected = tab.id === tabs.activeId;

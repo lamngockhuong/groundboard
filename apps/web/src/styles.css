@@ -1011,13 +1011,31 @@ code {
    sideways when it overflows; the tab on screen is marked by weight and an accent line, a
    preview tab by italics (and by name for screen readers). */
 .tab-bar {
+  display: flex;
   flex: none;
+  align-items: stretch;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
 
+/* Back and Forward lead the bar, as in a browser, apart from the tabs by a hairline. */
+.tab-history {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0 0.3rem;
+  border-right: 1px solid var(--line);
+}
+
+.tab-history .icon-button {
+  min-height: 2rem;
+  width: 2rem;
+}
+
 .tab-list {
   display: flex;
+  min-width: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: thin;
@@ -2997,9 +3015,48 @@ dialog::backdrop {
   gap: 0.1rem;
 }
 
+.crumb {
+  flex: none;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* The group's name, the step to the previous board, where this one sits, and the step to the
+   next: one bordered control, so it reads as moving through the group, not through history. */
+.group-stepper {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0 0.15rem 0 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.group-stepper .crumb {
+  margin-right: 0.2rem;
+  font-size: 0.8125rem;
+}
+
+.group-stepper .step-link,
+.group-stepper .icon-button {
+  width: 1.9rem;
+  height: 1.9rem;
+  min-height: 1.9rem;
+}
+
+.group-position {
+  min-width: 2.2rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
 .board-title {
   display: flex;
-  flex: 1 1 12rem;
+  flex: 1 1 6rem;
   align-items: center;
   gap: 0.35rem;
   min-width: 0;
@@ -3007,12 +3064,6 @@ dialog::backdrop {
 
 .board-title .icon {
   color: var(--muted);
-}
-
-.crumb {
-  flex: none;
-  color: var(--muted);
-  font-weight: 500;
 }
 
 .board-title-text {

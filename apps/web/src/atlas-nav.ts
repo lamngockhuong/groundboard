@@ -124,12 +124,17 @@ export function needsAttention(atlas: AtlasIndex): AtlasBoard[] {
 export function neighbours(
   atlas: AtlasIndex,
   slug: string,
-): { prev: AtlasBoard | null; next: AtlasBoard | null } {
+): { prev: AtlasBoard | null; next: AtlasBoard | null; index: number; count: number } {
   const board = atlas.boards.find((b) => b.slug === slug);
-  if (!board) return { prev: null, next: null };
+  if (!board) return { prev: null, next: null, index: 0, count: 0 };
   const group = orderedBoards(atlas).filter((b) => b.kind === board.kind);
   const at = group.indexOf(board);
-  return { prev: group[at - 1] ?? null, next: group[at + 1] ?? null };
+  return {
+    prev: group[at - 1] ?? null,
+    next: group[at + 1] ?? null,
+    index: at + 1,
+    count: group.length,
+  };
 }
 
 /** Which kind of board wins when several define a ref: the screen's own board first. */

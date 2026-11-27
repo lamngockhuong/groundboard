@@ -157,6 +157,8 @@ export const ja: Messages = {
   "editor.staleTitle": "このボードの作成後にコードが変わりました",
   "editor.stale_one": "古い · 出典 {count} 件",
   "editor.stale_other": "古い · 出典 {count} 件",
+  "editor.groupSteps": "{group} のボード",
+  "editor.groupPositionLong": "{group} の {count} 件中 {index} 件目のボード",
   "editor.prevBoard": "前のボード: {title}",
   "editor.nextBoard": "次のボード: {title}",
   "editor.prevStep": "前へ: {title}（{key}）",

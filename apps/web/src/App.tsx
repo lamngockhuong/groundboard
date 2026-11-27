@@ -317,6 +317,9 @@ export function App() {
 
   /** Tabs show where the source has more than one board to keep open. */
   const tabsShown = atlas !== null && atlas.boards.length > 1;
+  /** Back and Forward sit at the start of the tab bar when it shows, else in the toolbar. */
+  const tabBarShown = tabsShown && tabs.tabs.length > 0;
+  const boardHistory = { canBack, canForward, onBack: back, onForward: forward };
 
   /**
    * A pasted board or scene: under an atlas it goes into the preview tab, with the home as its
@@ -602,6 +605,7 @@ export function App() {
           ...(loaded.draft ? { draft: true } : {}),
           prev: stepTo(steps.prev),
           next: stepTo(steps.next),
+          position: { index: steps.index, count: steps.count },
           tags: atlasBoard.tags,
           allTags: atlas ? atlasTags(atlas).map((t) => t.tag) : [],
           ...(atlas?.tagsEditable && !staticMode
@@ -884,7 +888,7 @@ export function App() {
           motionAll={motionAll}
           fileName={loaded.fileName}
           focus={loaded.slug !== null ? focus : (localFocus ?? focus)}
-          {...(atlas ? { history: { canBack, canForward, onBack: back, onForward: forward } } : {})}
+          {...(atlas && !tabBarShown ? { history: boardHistory } : {})}
           registerCanvas={(reader) => {
             canvasReader.current = reader;
           }}
@@ -1029,8 +1033,9 @@ export function App() {
               </button>
             </header>
           ) : null}
-          {tabsShown && tabs.tabs.length > 0 ? (
+          {tabBarShown ? (
             <TabBar
+              history={boardHistory}
               tabs={tabs}
               title={tabTitle}
               onSelect={selectTab}

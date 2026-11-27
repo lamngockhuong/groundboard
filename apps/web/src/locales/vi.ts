@@ -158,6 +158,8 @@ export const vi: Messages = {
   "editor.staleTitle": "Mã nguồn đã thay đổi kể từ khi tạo board này",
   "editor.stale_one": "Lỗi thời · {count} nguồn",
   "editor.stale_other": "Lỗi thời · {count} nguồn",
+  "editor.groupSteps": "Các board trong {group}",
+  "editor.groupPositionLong": "Board {index} trên {count} trong {group}",
   "editor.prevBoard": "Board trước: {title}",
   "editor.nextBoard": "Board sau: {title}",
   "editor.prevStep": "Trước: {title} ({key})",
