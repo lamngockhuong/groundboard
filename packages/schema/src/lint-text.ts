@@ -3,12 +3,15 @@ import { endpointSlug, matchesEndpointSlug } from "./endpoint.ts";
 import { lintFigmaSources } from "./figma.ts";
 import type { Overlay } from "./overlay.ts";
 
+/** A test that a text contains one kind of sensitive data: a regular expression or a function. */
+type Matcher = { test(text: string): boolean };
+
 /**
  * Patterns that suggest real user data or a local path was copied into a board. Boards are
  * committed, so the text a person or an agent wrote must use placeholders instead.
  * Order matters: a card-length digit run is reported as a card number, not a phone number.
  */
-const PATTERNS: ReadonlyArray<[string, RegExp]> = [
+const PATTERNS: ReadonlyArray<[string, Matcher]> = [
   ["an email address", /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/],
   ["a card number", /(?<!\d)\d(?:[ -]?\d){12,18}(?!\d)/],
   ["a phone number", /(?<!\d)\+?\d(?:[ .()-]{0,2}\d){8,}(?!\d)/],
@@ -20,16 +23,81 @@ const PATTERNS: ReadonlyArray<[string, RegExp]> = [
 const URL_PATTERNS = PATTERNS.filter(([what]) => what !== "an absolute local path");
 
 /**
- * Patterns that suggest a secret: a URL that carries a user and password, and a long token
- * mixing letters and digits the way API keys and access tokens do.
+ * Values that stand for a secret without being one: `<token>`, `***`, `xxx`, `changeme`,
+ * `${VAR}`, `$VAR`, `{{ var }}`, or a read of an environment variable.
  */
-export const CREDENTIAL_PATTERNS: ReadonlyArray<[string, RegExp]> = [
+const SECRET_PLACEHOLDERS: readonly RegExp[] = [
+  /^<[^<>]*>$/,
+  /^\$\{[^}]*\}$/,
+  /^\{\{[^}]*\}\}$/,
+  /^\$[A-Za-z_]\w*$/,
+  /^[*xX•._-]+$/,
+  /^(?:process\.env|import\.meta\.env|os\.environ|os\.getenv|Deno\.env|ENV\[)/,
+  /change[_-]?me|placeholder|redacted|example|dummy|your[_-]/i,
+];
+
+/**
+ * An assignment whose name says secret, password, passwd, token, api key or private key:
+ * `password: "..."`, `API_TOKEN=...`, `"client_secret": "..."`.
+ */
+const SECRET_ASSIGNMENT =
+  /(?<![A-Za-z0-9_])[A-Za-z0-9_]*(?:secret|password|passwd|token|api[_-]?key|private[_-]?key)[A-Za-z0-9_]*["']?\s*(?::=|:(?!:)|=(?![=>]))\s*(?:(["'`])([^"'`\n]*)\1|([^\s"'`,;)}\]]+))/gi;
+
+/**
+ * Whether the value of such an assignment looks real. A quoted value must have no space (a
+ * label is not a secret), at least six characters and a digit or a symbol; a bare value must be
+ * a single run of key characters with a letter and a digit, so a variable name, a call such as
+ * `getToken()`, a type such as `string` or a member such as `req.body.password` is not one.
+ */
+function looksLikeSecretValue(quoted: string | undefined, bare: string | undefined): boolean {
+  const value = (quoted ?? bare ?? "").trim();
+  if (SECRET_PLACEHOLDERS.some((p) => p.test(value))) return false;
+  if (quoted !== undefined) {
+    return value.length >= 6 && !/\s/.test(value) && /[\d!@#$%^&*+/=~?]/.test(value);
+  }
+  return /^[A-Za-z0-9+/=_-]{6,}$/.test(value) && /\d/.test(value) && /[A-Za-z]/.test(value);
+}
+
+const SECRET_ASSIGNMENT_MATCHER: Matcher = {
+  test: (text) =>
+    [...text.matchAll(SECRET_ASSIGNMENT)].some((m) => looksLikeSecretValue(m[2], m[3])),
+};
+
+/**
+ * Patterns that suggest a secret. Order matters: the kinds a vendor prefix identifies come
+ * first so the warning names them ("a GitHub token"), and the long token mixing letters and
+ * digits comes last, since a GitHub token or a JWT is one too. A token body must hold a digit,
+ * so a placeholder such as `ghp_xxxx...` is not reported.
+ */
+export const CREDENTIAL_PATTERNS: ReadonlyArray<[string, Matcher]> = [
+  // A header followed by key material; a bare header line, as in code that parses PEM, is not.
+  ["a private key", /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----(?:\s|\\n)*[A-Za-z0-9+/=]{16,}/],
+  // AWS's documented sample key ends with EXAMPLE.
+  [
+    "an AWS access key id",
+    /(?<![A-Za-z0-9])(?:AKIA|ASIA)(?![A-Z0-9]*EXAMPLE)(?=[A-Z0-9]*\d)[A-Z0-9]{16}(?![A-Za-z0-9])/,
+  ],
+  [
+    "a GitHub token",
+    /(?<![A-Za-z0-9_])(?:gh[pousr]_(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{30,}|github_pat_(?=[A-Za-z0-9_]*\d)[A-Za-z0-9_]{22,})/,
+  ],
+  ["a Slack token", /(?<![A-Za-z0-9])xox[abposr]-(?=[A-Za-z0-9-]*\d)[A-Za-z0-9-]{10,}/],
+  ["a Stripe secret key", /(?<![A-Za-z0-9])[rs]k_live_(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{16,}/],
+  ["a JWT", /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],
   ["a URL with a password", /[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s/@]+@/i],
+  ["a password or secret assigned in the text", SECRET_ASSIGNMENT_MATCHER],
   [
     "an access token",
     /(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{32,}(?![A-Za-z0-9_-])/,
   ],
 ];
+
+const CREDENTIAL_KINDS = new Set(CREDENTIAL_PATTERNS.map(([what]) => what));
+
+/** The placeholder a warning suggests: a label for personal data, `<redacted>` for a secret. */
+function placeholderFor(what: string): string {
+  return CREDENTIAL_KINDS.has(what) ? '"<redacted>"' : '"Customer email"';
+}
 
 /** Extensions of files that hold prose rather than code. */
 const DOCUMENT_EXTENSIONS = /\.(?:md|mdx|txt|rst|adoc)$/i;
@@ -55,8 +123,9 @@ function decodedUrlText(value: string): string {
 }
 
 /**
- * Warnings (not errors) for text that looks like an email, a phone number, a card number or an
- * absolute local path: in node labels, details, actions and `unresolved`, edge labels, source
+ * Warnings (not errors) for text that looks like an email, a phone number, a card number, an
+ * absolute local path or a secret (a private key, a vendor token, a JWT, a URL with a password,
+ * a password assigned in code): in node labels, details, actions and `unresolved`, edge labels, source
  * quotes, link titles and URLs, and mockup labels. Also warns when a code source cites a
  * document, which would count a requirement as code, and when an element cites a layer of
  * another Figma file than its screen's frame, and when an edge repeats an earlier one.
@@ -66,13 +135,13 @@ export function lintBoardText(board: Board): string[] {
   const check = (
     path: string,
     text: string | undefined,
-    patterns: ReadonlyArray<[string, RegExp]> = [...CREDENTIAL_PATTERNS, ...PATTERNS],
+    patterns: ReadonlyArray<[string, Matcher]> = [...CREDENTIAL_PATTERNS, ...PATTERNS],
   ) => {
     if (text === undefined) return;
     for (const [what, pattern] of patterns) {
       if (pattern.test(text)) {
         warnings.push(
-          `${path} looks like it contains ${what}; boards are committed, so replace real data with a placeholder such as "Customer email"`,
+          `${path} looks like it contains ${what}; boards are committed, so replace real data with a placeholder such as ${placeholderFor(what)}`,
         );
         return;
       }
