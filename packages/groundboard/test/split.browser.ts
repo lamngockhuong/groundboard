@@ -196,7 +196,7 @@ describe("split view", () => {
         .click({ position: { x: 5, y: 5 } });
       await page.keyboard.press("[");
       await settled(page);
-      expect(await paneTitle(pane(page, 0))).toBe("Cart screen (mobile)");
+      expect(await paneTitle(pane(page, 0))).toBe("Account screen (not built yet)");
       expect(await paneTitle(pane(page, 1))).toBe(rightBefore);
 
       // Excalidraw's tool keys act on the canvas with the keyboard only.

@@ -18,6 +18,8 @@ const boardSlugs = readdirSync(atlasDir)
   .filter((name) => name.endsWith(".board.json"))
   .map((name) => name.slice(0, -".board.json".length))
   .sort();
+/** The layout overlays beside the boards, packed as written. */
+const overlayNames = readdirSync(atlasDir).filter((name) => name.endsWith(".overlay.json"));
 
 async function start(options: AppOptions) {
   const built = createApp({ host: "127.0.0.1", webRoot, ...options });
@@ -92,8 +94,16 @@ describe("zips of boards", () => {
       await waitForBoard(page);
       plain = await downloadZip(page, false);
       expect(Object.keys(plain).sort()).toEqual(
-        boardSlugs.map((slug) => `.groundboard/${slug}.board.json`),
+        [
+          ...boardSlugs.map((slug) => `.groundboard/${slug}.board.json`),
+          ...overlayNames.map((name) => `.groundboard/${name}`),
+        ].sort(),
       );
+      for (const name of overlayNames) {
+        expect(strFromU8(plain[`.groundboard/${name}`] as Uint8Array)).toBe(
+          readFileSync(path.join(atlasDir, name), "utf8"),
+        );
+      }
       for (const slug of boardSlugs) {
         expect(strFromU8(plain[`.groundboard/${slug}.board.json`] as Uint8Array)).toBe(
           readFileSync(path.join(atlasDir, `${slug}.board.json`), "utf8"),

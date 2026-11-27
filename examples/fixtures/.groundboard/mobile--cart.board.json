@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "title": "Cart screen (mobile)",
   "question": "What is on the mobile cart screen and what does each control do?",
+  "tags": ["Mobile", "Checkout"],
   "nodes": [
     {
       "id": "cart",

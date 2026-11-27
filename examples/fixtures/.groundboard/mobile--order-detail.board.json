@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 1,
+  "title": "Order detail screen (mobile)",
+  "question": "What does the order detail screen show while the order loads, when it fails and once it is loaded?",
+  "tags": ["Mobile", "Orders"],
+  "nodes": [
+    {
+      "id": "loading",
+      "kind": "screen",
+      "label": "① Loading",
+      "ref": "mobile:order-detail",
+      "platform": "mobile",
+      "layoutFrom": "code",
+      "sourceIds": ["route", "is-loading"],
+      "detail": "Shown first: the screen fetches the order as soon as it opens."
+    },
+    {
+      "id": "spinner",
+      "kind": "element",
+      "role": "icon",
+      "label": "Loading the order",
+      "parentId": "loading",
+      "sourceIds": ["spinner"]
+    },
+    {
+      "id": "failed",
+      "kind": "screen",
+      "label": "③ Could not load",
+      "stateOf": "loading",
+      "sourceIds": ["is-failed"]
+    },
+    {
+      "id": "failed-text",
+      "kind": "element",
+      "role": "text",
+      "label": "The order could not be loaded.",
+      "parentId": "failed",
+      "sourceIds": ["failed-text"]
+    },
+    {
+      "id": "try-again",
+      "kind": "element",
+      "role": "button",
+      "label": "Try again",
+      "parentId": "failed",
+      "ref": "mobile:order-detail/try-again",
+      "action": "Shows the spinner and fetches the order again",
+      "sourceIds": ["try-again", "reload"]
+    },
+    {
+      "id": "loaded",
+      "kind": "screen",
+      "label": "② Order",
+      "stateOf": "loading",
+      "sourceIds": ["is-loaded"]
+    },
+    {
+      "id": "order-id",
+      "kind": "element",
+      "role": "text",
+      "label": "Order number",
+      "parentId": "loaded",
+      "sourceIds": ["order-id"]
+    },
+    {
+      "id": "status",
+      "kind": "element",
+      "role": "text",
+      "label": "Status",
+      "parentId": "loaded",
+      "ref": "mobile:order-detail/status",
+      "sourceIds": ["status"],
+      "detail": "One of the order states drawn on the order lifecycle board."
+    },
+    {
+      "id": "back",
+      "kind": "element",
+      "role": "button",
+      "label": "Back to catalog",
+      "parentId": "loaded",
+      "ref": "mobile:order-detail/back-to-catalog",
+      "action": "Opens the catalog tab",
+      "sourceIds": ["back"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "t-loaded",
+      "from": "loading",
+      "to": "loaded",
+      "kind": "transition",
+      "label": "order fetched",
+      "sourceIds": ["to-loaded"]
+    },
+    {
+      "id": "t-failed",
+      "from": "loading",
+      "to": "failed",
+      "kind": "transition",
+      "label": "request failed",
+      "sourceIds": ["to-failed"]
+    },
+    {
+      "id": "t-again",
+      "from": "try-again",
+      "to": "loading",
+      "kind": "transition",
+      "label": "try again",
+      "sourceIds": ["reload"]
+    },
+    {
+      "id": "again-get",
+      "from": "try-again",
+      "toRef": "api:orders/get-id",
+      "kind": "calls",
+      "sourceIds": ["fetch-call", "fetch"]
+    },
+    {
+      "id": "back-catalog",
+      "from": "back",
+      "toRef": "mobile:catalog",
+      "kind": "navigates",
+      "sourceIds": ["back"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "route",
+      "path": "shop-mobile/src/App.tsx",
+      "line": 26,
+      "quote": "<Stack.Screen name=\"OrderDetail\" component={OrderDetailScreen} />"
+    },
+    {
+      "id": "is-loading",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 22,
+      "quote": "if (load.state === \"loading\") {"
+    },
+    {
+      "id": "spinner",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 23,
+      "quote": "<ActivityIndicator accessibilityLabel=\"Loading the order\" />"
+    },
+    {
+      "id": "is-failed",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 25,
+      "quote": "if (load.state === \"failed\") {"
+    },
+    {
+      "id": "failed-text",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 28,
+      "quote": "<Text>The order could not be loaded.</Text>"
+    },
+    {
+      "id": "try-again",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 29,
+      "quote": "<Button title=\"Try again\" onPress={reload} />"
+    },
+    {
+      "id": "reload",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 15,
+      "quote": "setLoad({ state: \"loading\" });"
+    },
+    {
+      "id": "fetch-call",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 16,
+      "quote": "fetchOrder(orderId).then("
+    },
+    {
+      "id": "fetch",
+      "path": "shop-mobile/src/orders.ts",
+      "line": 9,
+      "quote": "const response = await fetch(`/api/orders/${orderId}`);"
+    },
+    {
+      "id": "to-loaded",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 17,
+      "quote": "(order) => setLoad({ state: \"loaded\", order }),"
+    },
+    {
+      "id": "to-failed",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 18,
+      "quote": "() => setLoad({ state: \"failed\" }),"
+    },
+    {
+      "id": "is-loaded",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 33,
+      "endLine": 35,
+      "quote": "return ( <View> <Text>Order {load.order.id}</Text>"
+    },
+    {
+      "id": "order-id",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 35,
+      "quote": "<Text>Order {load.order.id}</Text>"
+    },
+    {
+      "id": "status",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 36,
+      "quote": "<Text>Status: {load.order.status}</Text>"
+    },
+    {
+      "id": "back",
+      "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
+      "line": 37,
+      "quote": "navigation.navigate(\"Catalog\")"
+    }
+  ]
+}

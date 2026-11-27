@@ -1,18 +1,27 @@
 {
   "apis": {
-    "api--orders": ["api:orders/get-id", "api:orders/post"]
+    "api--orders": ["api:orders/get-id", "api:orders/post"],
+    "api--cart": ["api:cart/post-lines"],
+    "api--products": ["api:products/get"]
   },
   "calls": {
-    "web--checkout": ["api:orders/post"]
+    "web--checkout": ["api:orders/post"],
+    "web--products": ["api:cart/post-lines"],
+    "mobile--order-detail": ["api:orders/get-id"]
   },
   "jobs": {
-    "overview-batch": ["batch:close-stale-orders", "batch:send-receipt"]
+    "overview-batch": [
+      "batch:close-stale-orders",
+      "batch:prepare-shipment",
+      "batch:send-receipt",
+      "batch:sync-catalog"
+    ]
   },
   "tables": {
-    "overview-db": ["db:order-items", "db:orders"]
+    "overview-db": ["db:cart-lines", "db:order-items", "db:orders", "db:products"]
   },
   "screens": {
-    "overview-web": ["web:cart", "web:checkout", "web:home", "web:products"],
+    "overview-web": ["web:account", "web:cart", "web:checkout", "web:home", "web:products"],
     "overview-mobile": ["mobile:cart", "mobile:catalog", "mobile:order-detail"]
   },
   "screenBoards": {
@@ -53,6 +62,14 @@
       { "role": "button" },
       { "role": "link" },
       { "role": "bar", "children": [{ "role": "icon" }, { "role": "icon" }] }
-    ]
+    ],
+    "web--products": [{ "role": "image" }, { "role": "text" }, { "role": "button" }],
+    "web--account": [
+      { "role": "text" },
+      { "role": "text" },
+      { "role": "container", "children": [{ "role": "button" }, { "role": "button" }] },
+      { "role": "link" }
+    ],
+    "mobile--order-detail": [{ "role": "icon" }]
   }
 }

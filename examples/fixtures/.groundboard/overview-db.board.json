@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "title": "Shop database",
   "question": "Which tables does the shop keep, and how do they relate?",
+  "tags": ["Data"],
   "nodes": [
     {
       "id": "orders",
@@ -28,6 +29,44 @@
         { "name": "product_id", "type": "text" },
         { "name": "quantity", "type": "integer" }
       ]
+    },
+    {
+      "id": "products",
+      "kind": "table",
+      "label": "products",
+      "ref": "db:products",
+      "sourceIds": ["products-table"],
+      "columns": [
+        { "name": "id", "type": "text", "pk": true },
+        { "name": "sku", "type": "text", "unique": true, "sourceIds": ["products-sku"] },
+        { "name": "name", "type": "text" },
+        { "name": "price_cents", "type": "integer" },
+        {
+          "name": "archived_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "note": "NULL while the product is on sale",
+          "sourceIds": ["products-archived"]
+        }
+      ]
+    },
+    {
+      "id": "cart-lines",
+      "kind": "table",
+      "label": "cart_lines",
+      "ref": "db:cart-lines",
+      "sourceIds": ["cart-lines-table"],
+      "columns": [
+        { "name": "id", "type": "uuid", "pk": true },
+        { "name": "cart_id", "type": "uuid" },
+        { "name": "product_id", "type": "text", "sourceIds": ["cart-lines-fk"] },
+        {
+          "name": "quantity",
+          "type": "integer",
+          "default": "1",
+          "sourceIds": ["cart-lines-quantity"]
+        }
+      ]
     }
   ],
   "edges": [
@@ -40,6 +79,16 @@
       "toColumn": "id",
       "cardinality": "many-to-one",
       "sourceIds": ["items-fk"]
+    },
+    {
+      "id": "cart-lines-product",
+      "from": "cart-lines",
+      "to": "products",
+      "kind": "references",
+      "fromColumn": "product_id",
+      "toColumn": "id",
+      "cardinality": "many-to-one",
+      "sourceIds": ["cart-lines-fk"]
     }
   ],
   "sources": [
@@ -56,6 +105,42 @@
       "path": "db/schema.sql",
       "line": 11,
       "quote": "order_id uuid NOT NULL REFERENCES orders (id),"
+    },
+    {
+      "id": "products-table",
+      "path": "db/schema.sql",
+      "line": 16,
+      "quote": "CREATE TABLE products ("
+    },
+    {
+      "id": "products-sku",
+      "path": "db/schema.sql",
+      "line": 18,
+      "quote": "sku text NOT NULL UNIQUE,"
+    },
+    {
+      "id": "products-archived",
+      "path": "db/schema.sql",
+      "line": 21,
+      "quote": "archived_at timestamptz -- NULL while the product is on sale"
+    },
+    {
+      "id": "cart-lines-table",
+      "path": "db/schema.sql",
+      "line": 24,
+      "quote": "CREATE TABLE cart_lines ("
+    },
+    {
+      "id": "cart-lines-fk",
+      "path": "db/schema.sql",
+      "line": 27,
+      "quote": "product_id text NOT NULL REFERENCES products (id),"
+    },
+    {
+      "id": "cart-lines-quantity",
+      "path": "db/schema.sql",
+      "line": 28,
+      "quote": "quantity integer NOT NULL DEFAULT 1"
     }
   ]
 }

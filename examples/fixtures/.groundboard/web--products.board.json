@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "title": "Product detail screen",
+  "question": "What is on the product detail screen and what does Add to cart do?",
+  "tags": ["Web", "Checkout"],
+  "nodes": [
+    {
+      "id": "products",
+      "kind": "screen",
+      "label": "Product detail",
+      "ref": "web:products",
+      "platform": "web",
+      "layoutFrom": "code",
+      "sourceIds": ["route"]
+    },
+    {
+      "id": "photo",
+      "kind": "element",
+      "role": "image",
+      "label": "Product photo",
+      "parentId": "products",
+      "sourceIds": ["photo"]
+    },
+    {
+      "id": "name",
+      "kind": "element",
+      "role": "text",
+      "label": "Product",
+      "parentId": "products",
+      "sourceIds": ["heading"]
+    },
+    {
+      "id": "add",
+      "kind": "element",
+      "role": "button",
+      "label": "Add to cart",
+      "parentId": "products",
+      "ref": "web:products/add-to-cart",
+      "action": "Adds the product to the cart, then opens the cart",
+      "sourceIds": ["on-add", "add-call"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "add-cart",
+      "from": "add",
+      "toRef": "web:cart",
+      "kind": "navigates",
+      "label": "after adding",
+      "sourceIds": ["nav-cart"]
+    },
+    {
+      "id": "add-lines",
+      "from": "add",
+      "toRef": "api:cart/post-lines",
+      "kind": "calls",
+      "sourceIds": ["add-call", "post-lines"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "route",
+      "path": "shop-web/src/main.tsx",
+      "line": 10,
+      "quote": "{ path: \"/products/:id\", element: <ProductDetail /> }"
+    },
+    {
+      "id": "photo",
+      "path": "shop-web/src/screens/ProductDetail.tsx",
+      "line": 14,
+      "quote": "alt=\"Product\""
+    },
+    {
+      "id": "heading",
+      "path": "shop-web/src/screens/ProductDetail.tsx",
+      "line": 15,
+      "quote": "<h1>Product</h1>"
+    },
+    {
+      "id": "on-add",
+      "path": "shop-web/src/screens/ProductDetail.tsx",
+      "line": 16,
+      "quote": "onClick={onAdd}"
+    },
+    {
+      "id": "add-call",
+      "path": "shop-web/src/screens/ProductDetail.tsx",
+      "line": 9,
+      "quote": "await addToCart(id);"
+    },
+    {
+      "id": "nav-cart",
+      "path": "shop-web/src/screens/ProductDetail.tsx",
+      "line": 10,
+      "quote": "navigate(\"/cart\")"
+    },
+    {
+      "id": "post-lines",
+      "path": "shop-web/src/api.ts",
+      "line": 22,
+      "quote": "await fetch(\"/api/cart/lines\", { method: \"POST\", body: JSON.stringify({ productId }) });"
+    }
+  ]
+}

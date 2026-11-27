@@ -101,10 +101,17 @@ async function compareWithServer(dir: string, root: string, out: string): Promis
   const slugs: string[] = index.boards.map((b: { slug: string }) => b.slug);
   for (const slug of slugs) {
     const served = await get(`/api/atlas/boards/${slug}`);
-    // Beside what the server answers, the export carries the board file as written.
-    const { source, ...exportedBoard } = readJson(path.join(out, "data", "boards", `${slug}.json`));
+    // Beside what the server answers, the export carries the board file and its layout overlay
+    // as written.
+    const { source, overlay, ...exportedBoard } = readJson(
+      path.join(out, "data", "boards", `${slug}.json`),
+    );
     expect(exportedBoard, slug).toEqual(await served.json());
     expect(source, slug).toBe(readFileSync(path.join(dir, `${slug}.board.json`), "utf8"));
+    const overlayFile = path.join(dir, `${slug}.overlay.json`);
+    expect(overlay, slug).toBe(
+      existsSync(overlayFile) ? readFileSync(overlayFile, "utf8") : undefined,
+    );
     expect(source, slug).toBe(await (await get(`/api/atlas/boards/${slug}/source`)).text());
   }
   await close();
@@ -116,9 +123,9 @@ describe("groundboard export", () => {
     const out = path.join(base, "fixtures-out");
     const dir = path.join(fixtures, ".groundboard");
     const summary = await exportAtlas({ dir, root: fixtures, out, webRoot }, () => {});
-    expect(summary.boards).toBe(8);
+    expect(summary.boards).toBe(17);
     const slugs = await compareWithServer(dir, fixtures, out);
-    expect(slugs).toHaveLength(8);
+    expect(slugs).toHaveLength(17);
     // The viewer reads which elements need a flow from the exported index.
     const refs: Array<{ ref: string; needsFlow?: boolean }> = readJson(
       path.join(out, "data", "atlas.json"),
@@ -130,11 +137,11 @@ describe("groundboard export", () => {
     expect(html).toContain(`<head>\n    ${STATIC_MODE_META}`);
     expect(existsSync(path.join(out, "assets", "index.js"))).toBe(true);
     expect(existsSync(path.join(out, "fonts", "Xiaolai", "a.woff2"))).toBe(true);
-    // index.html, the script, two fonts, atlas.json, eight boards and the manifest: the board
+    // index.html, the script, two fonts, atlas.json, seventeen boards and the manifest: the board
     // files ride inside the board JSON, so the count is one per board.
-    expect(summary.files).toBe(14);
+    expect(summary.files).toBe(23);
     const manifest = readFileSync(path.join(out, "manifest.txt"), "utf8").trim().split("\n");
-    expect(manifest).toHaveLength(13);
+    expect(manifest).toHaveLength(22);
     expect(manifest).toContain("fonts/Xiaolai/a.woff2");
     expect(manifest).toContain("data/boards/web--checkout.json");
     expect(manifest).not.toContain("manifest.txt");

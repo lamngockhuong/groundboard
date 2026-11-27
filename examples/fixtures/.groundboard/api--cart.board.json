@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "title": "Cart API",
+  "question": "Which endpoints does the cart resource serve?",
+  "tags": ["API"],
+  "nodes": [
+    { "id": "cart", "kind": "resource", "label": "Cart", "ref": "api:cart", "pathPrefix": "/api" },
+    {
+      "id": "add-line",
+      "kind": "endpoint",
+      "label": "Add a product to the cart",
+      "parentId": "cart",
+      "method": "POST",
+      "path": "/api/cart/lines",
+      "ref": "api:cart/post-lines",
+      "sourceIds": ["route-post"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "add-writes",
+      "from": "add-line",
+      "toRef": "db:cart-lines",
+      "kind": "writes",
+      "sourceIds": ["insert-line"]
+    }
+  ],
+  "sources": [
+    {
+      "id": "route-post",
+      "path": "server/catalog-routes.ts",
+      "line": 12,
+      "quote": "router.post(\"/cart/lines\", async (req, res) => {"
+    },
+    {
+      "id": "insert-line",
+      "path": "server/catalog-routes.ts",
+      "line": 13,
+      "quote": "const line = await db.insert(\"cart_lines\", { cart_id: req.session.cartId, product_id: req.body.productId,",
+      "endLine": 15
+    }
+  ]
+}

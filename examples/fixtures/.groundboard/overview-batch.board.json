@@ -2,9 +2,12 @@
   "schemaVersion": 1,
   "title": "Shop background jobs",
   "question": "Which jobs run in the background, what starts them and what do they touch?",
+  "tags": ["Jobs"],
   "groups": [
     { "id": "on-queue", "label": "Queue workers" },
-    { "id": "on-schedule", "label": "Scheduled" }
+    { "id": "on-schedule", "label": "Scheduled" },
+    { "id": "on-event", "label": "On events" },
+    { "id": "by-hand", "label": "Run by hand" }
   ],
   "nodes": [
     {
@@ -25,6 +28,28 @@
       "groupId": "on-schedule",
       "trigger": { "type": "cron", "schedule": "0 2 * * *" },
       "sourceIds": ["close-schedule"]
+    },
+    {
+      "id": "prepare-shipment",
+      "kind": "job",
+      "label": "Prepare the shipment",
+      "ref": "batch:prepare-shipment",
+      "groupId": "on-event",
+      "trigger": { "type": "event", "event": "order.paid" },
+      "timeout": "30s",
+      "detail": "Moves a paid order to packed; throws when the order has no items.",
+      "sourceIds": ["shipment-event", "shipment-timeout"]
+    },
+    {
+      "id": "sync-catalog",
+      "kind": "job",
+      "label": "Sync the catalog from the supplier",
+      "ref": "batch:sync-catalog",
+      "groupId": "by-hand",
+      "trigger": { "type": "manual" },
+      "timeout": "5m",
+      "retry": { "attempts": 1 },
+      "sourceIds": ["sync-task", "sync-options", "sync-by-hand"]
     }
   ],
   "edges": [
@@ -41,6 +66,28 @@
       "toRef": "db:orders",
       "kind": "writes",
       "sourceIds": ["close-update"]
+    },
+    {
+      "id": "shipment-reads",
+      "from": "prepare-shipment",
+      "toRef": "db:order-items",
+      "kind": "reads",
+      "sourceIds": ["shipment-items"]
+    },
+    {
+      "id": "shipment-writes",
+      "from": "prepare-shipment",
+      "toRef": "db:orders",
+      "kind": "writes",
+      "label": "status = packed",
+      "sourceIds": ["shipment-update"]
+    },
+    {
+      "id": "sync-writes",
+      "from": "sync-catalog",
+      "toRef": "db:products",
+      "kind": "writes",
+      "sourceIds": ["sync-upsert"]
     }
   ],
   "sources": [
@@ -68,6 +115,55 @@
       "path": "server/jobs.ts",
       "line": 16,
       "quote": "await db.update(\"orders\", { status: \"placed\" }, { status: \"closed\" });"
+    },
+    {
+      "id": "shipment-event",
+      "path": "server/fulfilment-jobs.ts",
+      "line": 7,
+      "endLine": 8,
+      "quote": "\"order.paid\", \"prepare-shipment\","
+    },
+    {
+      "id": "shipment-timeout",
+      "path": "server/fulfilment-jobs.ts",
+      "line": 14,
+      "quote": "{ timeout: \"30s\" },"
+    },
+    {
+      "id": "shipment-items",
+      "path": "server/fulfilment-jobs.ts",
+      "line": 10,
+      "quote": "const items = await db.findMany(\"order_items\", { order_id: event.orderId });"
+    },
+    {
+      "id": "shipment-update",
+      "path": "server/fulfilment-jobs.ts",
+      "line": 12,
+      "quote": "await db.update(\"orders\", { id: event.orderId }, { status: \"packed\" });"
+    },
+    {
+      "id": "sync-by-hand",
+      "path": "server/fulfilment-jobs.ts",
+      "line": 17,
+      "quote": "// Run by hand from the admin console after the supplier publishes a new price list."
+    },
+    {
+      "id": "sync-task",
+      "path": "server/fulfilment-jobs.ts",
+      "line": 19,
+      "quote": "\"sync-catalog\","
+    },
+    {
+      "id": "sync-options",
+      "path": "server/fulfilment-jobs.ts",
+      "line": 24,
+      "quote": "{ timeout: \"5m\", attempts: 1 },"
+    },
+    {
+      "id": "sync-upsert",
+      "path": "server/fulfilment-jobs.ts",
+      "line": 22,
+      "quote": "await db.upsert(\"products\", catalog);"
     }
   ]
 }

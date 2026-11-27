@@ -393,7 +393,14 @@ describe("grounding coverage", () => {
     const atlas = await buildAtlas(path.join(fixtures, ".groundboard"), fixtures, {
       require: "spec",
     });
-    expect(atlas.problems).toEqual([]);
+    // Only the account screen fails: its delete button is unresolved and its export link was
+    // added by hand. The flows' question nodes do not count.
+    expect(atlas.problems).toEqual([
+      expect.objectContaining({
+        path: "web--account.board.json",
+        message: expect.stringMatching(/nodes\[5\], nodes\[6\]$/),
+      }),
+    ]);
   });
 });
 
@@ -491,7 +498,7 @@ describe("missing flows", () => {
     });
     expect(atlas.refs.find((r) => r.ref === "web:checkout/pay-button")?.needsFlow).toBe(true);
     expect(flowWarning(atlas.warnings)).toEqual([]);
-    expect(atlas.problems).toEqual([]);
+    expect(atlas.problems.map((p) => p.path)).toEqual(["web--account.board.json"]);
   });
 
   test("an element that calls an API with no flow is listed by its ref", async () => {

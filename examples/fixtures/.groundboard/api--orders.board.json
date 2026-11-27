@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "title": "Orders API",
   "question": "Which endpoints does the orders resource serve?",
+  "tags": ["API"],
   "nodes": [
     {
       "id": "orders",

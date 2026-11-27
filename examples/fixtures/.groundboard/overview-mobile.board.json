@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "title": "Shop mobile screens",
   "question": "Which screens does the mobile app have and how do they connect?",
+  "tags": ["Mobile"],
   "nodes": [
     {
       "id": "catalog",
@@ -110,7 +111,7 @@
     {
       "id": "nav-order-catalog",
       "path": "shop-mobile/src/screens/OrderDetailScreen.tsx",
-      "line": 11,
+      "line": 37,
       "quote": "navigation.navigate(\"Catalog\")"
     }
   ]
