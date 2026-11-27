@@ -1,4 +1,5 @@
 import { defineConfig } from "tsdown";
+import { privatePackagePattern } from "../../scripts/private-packages.mjs";
 
 export default defineConfig({
   entry: {
@@ -10,8 +11,9 @@ export default defineConfig({
   format: "esm",
   platform: "node",
   target: "node24",
-  // Internal workspace packages are private and bundled; real dependencies stay external.
-  deps: { alwaysBundle: [/^@groundboard\//] },
+  // Workspace packages marked private are internal and bundled; real dependencies stay
+  // external, and so does @groundboard/png, which is published and imported only on demand.
+  deps: { alwaysBundle: [privatePackagePattern()] },
   // Declarations are generated for the library entry only, with the internal packages' types
   // inlined so the published .d.mts names no private package.
   dts: { entry: ["src/index.ts"], tsconfig: "tsconfig.build.json" },

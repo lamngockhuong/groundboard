@@ -5,6 +5,7 @@
 
 import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { privatePackageNames } from "../../../scripts/private-packages.mjs";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(packageDir, "../..");
@@ -49,6 +50,7 @@ export function collect(
   { pick = (pkg) => Object.keys(pkg.dependencies ?? {}), skip = [] } = {},
 ) {
   const seen = new Map();
+  const internal = new Set(privatePackageNames());
   const visit = (name, fromDir) => {
     if (skip.includes(name)) return;
     const dir = resolvePackageDir(name, fromDir);
@@ -56,7 +58,7 @@ export function collect(
     const pkg = readJson(path.join(dir, "package.json"));
     const key = `${pkg.name}@${pkg.version}`;
     if (seen.has(key)) return;
-    if (pkg.name.startsWith("@groundboard/")) return;
+    if (internal.has(pkg.name)) return;
     seen.set(key, {
       name: pkg.name,
       version: pkg.version,
