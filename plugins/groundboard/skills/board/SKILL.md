@@ -66,7 +66,32 @@ Pick the board shape that answers the question:
 | "why was it built this way" | decision record | `decision`, `rejected`, `fact` | `relates` |
 
 A board may combine shapes in separate groups, for example a flow plus a "why" group.
-Choose a slug for the output files, e.g. `checkout-decline`.
+
+The kind of question also decides how many boards to draw and in which order:
+
+| Kind of question | Boards, in reading order |
+|---|---|
+| A process or a feature ("how does checkout work") | One flow. A second only when the failure paths are the point: the normal path first, then where it breaks. |
+| An incident or a bug ("why did orders fail last night") | 1. the normal flow of the part that broke; 2. a cause tree, with the trigger and the root cause as two separate `cause` nodes, since readers confuse them. Draw the system and the missing guard, never a person to blame. |
+| A vulnerability or a security incident | 1. how the part normally works, when the weak code sits inside something the reader only calls; 2. a cause tree: the missing check, the condition an attack needs, and where each defence `blocks` it. Follow the security rule under Rules. |
+| Architecture ("how do the services fit together", "which path does a write take") | One overview flow of at most 7 groups; then one flow per path the question names, the other parts left out. |
+| Data model ("what is stored", "how do orders and payments relate") | The tables belong on the schema board of `/groundboard:db`. Draw a board here only for a rule over them (a state machine of a status column, a flow of what writes which table), pointing at the tables by their `db:` refs. |
+| A lifecycle ("which states can an order be in") | One state machine. |
+| A decision ("why X and not Y", "which one should we pick") | One decision record: the chosen `decision`, each `rejected` option with its reason, and the `fact`s that decided it. |
+
+**Split rather than crowd.** Draw several boards when the question holds two shapes in a
+sequence (an incident: the normal flow, then the cause tree), when one board would pass about 30
+nodes, or when a premise needs more than one line (step 3). Shapes that fit together under that
+size stay one board in separate groups. Each board of a set answers one question in its
+`question` field, and its title says its place (`Checkout decline 1: normal payment`,
+`Checkout decline 2: why it is declined`). A ref names a screen, an element, an endpoint, a table
+or a job, never another board, so boards are linked through what they share: give the node each
+board turns on the same ref (the endpoint `api:payments/post`, the screen `web:checkout`), and the
+atlas viewer lists, for that ref, the other boards that carry it. Give every board of the set one
+shared entry in `tags`, so the viewer's sidebar keeps them together, and name the boards of the
+set, in reading order, in the report.
+
+Choose a slug for each board's output files, e.g. `checkout-decline-1-normal`.
 
 Pick the mode:
 
@@ -75,7 +100,8 @@ Pick the mode:
   documents in the repository instead of code (a document outside it is copied as Markdown into
   `docs/requirements/` first, see the guide). Each node cites the requirement line as
   `{ "kind": "doc", "path", "line", "quote" }`; what the requirements do not answer becomes a
-  `question` naming who must answer. The board's claims are then grounded at `spec`.
+  `question` naming who must answer. The board's claims are then grounded at `spec`. After the
+  first clean render, ask "is this what you meant?" before polishing (step 6).
 - **update**: a board drawn from the requirements exists and the code has arrived. Copy the atlas
   first (`cp -R .groundboard .groundboard-baseline`), then for each step add the code source
   that implements it to `sourceIds`, next to the requirement. Keep every id and ref. Where the
@@ -107,7 +133,7 @@ Pick the mode:
   it rests on: as a `fact` node next to the node that needs it, or as one line in that node's
   `detail` when the reader can follow the board without it (the `detail` shows only once the
   node is selected). A premise that cannot be said in one line is a detail the board can drop,
-  or a board of its own linked by `ref`.
+  or a board of its own in the same set (step 1, "Split rather than crowd").
 - When the thing happens inside something the reader only calls (a library, a framework, a
   payment gateway, the database), show the normal case first and the failure after it, so the
   reader sees what "working" looks like before what breaks.
@@ -165,6 +191,16 @@ Each issue names a JSON path such as `sources[4].quote` or `nodes[2].sourceIds`.
   `question` node and tell the user which claim and why.
 - After 3 rounds with issues left, stop and report them with their paths.
 
+**From the requirements: ask "is this what you meant?"** A board drawn from the requirements
+draws someone's intent, and the requirements rarely say every relation. After the first clean
+render, before adding detail or polishing labels, show the board to the person who gave the task
+and ask one question: "Is this what you meant?". Name the one node or edge you are least sure of
+(for example "I read 'returns to the cart' as going back after a failed payment, not after a
+cancelled one"), so the answer is about the flow and not the wording. A person often sees their
+own intent more clearly in a draft and changes it: redraw from the answer rather than defend the
+draft, and cite the requirement line it rests on, or turn it into a `question` when no line
+says it. With nobody to ask, go on, and list every relation you assumed in the report.
+
 ### 7. Report
 
 Tell the user, briefly:
@@ -179,7 +215,12 @@ Tell the user, briefly:
   the task picked the level or you inferred it, so they can correct it;
 - the premises you put on the board (as `fact` nodes or in a `detail`), and the ones you left
   out on purpose with why (on the "surely knows" list, or a detail the question does not need);
-- every actor, step or receiver you assumed that no source names, or "none".
+- every actor, step or receiver you assumed that no source names, or "none";
+- from the requirements: the node or edge you asked about and what the person answered, or,
+  with nobody to ask, the relations you assumed;
+- for a set of boards: each board's path in reading order and the refs or tag that link them;
+- for a board about a vulnerability: what you left off the board under the security rule, and
+  why.
 
 ## Rules
 
@@ -187,6 +228,19 @@ Tell the user, briefly:
 - A requirement document is a `doc` source, never a code source: write `"kind": "doc"`.
 - Paths are repository-relative; never put an absolute local path in the board.
 - Keep the board to what answers the question: usually 5 to 30 nodes.
+- **A board about a vulnerability or a security incident draws the mechanism and the defence,
+  never the attack.** A board is committed with the repository and can be published as an
+  Artifact for a client, so it travels further than the conversation that made it. Draw what the
+  weakness is, why it exists (the missing check, the design choice), which condition an attack
+  needs, where each defence stops it, and how it is detected. Never put on the board a working
+  payload, an ordered sequence of exploitation steps, a command aimed at a target, a bypass of a
+  specific defence, or real credentials, tokens or personal data, even when they are in the
+  repository: a source may cite the line that holds the weak check, but its `quote` is a
+  fragment of the check, not of a payload or a secret. Name the class of a step
+  (`<crafted input>`, `forged session token`) instead of its content, and keep only the real
+  values the defence needs (a limit, a status code, a log line). Before rendering, ask: could someone copy
+  this board into a terminal and attack a real system with it? If yes, cut it back to the
+  mechanism and say in the report what was left out and why.
 - The board and its files stay in this repository's `.groundboard/` directory.
 - Never write or edit `.groundboard/*.overlay.json`: it holds the boxes a person moved and the
   notes they drew in the viewer, and render applies it on top of your board. Keep node and

@@ -44,6 +44,21 @@ than this skill: stop, and tell the user to update the groundboard plugin.
 For each job: its name, what starts it (a schedule, a queue, an event, a person), its retries and
 timeout when declared, and the line that declares each.
 
+**Name the reader**, as step 1 of `/groundboard:board` does
+([../board/SKILL.md](../board/SKILL.md)): ask who will read the jobs board (a developer on the
+project, a developer new to it, or a PM, BA, QA or client who does not read code), write the
+three to eight things that reader surely knows, and a term list. With nobody to ask, infer the
+level from the request ("what runs every night" from QA or a client reads differently from a
+developer's "which workers consume this queue") and record it as an assumption. The cron
+expression, queue and event names stay as declared; what you write yourself is for the reader:
+
+- a job's `label` says what it does for the product (`Send the order confirmation email`), not
+  the class that does it;
+- for a reader who does not read code, the job's `detail` says the schedule in words, with its
+  time zone when the source names one (`every day at 02:00`), and the retries as the source
+  declares them (`tries 3 times`);
+- `queue`, `worker`, `backoff` and `dead letter` are terms: explain them or leave them off.
+
 ### 2. Write the board
 
 - One `job` node per job: `label` what it does, `ref: "batch:<job-slug>"`, `trigger` with the
@@ -84,7 +99,9 @@ Keep every other id of the boards you touch as it is.
 - triggers left as questions and who must answer them;
 - the `enqueues`, `reads` and `writes` edges added, per board;
 - jobs worth a flow board of their own;
-- the grounding `check_atlas` prints for each board.
+- the grounding `check_atlas` prints for each board;
+- the reader level and the "surely knows" list, saying whether the person who gave the task
+  picked the level or you inferred it.
 
 ## Rules
 

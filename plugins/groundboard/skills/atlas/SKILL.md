@@ -37,6 +37,23 @@ Then pick the mode, and say which one in the report:
 | no router | **from the specification** | 2S, then 5 and 6 |
 | an overview, and now a router | **update** | 2U, then 5 and 6 |
 
+**Name the reader**, as step 1 of `/groundboard:board` does
+([../board/SKILL.md](../board/SKILL.md)): ask who will read the overview (a developer on the
+project, a developer new to it, or a PM, BA, QA or client who does not read code), write the
+three to eight things that reader surely knows, and a term list. The overview is the page
+`/groundboard:publish` shares with people who do not read code, so with nobody to ask, assume
+that reader and record it as an assumption. For that reader:
+
+- a screen's `label` is the name the product gives it: the page title the user sees, or the name
+  the requirements use (`Order history`, not `AccountOrdersPage` or `/account/orders`); the
+  route stays in the cited source;
+- a group's `label` says who sees its screens (`Signed-in customer`), followed by the layout
+  name in parentheses (`(_authenticated)`) so a developer still finds it;
+- a `navigates` edge with a label names what the user does (`Pay`, `after saving`), not the
+  call that does it.
+
+The rules of the guide's "Writing for the reader" apply to every label.
+
 ### 2. Find every screen in the router
 
 Search the router declarations, not the files that happen to look like pages:
@@ -74,7 +91,8 @@ Sources panel shows the route it cites, so do not put paths in the label.
 Group the screens by the layout route they sit under, so each role or area of the app reads as
 one block: a pathless layout (`_public`, `_authenticated`), or a path segment that has its own
 layout (`service-admin`, `business-office`). Each becomes a group
-`{ "id", "label": <the layout name> }` and each screen under it takes its `groupId`. A layout
+`{ "id", "label": <the layout name> }`, worded for the reader as step 1 says, and each screen
+under it takes its `groupId`. A layout
 nested in another becomes a child group with `parentId` (`_enrolled` inside
 `_enrollment-target-user`). Only follow layouts the router declares; a screen under no layout
 stays outside every group.
@@ -171,7 +189,10 @@ Without the MCP tools, run `npx groundboard validate <file> --check-sources .` a
 - which screens to draw first with `/groundboard:screen <ref>`: the ones most edges reach;
 - the mode, and the grounding `check_atlas` prints for the board (code, spec, none); for an
   update, the grounding before and after, the matched pairs, and what stayed unmatched;
-- for the specification mode, which navigation came from Figma, from documents or from the user.
+- for the specification mode, which navigation came from Figma, from documents or from the user;
+- the reader level and the "surely knows" list, saying whether the person who gave the task
+  picked the level or you assumed it, and every screen or group label you reworded for that
+  reader, with the name it replaces.
 
 ## Rules
 

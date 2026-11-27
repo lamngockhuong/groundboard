@@ -34,6 +34,23 @@ mockup). Otherwise find the route as `/groundboard:atlas` does and use the same 
 If `.groundboard/<file-slug>.board.json` already exists and the code it lacked has arrived,
 this is an **update**: go to step 5U after step 1.
 
+**Name the reader**, as step 1 of `/groundboard:board` does
+([../board/SKILL.md](../board/SKILL.md)): ask who will read the screen board (a developer on the
+project, a developer new to it, or a PM, BA, QA or client who does not read code), write the
+three to eight things that reader surely knows, and a term list. A screen board is how QA and
+the client check what each control does, so with nobody to ask, assume a reader who does not
+read code and record it as an assumption. The text of the interface stays as the screen shows
+it (step 4); what you write yourself is for the reader:
+
+- an `action` says what the user gets, in the product's words ("Places the order", "Shows the
+  errors under the file"), not the code that does it ("calls `mutate()`"); the endpoint it calls
+  is named by its `calls` edge;
+- an `unresolved` names what is not known and who answers, in words the reader can pass on;
+- a state's label and a `transition`'s label name what the user sees or does (`② Confirm`,
+  `file chosen`), not the variable that holds it.
+
+The rules of the guide's "Writing for the reader" apply to every label and `detail`.
+
 ### 2. Choose the layout source, in this order
 
 1. **Figma**, when a Figma URL is given: only if the tool `mcp__plugin_figma_figma__get_metadata`
@@ -221,6 +238,16 @@ guide says, or take it from the resource's board when `/groundboard:api` has dra
 Without the MCP tools, run `npx groundboard validate <file> --check-sources .` and
 `npx groundboard atlas check`.
 
+**Before the code exists, ask "is this what you meant?"** When the behaviour comes from the
+requirements or the prototype (step 5), the board draws someone's intent, and the
+specification rarely says what every control does. After the first clean validation, before
+adding detail or polishing, show the board to the person who gave the task and ask one
+question: "Is this what you meant?". Name the one element, `action` or edge you are least sure
+of (for example "I read 'Back' as returning to the cart, not to the product page"). Redraw from
+the answer rather than defend the draft: cite the requirement line it rests on, or set
+`unresolved` when no line says it. With nobody to ask, go on, and list every behaviour you
+assumed in the report.
+
 ### 6F. Cache the Figma reference images (screens drawn from Figma)
 
 The viewer shows each frame's design beside its wireframe, with the wireframe's boxes, handler
@@ -298,7 +325,11 @@ Check the result with `npx groundboard render .groundboard/<file-slug>.board.jso
 - for a screen with states: the states in flow order and the transitions between them, and
   why each one is a state rather than a region that shows or hides;
 - the screens it navigates to;
-- that the screenshots stayed out of the repository.
+- that the screenshots stayed out of the repository;
+- the reader level and the "surely knows" list, saying whether the person who gave the task
+  picked the level or you assumed it;
+- before the code exists: the element or edge you asked about and what the person answered,
+  or, with nobody to ask, the behaviours you assumed.
 
 ## Rules
 
