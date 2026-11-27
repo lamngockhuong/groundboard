@@ -23,3 +23,10 @@ cd "$tool"
 printf '{ "name": "groundboard-eval-tool", "private": true }\n' > package.json
 npm install --no-audit --no-fund --no-package-lock ./pack/*.tgz >/dev/null
 echo "installed $(cd pack && echo *.tgz) in $tool"
+
+# A copy of the Node that runs this script, for run-eval.sh to put first on PATH. A run's agent
+# gets a temporary HOME, so a version manager's shim (Volta, nvm, asdf) finds no Node there and
+# `npx groundboard` stops with "Volta error: Node is not available".
+node_prefix="$(dirname "$(dirname "$(node -p process.execPath)")")"
+cp -R "$node_prefix" "$tool/node"
+echo "copied Node $("$tool/node/bin/node" --version) from $node_prefix to $tool/node"
