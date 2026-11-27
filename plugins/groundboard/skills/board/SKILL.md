@@ -6,7 +6,7 @@ compatibility: Claude Code with the groundboard plugin's MCP server (Node 24 or 
 metadata:
   version: 0.1.0-rc.1
   homepage: https://github.com/lamngockhuong/groundboard
-allowed-tools: Read Grep Glob Write Bash(git remote get-url:*) Bash(git rev-parse:*) Bash(git status:*) Bash(git branch:*) Bash(npx groundboard:*) Bash(cp -R .groundboard .groundboard-baseline) Bash(rm -r .groundboard-baseline) mcp__plugin_groundboard_groundboard__get_board_schema mcp__plugin_groundboard_groundboard__validate_board mcp__plugin_groundboard_groundboard__render_board mcp__plugin_groundboard_groundboard__check_atlas
+allowed-tools: Read Grep Glob Write Bash(git remote get-url:*) Bash(git rev-parse:*) Bash(git status:*) Bash(git branch:*) Bash(npx groundboard:*) Bash(npx -y -p groundboard@:*) Bash(cp -R .groundboard .groundboard-baseline) Bash(rm -r .groundboard-baseline) mcp__plugin_groundboard_groundboard__get_board_schema mcp__plugin_groundboard_groundboard__validate_board mcp__plugin_groundboard_groundboard__render_board mcp__plugin_groundboard_groundboard__check_atlas Agent
 ---
 
 # groundboard: a source-grounded board for one question
@@ -18,6 +18,8 @@ citation cannot pass on trust.
 
 The board format is in [references/ir-guide.md](references/ir-guide.md). Read it before the
 first board in a session (or call `get_board_schema`, which returns the same guide).
+Before reporting a board meant for someone else, a reviewer who has not read the code looks at
+its image: [references/review.md](references/review.md).
 
 ## Procedure
 
@@ -95,7 +97,7 @@ Choose a slug for each board's output files, e.g. `checkout-decline-1-normal`.
 
 Pick the mode:
 
-- **from code**: the code that answers the question exists. Steps 2 to 7 as written.
+- **from code**: the code that answers the question exists. Steps 2 to 8 as written.
 - **from the requirements**: the flow is specified but not built. Scout the requirement
   documents in the repository instead of code (a document outside it is copied as Markdown into
   `docs/requirements/` first, see the guide). Each node cites the requirement line as
@@ -201,7 +203,31 @@ own intent more clearly in a draft and changes it: redraw from the answer rather
 draft, and cite the requirement line it rests on, or turn it into a `question` when no line
 says it. With nobody to ask, go on, and list every relation you assumed in the report.
 
-### 7. Report
+### 7. Let fresh eyes read it
+
+Every board meant for someone other than you is read, after a clean render and before the
+report, by a reviewer who has not read the code: follow [references/review.md](references/review.md).
+
+- Draw the board as PNG with `groundboard png` (the light theme, and the dark one too when the
+  reader reads the board in dark mode). When the image cannot be drawn (`@groundboard/png` is not
+  on npm yet, or the drawing fails), give the reviewer the board's labels and edges in reading
+  order instead, saying the layout was not checked.
+- Start a subagent with ONLY the image, the reader and the "surely knows" list: never the code,
+  the IR or your notes. It answers as the reader (where the eye starts, what the board says, which
+  words it did not understand, what seems unrelated), then lists what the board takes for granted,
+  each item `STATED` or `ASSUMED`, `ON LIST` or `NOT ON LIST`, `BLOCKS` or `DETAIL`.
+- Fix what it finds: a wrong summary changes the structure, a wrong reading order the layout or
+  the edges, an unknown word gets a plain gloss or the everyday word, an unrelated part gets an
+  edge or goes, a `BLOCKS` item becomes a cited `fact` node or is dropped as a detail. What the code
+  does not answer becomes a `question` node, never an invented answer.
+- Render again with the source check, and ask a **new** reviewer. When a second round still lists
+  `BLOCKS` items, each deeper than the last, split the board ("Split rather than crowd" in step 1)
+  instead of adding nodes. Stop when the last reviewer lists no `BLOCKS` item, or only ones the
+  code cannot answer.
+- With no subagent available, ask the person who gave the task the four reader questions, and
+  list what the board takes for granted yourself.
+
+### 8. Report
 
 Tell the user, briefly:
 
@@ -218,6 +244,10 @@ Tell the user, briefly:
 - every actor, step or receiver you assumed that no source names, or "none";
 - from the requirements: the node or edge you asked about and what the person answered, or,
   with nobody to ask, the relations you assumed;
+- the fresh-eyes review: how many rounds ran, the `BLOCKS` items left and why (each one a
+  `question` the code cannot answer), and whether the reviewer read the image, the text of the
+  board because the image could not be drawn (with the reason), or, with no subagent, the person
+  who gave the task;
 - for a set of boards: each board's path in reading order and the refs or tag that link them;
 - for a board about a vulnerability: what you left off the board under the security rule, and
   why.
