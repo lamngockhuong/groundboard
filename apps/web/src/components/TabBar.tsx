@@ -146,7 +146,7 @@ export function TabBar({
             icon: "check" as const,
             run: () => {
               onPin(tab.id);
-              requestAnimationFrame(() => tabButton(tab.id)?.focus());
+              tabButton(tab.id)?.focus();
             },
           },
         ]
@@ -258,9 +258,10 @@ export function TabBar({
           at={{ x: menu.x, y: menu.y }}
           items={menuItems(menu.tab)}
           onClose={(refocus) => {
-            const id = menu.tab.id;
+            // The focus goes back before the menu leaves the page, never through the body for a
+            // frame, so a key pressed right after Esc (Shift F10 again) still reaches the tab.
+            if (refocus) tabButton(menu.tab.id)?.focus();
             setMenu(null);
-            if (refocus) requestAnimationFrame(() => tabButton(id)?.focus());
           }}
         />
       ) : null}
