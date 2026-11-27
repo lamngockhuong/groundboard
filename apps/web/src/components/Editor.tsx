@@ -55,6 +55,7 @@ import {
   saveValue,
 } from "../prefs.ts";
 import { hasReferences, missingReferencesNote, withReferencesShown } from "../references.ts";
+import { isNewTabClick } from "../shortcuts.ts";
 import {
   type BoardNode,
   boardNodes,
@@ -67,6 +68,7 @@ import { useCanvasChanges } from "../use-canvas-changes.ts";
 import { usePresentation } from "../use-presentation.ts";
 import { EditPanel, type EditPanelHandle } from "./EditPanel.tsx";
 import { ExportMenu } from "./ExportMenu.tsx";
+import { type BoardHistory, HistoryNav } from "./HistoryNav.tsx";
 import { Icon } from "./Icon.tsx";
 import { LayersMenu } from "./LayersMenu.tsx";
 import { MotionOverlay } from "./MotionOverlay.tsx";
@@ -130,22 +132,17 @@ interface EditWork {
   base: { elements: readonly unknown[]; step: EditStep };
 }
 
-/** The viewer's Back and Forward, shown in the toolbar. */
-export interface BoardHistory {
-  canBack: boolean;
-  canForward: boolean;
-  onBack: () => void;
-  onForward: () => void;
-}
-
 /** What the viewer reads from the canvas: where it stands, and how much is selected. */
 export interface CanvasReader {
   /** Null while presenting or before the scene is on the canvas: nothing worth going back to. */
   view: () => ViewState | null;
   selectedCount: () => number;
+  /** Changes made on the canvas outside edit mode, which leaving the board throws away. */
+  unsaved: () => boolean;
 }
 
 export interface BoardStep {
+  slug: string;
   title: string;
   href: string;
 }
@@ -167,11 +164,15 @@ export interface BoardContext {
   snapshot?: string;
   prev: BoardStep | null;
   next: BoardStep | null;
+  /** Where the board sits in its group, counted from 1. */
+  position: { index: number; count: number };
   /** The board's tags, and every tag of the atlas to suggest. */
   tags: string[];
   allTags: string[];
   /** Saves new tags into the board file; resolves to an error message, or null. Absent when the server cannot write. */
   onSaveTags?: (tags: string[]) => Promise<string | null>;
+  /** Opens a board in a new tab of the viewer: Alt and a click on a step. */
+  onOpenInTab?: (slug: string) => void;
 }
 
 interface EditorProps {
@@ -192,7 +193,7 @@ interface EditorProps {
    * `seq` changes to apply the same focus again.
    */
   focus?: { nodeId?: string; view?: ViewState; seq: number } | null;
-  /** Back and Forward through the places visited; absent where there is no history. */
+  /** Back and Forward through the places visited; absent where there is none, or the tab bar shows them. */
   history?: BoardHistory;
   /** Hands over a reader of the canvas, and null when the board leaves the screen. */
   registerCanvas?: (reader: CanvasReader | null) => void;
@@ -243,10 +244,12 @@ function StepLink({
   step,
   dir,
   group,
+  onOpenInTab,
 }: {
   step: BoardStep | null;
   dir: "prev" | "next";
   group: string;
+  onOpenInTab?: ((slug: string) => void) | undefined;
 }) {
   const key = dir === "prev" ? "[" : "]";
   if (!step) {
@@ -269,6 +272,13 @@ function StepLink({
         title: step.title,
       })}
       title={t(dir === "prev" ? "editor.prevStep" : "editor.nextStep", { title: step.title, key })}
+      onClick={(event) => {
+        // Alt and a click opens a tab of the viewer; Ctrl, Cmd and the middle button are the
+        // browser's (Alt and a click on a link would download it in Chrome).
+        if (!onOpenInTab || !isNewTabClick(event)) return;
+        event.preventDefault();
+        onOpenInTab(step.slug);
+      }}
     >
       <Icon name={dir} size={18} />
     </a>
@@ -499,8 +509,8 @@ export default function Editor({
   }, [api, sceneReady, font, originals, onError]);
 
   // The viewer reads the canvas before it leaves the board, to come back to the same view.
-  const readerState = useRef({ api, sceneReady, presenting });
-  readerState.current = { api, sceneReady, presenting };
+  const readerState = useRef({ api, sceneReady, presenting, unsaved: canvasChanges.unsaved });
+  readerState.current = { api, sceneReady, presenting, unsaved: canvasChanges.unsaved };
   const registerCanvasRef = useRef(registerCanvas);
   registerCanvasRef.current = registerCanvas;
   useEffect(() => {
@@ -521,6 +531,7 @@ export default function Editor({
         const { api } = readerState.current;
         return api ? selectedIds(api.getAppState().selectedElementIds).length : 0;
       },
+      unsaved: () => readerState.current.unsaved,
     });
     return () => register?.(null);
   }, []);
@@ -929,45 +940,49 @@ export default function Editor({
     <div className="editor">
       <div className="toolbar">
         <div className="toolbar-title">
-          {history ? (
-            <nav className="board-steps" aria-label={t("editor.history")}>
-              <button
-                type="button"
-                className="ghost icon-button"
-                onClick={history.onBack}
-                disabled={!history.canBack}
-                aria-label={t("editor.back")}
-                aria-keyshortcuts="Alt+ArrowLeft"
-                title={t("editor.backHint", { key: "Alt+←" })}
-              >
-                <Icon name="historyBack" size={18} />
-              </button>
-              <button
-                type="button"
-                className="ghost icon-button"
-                onClick={history.onForward}
-                disabled={!history.canForward}
-                aria-label={t("editor.forward")}
-                aria-keyshortcuts="Alt+ArrowRight"
-                title={t("editor.forwardHint", { key: "Alt+→" })}
-              >
-                <Icon name="historyForward" size={18} />
-              </button>
-            </nav>
-          ) : null}
+          {history ? <HistoryNav history={history} /> : null}
           {context ? (
-            <nav className="board-steps" aria-label={t("editor.boardsInGroup")}>
-              <StepLink step={context.prev} dir="prev" group={context.group} />
-              <StepLink step={context.next} dir="next" group={context.group} />
+            // The group's boards in order, as one control beside the group's name, so it reads
+            // as "step through Screens" and never as Back and Forward.
+            <nav
+              className="group-stepper"
+              aria-label={t("editor.groupSteps", { group: context.group })}
+            >
+              <span className="crumb">{context.group}</span>
+              <StepLink
+                step={context.prev}
+                dir="prev"
+                group={context.group}
+                onOpenInTab={context.onOpenInTab}
+              />
+              <span
+                className="group-position"
+                title={t("editor.groupPositionLong", {
+                  index: context.position.index,
+                  count: context.position.count,
+                  group: context.group,
+                })}
+              >
+                <span aria-hidden="true">
+                  {context.position.index}/{context.position.count}
+                </span>
+                <span className="visually-hidden">
+                  {t("editor.groupPositionLong", {
+                    index: context.position.index,
+                    count: context.position.count,
+                    group: context.group,
+                  })}
+                </span>
+              </span>
+              <StepLink
+                step={context.next}
+                dir="next"
+                group={context.group}
+                onOpenInTab={context.onOpenInTab}
+              />
             </nav>
           ) : null}
           <h2 className="board-title" title={title}>
-            {context ? (
-              <>
-                <span className="crumb">{context.group}</span>
-                <Icon name="next" size={14} />
-              </>
-            ) : null}
             <span className="board-title-text">{title}</span>
           </h2>
         </div>

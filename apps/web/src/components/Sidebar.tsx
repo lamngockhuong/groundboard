@@ -19,7 +19,7 @@ import {
   saveValue,
 } from "../prefs.ts";
 import { formatRoute } from "../route.ts";
-import { paletteKeyLabel } from "../shortcuts.ts";
+import { isNewTabClick, paletteKeyLabel } from "../shortcuts.ts";
 import type { Theme, ThemePreference, ThemeStyle } from "../theme.ts";
 import { Icon, type IconName } from "./Icon.tsx";
 import { SettingsMenu } from "./SettingsMenu.tsx";
@@ -65,6 +65,8 @@ interface SidebarProps {
   onNavigate?: () => void;
   /** Removes a board from the list kept in this browser; absent when the list is not editable. */
   onRemove?: (slug: string) => void;
+  /** Opens a board in a new tab of the viewer: Alt and a click, or the row's button. */
+  onOpenInTab?: (slug: string) => void;
   /** The sidebar's width in pixels, when it can be resized by dragging its edge. */
   width?: number;
   /** A new width; `done` is true once the drag or key press is over, to store it. */
@@ -175,6 +177,7 @@ export function Sidebar({
   onOpenPalette,
   onNavigate,
   onRemove,
+  onOpenInTab,
   width,
   onResize,
 }: SidebarProps) {
@@ -406,36 +409,74 @@ export function Sidebar({
               </h2>
               {open ? (
                 <ul id={listId}>
-                  {section.boards.map((board) => (
-                    <li key={board.slug} className={onRemove ? "nav-removable" : undefined}>
-                      <a
-                        className="nav-item"
-                        href={formatRoute({ view: "board", slug: board.slug })}
-                        aria-current={board.slug === currentSlug ? "page" : undefined}
-                        onClick={onNavigate}
-                        title={board.title}
+                  {section.boards.map((board) => {
+                    const actions = (onOpenInTab ? 1 : 0) + (onRemove ? 1 : 0);
+                    return (
+                      <li
+                        key={board.slug}
+                        className={
+                          actions === 0
+                            ? undefined
+                            : actions === 2
+                              ? "nav-row nav-row-2"
+                              : "nav-row"
+                        }
                       >
-                        <span className={`dot dot-${board.status}`} aria-hidden="true" />
-                        <span className="nav-label">{board.title}</span>
-                        {board.status !== "ok" ? (
-                          <span className={`nav-status status-text-${board.status}`}>
-                            {statusLabel(board.status)}
+                        <a
+                          className="nav-item"
+                          href={formatRoute({ view: "board", slug: board.slug })}
+                          aria-current={board.slug === currentSlug ? "page" : undefined}
+                          onClick={(event) => {
+                            // Alt and a click: a tab of the viewer. Ctrl, Cmd and the middle
+                            // button stay the browser's, which opens a tab of its own.
+                            if (onOpenInTab && isNewTabClick(event)) {
+                              event.preventDefault();
+                              onOpenInTab(board.slug);
+                            }
+                            onNavigate?.();
+                          }}
+                          title={board.title}
+                        >
+                          <span className={`dot dot-${board.status}`} aria-hidden="true" />
+                          <span className="nav-label">{board.title}</span>
+                          {board.status !== "ok" ? (
+                            <span className={`nav-status status-text-${board.status}`}>
+                              {statusLabel(board.status)}
+                            </span>
+                          ) : null}
+                        </a>
+                        {actions > 0 ? (
+                          <span className="nav-actions">
+                            {onOpenInTab ? (
+                              <button
+                                type="button"
+                                className="ghost icon-button nav-action"
+                                onClick={() => {
+                                  onOpenInTab(board.slug);
+                                  onNavigate?.();
+                                }}
+                                aria-label={t("tabs.openInTab", { title: board.title })}
+                                title={t("tabs.openInTabHint")}
+                              >
+                                <Icon name="tabNew" size={14} />
+                              </button>
+                            ) : null}
+                            {onRemove ? (
+                              <button
+                                type="button"
+                                className="ghost icon-button nav-action"
+                                onClick={() => onRemove(board.slug)}
+                                aria-label={t("library.remove", { title: board.title })}
+                                title={t("library.remove", { title: board.title })}
+                              >
+                                <Icon name="close" size={14} />
+                              </button>
+                            ) : null}
                           </span>
                         ) : null}
-                      </a>
-                      {onRemove ? (
-                        <button
-                          type="button"
-                          className="ghost icon-button nav-remove"
-                          onClick={() => onRemove(board.slug)}
-                          aria-label={t("library.remove", { title: board.title })}
-                          title={t("library.remove", { title: board.title })}
-                        >
-                          <Icon name="close" size={14} />
-                        </button>
-                      ) : null}
-                    </li>
-                  ))}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : null}
             </section>

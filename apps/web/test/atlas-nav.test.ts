@@ -141,18 +141,29 @@ describe("neighbours", () => {
     expect(next?.slug).toBe("web--upload");
   });
 
+  it("says where the board sits in its group, counted from 1", () => {
+    const { index, count } = neighbours(atlas, "web--checkout");
+    expect(index).toBe(2);
+    expect(count).toBe(3);
+  });
+
   it("stops at the start and the end of a group", () => {
     expect(neighbours(atlas, "web--cart").prev).toBeNull();
     expect(neighbours(atlas, "web--upload").next).toBeNull();
-    expect(neighbours(atlas, "signup")).toEqual({ prev: null, next: atlas.boards[5] });
+    expect(neighbours(atlas, "signup")).toMatchObject({ prev: null, next: atlas.boards[5] });
   });
 
   it("has nothing around the only board of a group", () => {
-    expect(neighbours(atlas, "overview-web")).toEqual({ prev: null, next: null });
+    expect(neighbours(atlas, "overview-web")).toEqual({
+      prev: null,
+      next: null,
+      index: 1,
+      count: 1,
+    });
   });
 
   it("has nothing around a slug the atlas does not know", () => {
-    expect(neighbours(atlas, "missing")).toEqual({ prev: null, next: null });
+    expect(neighbours(atlas, "missing")).toEqual({ prev: null, next: null, index: 0, count: 0 });
   });
 });
 

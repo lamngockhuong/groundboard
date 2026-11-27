@@ -1007,6 +1007,199 @@ code {
   background: var(--panel);
 }
 
+/* Tab bar: the boards open in the viewer, above the board's toolbar. One row that scrolls
+   sideways when it overflows; the tab on screen is marked by weight and an accent line, a
+   preview tab by italics (and by name for screen readers). */
+.tab-bar {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+/* Back and Forward lead the bar, as in a browser, apart from the tabs by a hairline. */
+.tab-history {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0 0.3rem;
+  border-right: 1px solid var(--line);
+}
+
+.tab-history .icon-button {
+  min-height: 2rem;
+  width: 2rem;
+}
+
+.tab-list {
+  --fade: 2rem;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.tab-list::-webkit-scrollbar {
+  display: none;
+}
+
+/* A fade on an edge where tabs are hidden, set by TabBar as the row scrolls. */
+.tab-list[data-more-end] {
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--fade)), transparent);
+}
+
+.tab-list[data-more-start] {
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade));
+}
+
+.tab-list[data-more-start][data-more-end] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--fade),
+    #000 calc(100% - var(--fade)),
+    transparent
+  );
+}
+
+/* Tabs shrink like a browser's before the row has to scroll. */
+.tab {
+  position: relative;
+  display: flex;
+  flex: 0 1 14rem;
+  align-items: center;
+  min-width: 7.5rem;
+  max-width: 14rem;
+  border-right: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+
+.tab::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: transparent;
+  content: "";
+}
+
+.tab.active {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.tab.active::after {
+  background: var(--accent);
+}
+
+.tab-button {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.25rem 0 0.75rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.tab .tab-button:hover:not(:disabled),
+.tab .tab-button:active:not(:disabled) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+.tab-button:focus-visible {
+  outline-offset: -2px;
+}
+
+.tab.active .tab-button {
+  font-weight: 600;
+}
+
+.tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab.preview .tab-title {
+  font-style: italic;
+}
+
+.tab-button .icon {
+  flex: none;
+  color: var(--warn);
+}
+
+.tab-close {
+  display: inline-flex;
+  flex: none;
+  width: 1.65rem;
+  min-height: 1.65rem;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.3rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  opacity: 0;
+}
+
+.tab.active .tab-close,
+.tab:hover .tab-close,
+.tab:focus-within .tab-close {
+  opacity: 1;
+}
+
+.tab .tab-close:hover:not(:disabled),
+.tab .tab-close:active:not(:disabled) {
+  border-color: transparent;
+  background: var(--surface-2);
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+@media (hover: none) {
+  .tab-close {
+    opacity: 1;
+  }
+}
+
+/* The tab on screen while its board loads or cannot be shown. */
+.tab-pending {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.palette-hint {
+  margin: 0;
+  padding: 0.45rem 1rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
 .board-title {
   min-width: 0;
   margin: 0;
@@ -2145,33 +2338,42 @@ button.tag-chip[aria-pressed="true"]:hover:not(:disabled) {
   font-weight: 600;
 }
 
-/* A board of the browser's list: a remove button sits over the end of its row. */
-.nav-removable {
+/* A board row with actions: "open in a new tab", and on the browser's list "remove", sit over
+   the end of the row and show on hover or focus (always on touch screens). */
+.nav-row {
   position: relative;
 }
 
-.nav-removable .nav-item {
+.nav-row .nav-item {
   padding-right: 2.2rem;
 }
 
-.nav-remove {
+.nav-row.nav-row-2 .nav-item {
+  padding-right: 4.1rem;
+}
+
+.nav-actions {
   position: absolute;
   top: 50%;
   right: 0.2rem;
+  display: flex;
+  transform: translateY(-50%);
+}
+
+.nav-action {
   width: 1.9rem;
   min-height: 1.9rem;
   color: var(--muted);
   opacity: 0;
-  transform: translateY(-50%);
 }
 
-.nav-removable:hover .nav-remove,
-.nav-remove:focus-visible {
+.nav-row:hover .nav-action,
+.nav-row:focus-within .nav-action {
   opacity: 1;
 }
 
 @media (hover: none) {
-  .nav-remove {
+  .nav-action {
     opacity: 1;
   }
 }
@@ -2423,6 +2625,11 @@ dialog::backdrop {
 
 .file-dialog .loading-line {
   margin: 0 1rem 0.75rem;
+}
+
+/* Under the tab bar, so it never hides a tab. */
+.main-column:has(> .tab-bar) > .loading-line {
+  top: 2.9rem;
 }
 
 .zip-dialog {
@@ -2841,9 +3048,48 @@ dialog::backdrop {
   gap: 0.1rem;
 }
 
+.crumb {
+  flex: none;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* The group's name, the step to the previous board, where this one sits, and the step to the
+   next: one bordered control, so it reads as moving through the group, not through history. */
+.group-stepper {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0 0.15rem 0 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.group-stepper .crumb {
+  margin-right: 0.2rem;
+  font-size: 0.8125rem;
+}
+
+.group-stepper .step-link,
+.group-stepper .icon-button {
+  width: 1.9rem;
+  height: 1.9rem;
+  min-height: 1.9rem;
+}
+
+.group-position {
+  min-width: 2.2rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
 .board-title {
   display: flex;
-  flex: 1 1 12rem;
+  flex: 1 1 6rem;
   align-items: center;
   gap: 0.35rem;
   min-width: 0;
@@ -2851,12 +3097,6 @@ dialog::backdrop {
 
 .board-title .icon {
   color: var(--muted);
-}
-
-.crumb {
-  flex: none;
-  color: var(--muted);
-  font-weight: 500;
 }
 
 .board-title-text {

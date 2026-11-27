@@ -42,7 +42,9 @@ function host(): AtlasHost & { shown: string[] } {
     setIssues: vi.fn(),
     setWarnings: vi.fn(),
     askToken: vi.fn(),
-    showBoard: vi.fn((_scene, slug: string) => shown.push(slug)),
+    showBoard: vi.fn((board: { slug: string | null }) => {
+      shown.push(board.slug ?? "(pasted)");
+    }),
     closeScene: vi.fn(),
     closeAtlasBoard: vi.fn(),
   };
@@ -91,6 +93,7 @@ async function traverse(move: () => void) {
 
 describe("useAtlas", () => {
   beforeEach(async () => {
+    sessionStorage.clear();
     await new Promise<void>((resolve) => {
       if (window.location.hash === "#/") return resolve();
       window.addEventListener("hashchange", () => resolve(), { once: true });
@@ -127,18 +130,22 @@ describe("useAtlas", () => {
   });
 
   it("asks again for a board whose request failed when its link is followed again", async () => {
+    // The first request and the one retry after it both fail.
     api.fetchAtlasBoard
+      .mockResolvedValueOnce({ status: "error", message: "busy" })
       .mockResolvedValueOnce({ status: "error", message: "busy" })
       .mockResolvedValueOnce(ok);
     const h = host();
     await mount(h);
     await go("#/board/a");
-    await flush();
-    expect(h.setError).toHaveBeenCalledWith("busy");
+    await vi.waitFor(async () => {
+      await flush();
+      expect(h.setError).toHaveBeenCalledWith("busy");
+    });
     await go("#/");
     await go("#/board/a");
     await flush();
-    expect(api.fetchAtlasBoard).toHaveBeenCalledTimes(2);
+    expect(api.fetchAtlasBoard).toHaveBeenCalledTimes(3);
     expect(h.shown).toEqual(["a"]);
   });
 
@@ -298,5 +305,237 @@ describe("useAtlas", () => {
     await mount(h);
     await go("#/");
     expect(h.closeAtlasBoard).not.toHaveBeenCalled();
+  });
+
+  it("answers the boards of two tabs into each, whichever is on screen when they arrive", async () => {
+    const first = deferred();
+    const second = deferred();
+    api.fetchAtlasBoard.mockImplementation((slug: string) =>
+      slug === "a" ? first.promise : second.promise,
+    );
+    const h = host();
+    await mount(h);
+    await go("#/board/a");
+    await act(async () => latest.openPlace({ slug: "b" }, "new"));
+    expect(latest.tabs.tabs.map((t) => t.slug)).toEqual(["a", "b"]);
+    expect(window.location.hash).toBe("#/board/b");
+    await act(async () => first.resolve(ok));
+    // Tab a is not on screen: its board is kept, not shown.
+    expect(h.shown).toEqual([]);
+    await act(async () => second.resolve(ok));
+    expect(h.shown).toEqual(["b"]);
+    // Back on tab a: its board comes from memory, with no request.
+    const tabA = latest.tabs.tabs[0]?.id as string;
+    await act(async () => latest.selectTab(tabA));
+    expect(h.shown).toEqual(["b", "a"]);
+    expect(window.location.hash).toBe("#/board/a");
+    expect(api.fetchAtlasBoard.mock.calls.map((c) => c[0])).toEqual(["a", "b", "a"]);
+  });
+
+  it("keeps a missing board's tab, with the error in it, and leaves the address alone", async () => {
+    api.fetchAtlasBoard.mockResolvedValue({ status: "not-found" });
+    const h = host();
+    await mount(h);
+    await go("#/board/gone");
+    await flush();
+    expect(window.location.hash).toBe("#/board/gone");
+    expect(latest.tabs.tabs).toHaveLength(1);
+    expect(latest.tabs.tabs[0]?.error).toMatch(/gone/);
+    expect(h.closeScene).toHaveBeenCalled();
+  });
+
+  it("brings the tabs back after a reload, at the place the address names", async () => {
+    api.fetchAtlasBoard.mockResolvedValue(ok);
+    let h = host();
+    await mount(h);
+    await go("#/board/a");
+    await flush();
+    await act(async () => latest.openPlace({ slug: "b" }, "new"));
+    await flush();
+    await act(async () => root.unmount());
+    // A reload: the same session storage, the address of tab b.
+    h = host();
+    await mount(h);
+    await flush();
+    expect(latest.tabs.tabs.map((t) => t.slug)).toEqual(["a", "b"]);
+    expect(latest.route).toEqual({ view: "board", slug: "b" });
+    expect(h.shown).toEqual(["b"]);
+  });
+
+  it("opens the board of a deep link in a preview tab beside the tabs kept", async () => {
+    api.fetchAtlasBoard.mockResolvedValue(ok);
+    sessionStorage.setItem(
+      "groundboard.tabs.atlas",
+      JSON.stringify({
+        tabs: [
+          {
+            id: "t1",
+            preview: false,
+            history: { entries: [{ id: "e1", route: { view: "board", slug: "a" } }], index: 0 },
+          },
+        ],
+        activeIndex: 0,
+      }),
+    );
+    await new Promise<void>((resolve) => {
+      window.addEventListener("hashchange", () => resolve(), { once: true });
+      window.location.hash = "#/board/c?node=n1";
+    });
+    const h = host();
+    await mount(h);
+    await flush();
+    expect(latest.tabs.tabs.map((t) => t.slug)).toEqual(["a", "c"]);
+    expect(latest.route).toEqual({ view: "board", slug: "c", node: "n1" });
+    expect(latest.focus).toMatchObject({ nodeId: "n1" });
+    expect(h.shown).toEqual(["c"]);
+  });
+
+  it("asks before another tab takes the screen, and stays when refused", async () => {
+    api.fetchAtlasBoard.mockResolvedValue(ok);
+    const h = host();
+    await mount(h);
+    await go("#/board/a");
+    await flush();
+    await act(async () => latest.openPlace({ slug: "b" }, "new"));
+    await flush();
+    const kinds: string[] = [];
+    latest.leaveGuard.current = (kind) => {
+      kinds.push(kind);
+      return false;
+    };
+    const tabA = latest.tabs.tabs[0]?.id as string;
+    await act(async () => latest.selectTab(tabA));
+    await act(async () => latest.closeTab(latest.tabs.activeId as string));
+    expect(kinds).toEqual(["tab", "tab"]);
+    expect(latest.tabs.tabs).toHaveLength(2);
+    expect(window.location.hash).toBe("#/board/b");
+  });
+
+  it("goes home without closing a tab, and back to a tab's board when it is chosen", async () => {
+    api.fetchAtlasBoard.mockResolvedValue(ok);
+    const h = host();
+    await mount(h);
+    await go("#/board/a");
+    await flush();
+    await go("#/");
+    expect(latest.tabs.tabs).toHaveLength(1);
+    expect(latest.tabs.activeId).toBeNull();
+    expect(latest.route).toEqual({ view: "home" });
+    await act(async () => latest.selectTab(latest.tabs.tabs[0]?.id as string));
+    expect(window.location.hash).toBe("#/board/a");
+    expect(latest.route).toEqual({ view: "board", slug: "a" });
+  });
+
+  it("shows a pasted board in a tab of its own, under the home address", async () => {
+    api.fetchAtlasBoard.mockResolvedValue(ok);
+    const h = host();
+    await mount(h);
+    await go("#/board/a");
+    await flush();
+    await act(async () => latest.pinTab(latest.tabs.activeId as string));
+    await act(async () => {
+      latest.showPastedBoard({ scene: scene as never, title: "Pasted", fileName: "pasted" });
+    });
+    expect(latest.tabs.tabs.map((t) => t.slug)).toEqual(["a", null]);
+    expect(window.location.hash).toBe("#/");
+    expect(h.shown).toEqual(["a", "(pasted)"]);
+    expect(latest.tabTitle(latest.tabs.tabs[1] as never)).toBe("Pasted");
+    // Back returns to the atlas board's tab.
+    await traverse(() => window.history.back());
+    expect(latest.route).toEqual({ view: "board", slug: "a" });
+    expect(latest.tabs.tabs).toHaveLength(2);
+  });
+
+  it("asks before a pasted board is replaced, and never gives two tabs one id on Back", async () => {
+    api.fetchAtlasBoard.mockResolvedValue(ok);
+    const h = host();
+    await mount(h);
+    await go("#/board/b");
+    await flush();
+    const asked: string[] = [];
+    latest.leaveGuard.current = (kind) => {
+      asked.push(kind);
+      return true;
+    };
+    // The paste goes into the preview tab that showed b.
+    await act(async () => {
+      latest.showPastedBoard({ scene: scene as never, title: "Pasted", fileName: "pasted" });
+    });
+    expect(latest.tabs.tabs.map((t) => t.slug)).toEqual([null]);
+    expect(asked).toEqual(["tab"]);
+    await act(async () => latest.pinTab(latest.tabs.activeId as string));
+    // Back to b's entry, which the tab no longer has: b opens in a tab of its own.
+    await traverse(() => window.history.back());
+    await flush();
+    expect(asked).toEqual(["tab", "tab"]);
+    const ids = latest.tabs.tabs.map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(latest.tabs.tabs.map((t) => t.slug)).toEqual([null, "b"]);
+    expect(latest.route).toEqual({ view: "board", slug: "b" });
+
+    // A preview tab holding a paste: an ordinary link asks, even with no change on it.
+    await act(async () => latest.closeTab(latest.tabs.tabs[1]?.id as string));
+    await act(async () => {
+      latest.showPastedBoard({ scene: scene as never, title: "Two", fileName: "two" });
+    });
+    asked.length = 0;
+    latest.leaveGuard.current = (kind) => {
+      asked.push(kind);
+      return false;
+    };
+    await go("#/board/c");
+    expect(asked).toEqual(["pasted"]);
+    expect(latest.tabs.tabs.filter((t) => t.slug === null)).toHaveLength(2);
+  });
+
+  it("asks once when the browser's Back is refused", async () => {
+    api.fetchAtlasBoard.mockResolvedValue(ok);
+    const h = host();
+    await mount(h);
+    await go("#/board/a");
+    await flush();
+    await go("#/board/a?node=n1");
+    let asked = 0;
+    latest.leaveGuard.current = () => {
+      asked += 1;
+      return false;
+    };
+    await traverse(() => window.history.back());
+    await vi.waitFor(() => expect(window.location.hash).toBe("#/board/a?node=n1"));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await flush();
+    expect(asked).toBe(1);
+    expect(latest.route).toEqual({ view: "board", slug: "a", node: "n1" });
+  });
+
+  it("tries a failed board request once more before showing the error", async () => {
+    api.fetchAtlasBoard
+      .mockResolvedValueOnce({ status: "error", message: "busy" })
+      .mockResolvedValueOnce(ok);
+    const h = host();
+    await mount(h);
+    await go("#/board/a");
+    await vi.waitFor(async () => {
+      await flush();
+      expect(h.shown).toEqual(["a"]);
+    });
+    expect(h.setError).not.toHaveBeenCalled();
+  });
+
+  it("asks the server once when a tab is chosen again while its board is still on the way", async () => {
+    const slow = deferred();
+    api.fetchAtlasBoard.mockImplementation((slug: string) =>
+      slug === "a" ? slow.promise : Promise.resolve(ok),
+    );
+    const h = host();
+    await mount(h);
+    await go("#/board/a");
+    const tabA = latest.tabs.activeId as string;
+    await act(async () => latest.openPlace({ slug: "b" }, "new"));
+    await act(async () => latest.selectTab(tabA));
+    await act(async () => slow.resolve(ok));
+    await flush();
+    expect(api.fetchAtlasBoard.mock.calls.filter((c) => c[0] === "a")).toHaveLength(1);
+    expect(h.shown.filter((s) => s === "a")).toHaveLength(1);
   });
 });

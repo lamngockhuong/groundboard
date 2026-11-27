@@ -157,6 +157,8 @@ export const ja: Messages = {
   "editor.staleTitle": "このボードの作成後にコードが変わりました",
   "editor.stale_one": "古い · 出典 {count} 件",
   "editor.stale_other": "古い · 出典 {count} 件",
+  "editor.groupSteps": "{group} のボード",
+  "editor.groupPositionLong": "{group} の {count} 件中 {index} 件目のボード",
   "editor.prevBoard": "前のボード: {title}",
   "editor.nextBoard": "次のボード: {title}",
   "editor.prevStep": "前へ: {title}（{key}）",
@@ -173,6 +175,22 @@ export const ja: Messages = {
   "editor.backHint": "直前に見ていた場所に戻る（{key}）",
   "editor.forward": "進む",
   "editor.forwardHint": "戻る前の場所に進む（{key}）",
+  "tabs.label": "開いているボード",
+  "tabs.preview": "プレビュー",
+  "tabs.previewHint":
+    "プレビュー: 次に開くボードに置き換わります。ダブルクリックするか、タブで Enter を押すと固定します。",
+  "tabs.close": "{title} を閉じる",
+  "tabs.closeHint": "タブを閉じる（{key}）",
+  "tabs.problem": "表示できません",
+  "tabs.full":
+    "{count} 個のタブがすべて固定されているため、このタブでボードを開きました。別のボードを開くにはタブを閉じてください。",
+  "tabs.replacePastedConfirm":
+    "貼り付けたボードは、置き換えたり閉じたりすると再び開けません。続けますか？",
+  "tabs.openInTab": "{title} を新しいタブで開く",
+  "tabs.openInTabHint": "新しいタブで開く（Alt+クリック）",
+  "tabs.leaveCanvasConfirm":
+    "このボードには保存されていない変更があります。移動して変更を破棄しますか？",
+  "palette.newTab": "{key} で新しいタブに開く",
   "editor.boardsInGroup": "このグループのボード",
   "editor.hideDesign": "Figma の参照画像とその印を隠す",
   "editor.showDesign": "ワイヤーフレームの横に Figma の参照画像を表示する",

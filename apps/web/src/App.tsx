@@ -20,6 +20,7 @@ import { Modal } from "./components/Modal.tsx";
 import { SettingsMenu } from "./components/SettingsMenu.tsx";
 import { SIDEBAR_WIDTH, Sidebar } from "./components/Sidebar.tsx";
 import { SourcePanel } from "./components/SourcePanel.tsx";
+import { TabBar } from "./components/TabBar.tsx";
 import { TokenForm } from "./components/TokenForm.tsx";
 import { ZipDialog } from "./components/ZipDialog.tsx";
 import type { ZipSource } from "./download.ts";
@@ -39,10 +40,18 @@ import {
   saveValue,
 } from "./prefs.ts";
 import { renderBoard } from "./render-client.ts";
-import { formatRoute, parseRoute } from "./route.ts";
-import { historyKeyWins, isHistoryKey, isPageKey, isPaletteKey, isViewerKey } from "./shortcuts.ts";
+import { formatRoute } from "./route.ts";
+import {
+  historyKeyWins,
+  isHistoryKey,
+  isPageKey,
+  isPaletteKey,
+  isTabKey,
+  isViewerKey,
+} from "./shortcuts.ts";
 import type { BoardNode, NodeCitations } from "./sources.ts";
 import { describeStamp } from "./stamp.ts";
+import { activeTab } from "./tabs.ts";
 import {
   applyStyle,
   applyTheme,
@@ -54,7 +63,7 @@ import {
   type ThemePreference,
   type ThemeStyle,
 } from "./theme.ts";
-import { type BoardCheck, type NodeFocus, useAtlas } from "./use-atlas.ts";
+import { type BoardCheck, type LeaveKind, type NodeFocus, useAtlas } from "./use-atlas.ts";
 
 // The editor pulls in several MB of Excalidraw; it is fetched only after the page is up.
 const loadEditor = () => import("./components/Editor.tsx");
@@ -172,6 +181,13 @@ export function App() {
   const canvasReader = useRef<CanvasReader | null>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   const [focusFilter, setFocusFilter] = useState(0);
+  /** A short notice about the tabs, such as every tab being pinned; it clears itself. */
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (notice === null) return;
+    const timer = window.setTimeout(() => setNotice(null), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   useEffect(() => {
     // Warm the editor chunk once the page is on screen; a failure surfaces on use.
@@ -260,7 +276,7 @@ export function App() {
     focus,
     loadAtlas,
     openPlace,
-    forgetBoard,
+    goHome,
     library,
     addToLibrary,
     removeFromLibrary,
@@ -276,6 +292,13 @@ export function App() {
     canBack,
     canForward,
     viewReader,
+    tabs,
+    tabTitle,
+    selectTab,
+    selectTabAt,
+    closeTab,
+    pinTab,
+    showPastedBoard,
   } = useAtlas({
     setBusy,
     clearMessages,
@@ -283,29 +306,35 @@ export function App() {
     setIssues,
     setWarnings,
     askToken,
-    showBoard: (scene, slug, title, check) => showScene(scene, slug, title, slug, check),
+    showBoard: (board) =>
+      showScene(board.scene, board.fileName, board.title, board.slug, board.check),
     closeScene,
-    closeAtlasBoard: () => {
-      setLoaded((current) => (current?.slug != null ? null : current));
-      setCitations([]);
-      setNodes([]);
-    },
+    closeAtlasBoard: closeScene,
+    notify: setNotice,
+    hasUnsavedWork: () =>
+      dirtyCheck.current?.() === true || canvasReader.current?.unsaved() === true,
   });
 
+  /** Tabs show where the source has more than one board to keep open. */
+  const tabsShown = atlas !== null && atlas.boards.length > 1;
+  /** Back and Forward sit at the start of the tab bar when it shows, else in the toolbar. */
+  const tabBarShown = tabsShown && tabs.tabs.length > 0;
+  const boardHistory = { canBack, canForward, onBack: back, onForward: forward };
+
   /**
-   * A pasted board or scene takes the place of an atlas board: forget that board and leave its
-   * deep link, so the address names what is on screen and following the link again reopens it.
+   * A pasted board or scene: under an atlas it goes into the preview tab, with the home as its
+   * address (it has none of its own), so following an atlas link again reopens that board.
    */
   const showPasted = useCallback(
     (scene: Scene, fileName: string, title: string) => {
-      forgetBoard();
-      if (parseRoute(window.location.hash).view === "board") {
-        window.location.hash = formatRoute({ view: "home" });
+      if (atlasEnabled) {
+        if (showPastedBoard({ scene, fileName, title })) setFileOpen(false);
+        return;
       }
       setFileOpen(false);
       showScene(scene, fileName, title, null);
     },
-    [forgetBoard, showScene],
+    [atlasEnabled, showPastedBoard, showScene],
   );
 
   const submitBoard = useCallback(
@@ -483,8 +512,13 @@ export function App() {
   };
 
   const reset = () => {
-    forgetBoard();
     setTokenPrompt(null);
+    if (atlasEnabled) {
+      // Home keeps the tabs open; the board on screen leaves it.
+      clearMessages();
+      goHome();
+      return;
+    }
     closeScene();
     clearMessages();
     if (window.location.hash !== "" && window.location.hash !== "#/") {
@@ -505,14 +539,15 @@ export function App() {
   /** Opens the board that defines a ref; false when there is no atlas or no such board. */
   const openRef = (ref: string): boolean => {
     const place = atlas ? boardDefiningRef(atlas, ref) : null;
-    if (place) openPlace(place);
+    if (place) openPlace(place, tabsShown ? "new" : "preview");
     return place !== null;
   };
 
-  const pick = (item: PaletteItem) => {
+  const pick = (item: PaletteItem, newTab: boolean) => {
     switch (item.type) {
       case "board":
-        window.location.hash = formatRoute({ view: "board", slug: item.board.slug });
+        if (newTab) openPlace({ slug: item.board.slug }, "new");
+        else window.location.hash = formatRoute({ view: "board", slug: item.board.slug });
         break;
       case "node":
         focusNode(item.node.nodeId);
@@ -520,7 +555,7 @@ export function App() {
       case "ref": {
         const place = atlas ? boardDefiningRef(atlas, item.ref.ref) : null;
         const target = place ?? item.ref.usedIn[0];
-        if (target) openPlace(target);
+        if (target) openPlace(target, newTab ? "new" : "preview");
         break;
       }
     }
@@ -550,7 +585,13 @@ export function App() {
     [askToken, loadAtlas],
   );
   const stepTo = (board: { slug: string; title: string } | null) =>
-    board ? { title: board.title, href: formatRoute({ view: "board", slug: board.slug }) } : null;
+    board
+      ? {
+          slug: board.slug,
+          title: board.title,
+          href: formatRoute({ view: "board", slug: board.slug }),
+        }
+      : null;
   const context: BoardContext | null =
     atlasBoard && loaded && steps
       ? {
@@ -564,11 +605,13 @@ export function App() {
           ...(loaded.draft ? { draft: true } : {}),
           prev: stepTo(steps.prev),
           next: stepTo(steps.next),
+          position: { index: steps.index, count: steps.count },
           tags: atlasBoard.tags,
           allTags: atlas ? atlasTags(atlas).map((t) => t.tag) : [],
           ...(atlas?.tagsEditable && !staticMode
             ? { onSaveTags: (tags: string[]) => saveTags(atlasBoard.slug, tags) }
             : {}),
+          ...(tabsShown ? { onOpenInTab: (slug: string) => openPlace({ slug }, "new") } : {}),
         }
       : null;
 
@@ -576,10 +619,48 @@ export function App() {
   // otherwise take it for "add a link"; "/" filters the boards; "[" and "]" step between boards.
   // Alt ← and Alt → go Back and Forward, ahead of the browser and of Excalidraw, as long as
   // nothing is selected on the canvas.
-  const keys = useRef({ context, atlas, narrow, collapsed, back, forward, canBack, canForward });
-  keys.current = { context, atlas, narrow, collapsed, back, forward, canBack, canForward };
+  // Alt 1 to Alt 9 choose a tab and Alt W closes the one on screen, read first so neither
+  // Excalidraw nor the browser takes them.
+  const keys = useRef({
+    context,
+    atlas,
+    narrow,
+    collapsed,
+    back,
+    forward,
+    canBack,
+    canForward,
+    tabsShown,
+    tabs,
+    selectTabAt,
+    closeTab,
+  });
+  keys.current = {
+    context,
+    atlas,
+    narrow,
+    collapsed,
+    back,
+    forward,
+    canBack,
+    canForward,
+    tabsShown,
+    tabs,
+    selectTabAt,
+    closeTab,
+  };
   useEffect(() => {
     const onCapture = (event: KeyboardEvent) => {
+      const tabKey = isTabKey(event);
+      if (tabKey) {
+        const current = keys.current;
+        if (!current.tabsShown || document.querySelector("dialog[open]")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (tabKey.type === "select") current.selectTabAt(tabKey.n);
+        else if (current.tabs.activeId !== null) current.closeTab(current.tabs.activeId);
+        return;
+      }
       const move = isHistoryKey(event);
       if (move) {
         const current = keys.current;
@@ -675,6 +756,11 @@ export function App() {
 
   const messages = (
     <>
+      {notice ? (
+        <p className="warnings" role="status">
+          {notice}
+        </p>
+      ) : null}
       {draftsVolatile ? (
         <p className="warnings" role="status">
           {t("edit.draftsVolatile")}
@@ -701,8 +787,18 @@ export function App() {
   );
 
   // Leaving the board with unsaved edits asks first, whichever way the address changes.
+  // Changes made on the canvas outside edit mode are asked about when the board leaves the
+  // screen for another tab or another board in its tab; moving within the tab keeps them.
   useEffect(() => {
-    leaveGuard.current = () => !dirtyCheck.current?.() || window.confirm(t("edit.leaveConfirm"));
+    leaveGuard.current = (kind: LeaveKind) => {
+      if (dirtyCheck.current?.()) return window.confirm(t("edit.leaveConfirm"));
+      if (kind !== "nav" && canvasReader.current?.unsaved()) {
+        return window.confirm(t("tabs.leaveCanvasConfirm"));
+      }
+      // A pasted board has no address to come back to: losing it always asks.
+      if (kind === "pasted") return window.confirm(t("tabs.replacePastedConfirm"));
+      return true;
+    };
     const onUnload = (event: BeforeUnloadEvent) => {
       if (dirtyCheck.current?.()) event.preventDefault();
     };
@@ -730,6 +826,9 @@ export function App() {
           session: editSession && editSession.slug === loaded.slug ? editSession : null,
           onStart: () => {
             const slug = loaded.slug as string;
+            // A board being edited stays in its tab: the next ordinary click goes elsewhere.
+            const tab = activeTab(tabs);
+            if (tab?.slug === slug) pinTab(tab.id);
             void (async () => {
               const started = await startEditing(slug);
               if ("error" in started) {
@@ -788,8 +887,8 @@ export function App() {
           locale={locale}
           motionAll={motionAll}
           fileName={loaded.fileName}
-          focus={loaded.slug !== null ? focus : localFocus}
-          {...(atlas ? { history: { canBack, canForward, onBack: back, onForward: forward } } : {})}
+          focus={loaded.slug !== null ? focus : (localFocus ?? focus)}
+          {...(atlas && !tabBarShown ? { history: boardHistory } : {})}
           registerCanvas={(reader) => {
             canvasReader.current = reader;
           }}
@@ -807,7 +906,7 @@ export function App() {
           atlas={atlas}
           currentSlug={loaded.slug}
           staleSourceIds={loaded.staleSourceIds}
-          onOpen={openPlace}
+          onOpen={(place) => openPlace(place, tabsShown ? "new" : "preview")}
         />
       ) : null}
     </main>
@@ -840,6 +939,7 @@ export function App() {
       nodes={loaded ? nodes : []}
       onPick={pick}
       onClose={() => setPaletteOpen(false)}
+      tabs={tabsShown}
     />
   ) : null;
 
@@ -857,6 +957,8 @@ export function App() {
   }
 
   if (atlas) {
+    /** The tab on screen while its board is not: still loading, or it cannot be shown. */
+    const onScreenTab = loaded ? undefined : activeTab(tabs);
     const sidebarProps = {
       atlas,
       currentSlug: loaded?.slug ?? null,
@@ -880,6 +982,7 @@ export function App() {
       ...(library && !library.sample
         ? { onRemove: (slug: string) => void removeFromLibrary(slug) }
         : {}),
+      ...(tabsShown ? { onOpenInTab: (slug: string) => openPlace({ slug }, "new") } : {}),
     };
     const openFile = () => {
       setDrawerOpen(false);
@@ -930,26 +1033,46 @@ export function App() {
               </button>
             </header>
           ) : null}
+          {tabBarShown ? (
+            <TabBar
+              history={boardHistory}
+              tabs={tabs}
+              title={tabTitle}
+              onSelect={selectTab}
+              onClose={closeTab}
+              onPin={pinTab}
+            />
+          ) : null}
           {fileOpen ? null : messages}
-          {workspace ?? (
-            <main className="start">
-              <AtlasHome
-                atlas={atlas}
-                {...(library
-                  ? {
-                      library: {
-                        ...library,
-                        onOpenFile: openFile,
-                        onClear: () => {
-                          if (window.confirm(t("library.clearConfirm"))) void clearLibrary();
+          {workspace ??
+            (onScreenTab ? (
+              <main className="start tab-pending">
+                {onScreenTab.error !== undefined ? (
+                  <p className="error" role="alert">
+                    {onScreenTab.error}
+                  </p>
+                ) : null}
+                <IssueList issues={issues} />
+              </main>
+            ) : (
+              <main className="start">
+                <AtlasHome
+                  atlas={atlas}
+                  {...(library
+                    ? {
+                        library: {
+                          ...library,
+                          onOpenFile: openFile,
+                          onClear: () => {
+                            if (window.confirm(t("library.clearConfirm"))) void clearLibrary();
+                          },
                         },
-                      },
-                    }
-                  : {})}
-              />
-              <IssueList issues={issues} />
-            </main>
-          )}
+                      }
+                    : {})}
+                />
+                <IssueList issues={issues} />
+              </main>
+            ))}
         </div>
         {drawerOpen ? (
           <Modal className="drawer" label={t("common.atlas")} onClose={() => setDrawerOpen(false)}>

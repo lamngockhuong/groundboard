@@ -78,3 +78,55 @@ export function isHistoryKey(event: KeyboardEvent): "back" | "forward" | null {
 export function historyKeyWins(event: KeyboardEvent, selectedCount: number): boolean {
   return isHistoryKey(event) !== null && selectedCount === 0;
 }
+
+/** A key of the tab bar: Alt and a digit chooses a tab, Alt W closes the one on screen. */
+export type TabKey = { type: "select"; n: number } | { type: "close" };
+
+/**
+ * Alt 1 to Alt 9 (Alt 9 the last tab) and Alt W, ⌥ on macOS. Read from `event.code`, the key's
+ * place on the keyboard: Option on macOS turns `event.key` into another character (⌥1 is
+ * "¡"). Not with Ctrl, Cmd or Shift held, and not in a field.
+ */
+export function isTabKey(event: KeyboardEvent): TabKey | null {
+  if (
+    !event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    event.defaultPrevented ||
+    isTypingTarget(event.target)
+  ) {
+    return null;
+  }
+  const digit = /^Digit([1-9])$/.exec(event.code ?? "");
+  if (digit) return { type: "select", n: Number(digit[1]) };
+  return event.code === "KeyW" ? { type: "close" } : null;
+}
+
+/**
+ * Alt and a left click on a board link: opens it in a new tab of the viewer. Ctrl, Cmd and the
+ * middle button are left to the browser, which opens a tab of its own.
+ */
+export function isNewTabClick(event: {
+  altKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+  button: number;
+}): boolean {
+  return event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.button === 0;
+}
+
+/** Ctrl Enter, or Cmd Enter on Apple platforms (as the palette key): open in a new tab. */
+export function isNewTabEnter(
+  event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey" | "shiftKey">,
+  apple: boolean = isApple(),
+): boolean {
+  const command = apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+  return command && !event.altKey && !event.shiftKey && event.key === "Enter";
+}
+
+/** How the new-tab Enter is written on this platform. */
+export function newTabEnterLabel(platform: string = navigator.platform): string {
+  return isApple(platform) ? "⌘Enter" : "Ctrl+Enter";
+}

@@ -322,7 +322,23 @@ Sheet column with a hairline right border. Items are 36px tall rows: a 0.5rem st
 the board title cut short with an ellipsis, and for a board that is not up to date the word
 "Stale" or "Invalid" in its semantic colour. Hover is a tracing-grey fill; the current board
 is an indigo wash with indigo semibold text. Group headings use the Label style with a count
-pill.
+pill. Where tabs show, each row carries an "Open in a new tab" icon button over its end, shown
+on hover or focus (always on touch screens) like the remove button of the browser's list;
+Alt and a click on the row does the same, while Ctrl or Cmd and a click and the middle button
+stay the browser's own new tab.
+
+### Tab bar
+One row above the board toolbar, on the surface colour with a hairline bottom border: Back and
+Forward first, apart from the tabs by a hairline, then the tabs. Tabs shrink like a browser's
+down to 7.5rem; past that the row scrolls sideways with no scrollbar (a vertical wheel scrolls
+it too) and a fade on either edge marks tabs hidden there; hidden when the source has a single board. Each tab is
+the board title cut short with an ellipsis, 7.5rem to 14rem wide, and a close button that shows on
+the tab on screen, on hover and on focus. The tab on screen is panel-white, semibold, with a
+2px indigo line along its bottom. The preview tab, the one an ordinary click replaces, sets
+its title in italics and is named "preview" to screen readers too. A tab whose board cannot
+be shown (missing or invalid) carries the warning icon and the words, never the colour alone.
+It is a WAI-ARIA tablist: arrows, Home and End move the focus, Enter or Space shows the
+focused tab, Delete closes it; a double click pins it.
 
 ### Atlas home cards
 Sheet cards, 12px radius, hairline border, no shadow. Stat cards put the label above the
@@ -332,12 +348,17 @@ lists invalid then stale boards, each with a status chip, a link, the board kind
 reason in words; with none, one green line with a check says every board matches the code.
 
 ### Board toolbar
-Back and Forward buttons (`Alt+←` and `Alt+→`, arrows rather than chevrons, disabled when
-there is nowhere to go), previous and next board buttons (`[` and `]`), a breadcrumb `<Group> › <Title>`, a status chip
-("Stale · N sources" or "Up to date"), the layout-origin badge, then the reading font, the
-Export menu and the source panel toggle (pressed while the panel shows). At the start or end
-of a group the step button is disabled and its label says why. A pasted board under an atlas
-shows Back and Forward and the title; without an atlas, the title only.
+Back and Forward (`Alt+←` and `Alt+→`, arrows rather than chevrons, disabled when there is
+nowhere to go) lead the tab bar, as in a browser; where there is no tab bar they lead the
+toolbar instead. The toolbar starts with the group stepper: one bordered control holding the
+group's name, the previous board (`[`), where the board sits in its group ("2/5", read out as
+"Board 2 of 5 in Screens") and the next board (`]`); Alt and a click on a step opens the board
+in a new tab. The chevrons sit inside the group's control so they read as moving through the
+group, never as history. Then the board title, a status chip ("Stale · N sources" or "Up to
+date"), the layout-origin badge, then the reading font, the Export menu and the source panel
+toggle (pressed while the panel shows). At the start or end of a group the step button is
+disabled and its label says why. A pasted board under an atlas shows Back and Forward and the
+title; without an atlas, the title only.
 
 ### Export menu
 A secondary "Export" button with `aria-haspopup="menu"` opens a lifted menu of three items
@@ -380,7 +401,9 @@ Ctrl K (Cmd K on macOS) opens it from anywhere, the canvas included, where it ta
 before Excalidraw's "add link". A modal dialog, 40rem wide, 12vh from the top: a borderless
 combobox input with an accent underline, then one listbox in groups (Boards, Nodes on this
 board, Refs), at most 8 results each, prefix matches first. The active option has an indigo
-wash and a 3px indigo bar. A board pasted under an atlas leaves only the nodes group.
+wash and a 3px indigo bar. A board pasted under an atlas leaves only the nodes group. Enter
+opens a board or ref where an ordinary click would; Ctrl Enter (Cmd Enter on macOS) opens it
+in a new tab, which a muted footer line says where tabs show.
 
 ### Source panel (signature)
 Right-hand panel listing what the selected nodes cite. Each node is a section with a mono
@@ -405,6 +428,21 @@ the browser's own buttons move through the same history. `Alt+←` and `Alt+→`
 home too, but only while nothing is selected on the canvas; with a selection the keys are left
 to Excalidraw. Leaving a board with unsaved edits asks first, and staying keeps the history as
 it was.
+
+Tabs keep several boards open, up to ten. Following a board link the ordinary way (a click in
+the sidebar, `[` or `]`, Enter in the palette) shows it in the preview tab, whose history goes
+on; opening it in a new tab (Alt and a click, the row's button, Ctrl Enter in the palette, a
+double click on a link to another board, "Open defining board" and "Appears in") adds a pinned
+tab after the one on screen, or chooses the tab that has that board already. Editing a board
+or a double click on its tab pins it. Opening an eleventh tab closes the unpinned tab used
+longest ago; with all ten pinned, the board opens in the tab on screen and a status line says
+so. `Alt+1` to `Alt+8` choose a tab, `Alt+9` the last, `Alt+W` closes the one on screen. Each
+tab has its own Back and Forward, and choosing a tab again restores its view. Choosing or
+closing a tab, or replacing the preview tab's board, asks first when the board holds unsaved
+edits or changes made on the canvas outside edit mode. "Atlas home" closes no tab. The tabs
+are kept for the browser tab, never in the address: a reload brings them back, and a deep link
+opens its board in the preview tab beside them. A board pasted or opened from a file is a
+preview tab with the home as its address, and a reload does not bring it back.
 
 On a screen board, a click on the numbered tag or the list line of a link to another screen
 selects it and shows its sources; a double click opens the board that defines that screen
