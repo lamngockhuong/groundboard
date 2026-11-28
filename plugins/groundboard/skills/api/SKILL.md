@@ -164,6 +164,15 @@ handler calls an endpoint (a `fetch`, an API client method, a mutation), follow 
 method and path, and add a `calls` edge from the element with `toRef` the endpoint's ref, citing
 the line that makes the call. Keep every other id of the screen board as it is.
 
+### 4E. Explain the endpoints asked about (optional)
+
+When the person asked how an endpoint works, or asked for the explanation of the endpoints
+`handler` marks, draw each with `/groundboard:board` ([../board/SKILL.md](../board/SKILL.md)) in
+the shape step 2P picked: its first node carries the endpoint's ref (on a sequence board, the
+participant that stands for the handler), and a step on the client's side only links to it with a
+`calls` edge. When a sequence board for the endpoint exists already, read it first and keep its
+participants in the order `nodes` lists them; add a new participant at the end.
+
 ### 5. Check and repair
 
 1. Call `validate_board` with `checkSourcesRoot: "."` on every board you wrote; fix every
@@ -180,8 +189,9 @@ Without the MCP tools, run `npx groundboard validate <file> --check-sources .` a
 - the resources and how many endpoints each has, from which framework and files;
 - routes skipped and why (health checks, static files, catch-alls);
 - the `calls` edges added, per screen board, and calls you could not follow to a route;
-- the endpoints by the board step 2P picked for them (none, flow, state, sequence), and those
-  still without an explanation; client steps you turned into `calls` edges;
+- the endpoints by the board step 2P picked for them (none, flow, state, sequence), those you
+  explained in step 4E, and those still without an explanation; client steps you turned into
+  `calls` edges;
 - how many endpoints have a guard and how many have none found, and the `reads`, `writes` and
   `enqueues` edges by target board; queries and jobs left without an edge because their board
   does not exist yet;

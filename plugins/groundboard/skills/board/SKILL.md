@@ -17,7 +17,10 @@ them. groundboard refuses to render a board whose quotes are not in the cited li
 citation cannot pass on trust.
 
 The board format is in [references/ir-guide.md](references/ir-guide.md). Read it before the
-first board in a session (or call `get_board_schema`, which returns the same guide).
+first board in a session (or call `get_board_schema`, which returns the same guide). Before
+drawing a sequence diagram, check that the schema `get_board_schema` returns has the
+`participant` node kind; if it does not, the plugin's MCP server is older than this skill: stop
+and tell the user to update the groundboard plugin.
 Before reporting a board meant for someone else, a reviewer who has not read the code looks at
 its image: [references/review.md](references/review.md).
 
@@ -66,6 +69,10 @@ Pick the board shape that answers the question:
 | "which states", "when can X change" | state machine | `state` | `transition` |
 | "why does X happen / fail" | cause tree | `cause`, `fact` | `causes`, `blocks` |
 | "why was it built this way" | decision record | `decision`, `rejected`, `fact` | `relates` |
+| "what talks to what, in which order", a handler that calls an outside service, a queue or a batch | sequence diagram | `participant` | `message`, with `fragments` for branches and loops |
+
+A sequence diagram is a board of its own: it holds only participants, questions, notes and
+messages (see the guide's "Sequence diagrams").
 
 A board may combine shapes in separate groups, for example a flow plus a "why" group.
 
@@ -151,6 +158,18 @@ Pick the mode:
   ``/groundboard:board Draw the flow when Import is pressed on Upload (`web:users-upload/import`)``
   (in the reader's interface language); draw that flow and put the element's ref on the step
   where the user presses it.
+- **Explaining an endpoint.** When the board explains what an endpoint's handler does (the
+  viewer copies a request such as ``/groundboard:board Draw a sequence diagram of what POST
+  /api/orders (Place an order) does in its handler, the participant for the handler carrying ref
+  `api:orders/post`, ...``), draw the shape the request names. Its first node carries the
+  endpoint's ref; on a sequence board, that is the participant that stands for the handler. A
+  step on the client's side that calls the endpoint only links to it with a `calls` edge whose
+  `toRef` is the ref, and never carries the ref itself, or the endpoint would pass for explained
+  when nothing explains its handler.
+- **Updating a sequence board.** Read the board file first and keep its participants in the order
+  `nodes` lists them: the reader may have reordered the columns in the viewer, and that order is
+  theirs. Add a new participant at the end; keep one the code no longer has and add a
+  `question`, as with a `manual` node.
 - When a step calls an endpoint, reads or writes a table, or enqueues a job the atlas has
   (`api--*`, `overview-db`, `overview-batch` boards), add a `calls`, `reads`, `writes` or
   `enqueues` edge from the step with `toRef` the endpoint's, table's or job's ref, citing the
