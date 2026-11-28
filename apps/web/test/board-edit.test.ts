@@ -189,6 +189,7 @@ describe("setEndpointGuards", () => {
 
   it("changes nothing when the list is the same, or when an unread handler stays empty", () => {
     const board = api();
+    delete (node(board, "create-order") as Record<string, unknown>).guards;
     const unread = setEndpointGuards(board, "create-order", "");
     expect(unread.ok && unread.board).toBe(board);
     (node(board, "create-order") as Record<string, unknown>).guards = [

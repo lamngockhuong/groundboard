@@ -20,7 +20,9 @@
       "path": "/api/orders",
       "ref": "api:orders/post",
       "sourceIds": ["route-post"],
-      "guards": []
+      "detail": "Asks the payment gateway to authorize the total first; a declined card ends with 402 and stores nothing.",
+      "guards": [{ "name": "requireCustomer", "sourceIds": ["route-post"] }],
+      "handler": { "shape": "sequence", "sourceIds": ["authorize"] }
     },
     {
       "id": "get-order",
@@ -43,6 +45,13 @@
       "sourceIds": ["insert-order"]
     },
     {
+      "id": "create-writes-lines",
+      "from": "create-order",
+      "toRef": "db:order-items",
+      "kind": "writes",
+      "sourceIds": ["insert-line"]
+    },
+    {
       "id": "create-enqueues",
       "from": "create-order",
       "toRef": "batch:send-receipt",
@@ -59,33 +68,45 @@
   ],
   "sources": [
     {
+      "id": "authorize",
+      "path": "server/orders-routes.ts",
+      "line": 11,
+      "quote": "const { authorized, authorizationId } = await gateway.authorize(req.body.total);"
+    },
+    {
+      "id": "insert-line",
+      "path": "server/orders-routes.ts",
+      "line": 17,
+      "quote": "await db.insert(\"order_items\", { order_id: order.id, product_id: line.productId });"
+    },
+    {
       "id": "route-post",
       "path": "server/orders-routes.ts",
-      "line": 8,
-      "quote": "router.post(\"/orders\", async (req, res) => {"
+      "line": 10,
+      "quote": "router.post(\"/orders\", requireCustomer, async (req, res) => {"
     },
     {
       "id": "insert-order",
       "path": "server/orders-routes.ts",
-      "line": 9,
+      "line": 15,
       "quote": "const order = await db.insert(\"orders\", { email: req.body.email, status: \"placed\" });"
     },
     {
       "id": "enqueue-receipt",
       "path": "server/orders-routes.ts",
-      "line": 10,
+      "line": 19,
       "quote": "await queue.add(\"send-receipt\", { orderId: order.id });"
     },
     {
       "id": "find-order",
       "path": "server/orders-routes.ts",
-      "line": 15,
+      "line": 24,
       "quote": "const order = await db.findOne(\"orders\", { id: req.params.id });"
     },
     {
       "id": "route-get",
       "path": "server/orders-routes.ts",
-      "line": 14,
+      "line": 23,
       "quote": "router.get(\"/orders/:id\", async (req, res) => {"
     }
   ]

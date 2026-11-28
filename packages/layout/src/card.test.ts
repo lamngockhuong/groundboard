@@ -104,7 +104,7 @@ describe("cards", () => {
     const board = load("api--orders");
     const laidOut = await layoutBoard(board);
     expect(laidOut.nodes.filter((n) => n.shape === "chip")).toEqual([]);
-    for (const id of ["create-writes", "create-enqueues", "get-reads"]) {
+    for (const id of ["create-writes", "create-writes-lines", "create-enqueues", "get-reads"]) {
       const edge = laidOut.edges.find((e) => e.id === id);
       expect(edge?.marker, id).toBeUndefined();
       expect(edge?.points, id).toEqual([]);
@@ -113,6 +113,7 @@ describe("cards", () => {
     const create = laidOut.nodes.find((n) => n.id === "create-order");
     expect(create?.rowParts?.tags.map((t) => [t.text, t.edgeId])).toEqual([
       ["writes orders", "create-writes"],
+      ["writes order-items", "create-writes-lines"],
       ["enqueues send-receipt", "create-enqueues"],
     ]);
     const resource = laidOut.nodes.find((n) => n.id === "orders");

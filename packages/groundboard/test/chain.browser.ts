@@ -158,6 +158,63 @@ async function tagBox(
   };
 }
 
+/**
+ * From the Pay button to the endpoint, whose row shows its guard and what it writes, then through
+ * the boards that link to the endpoint to the sequence of its handler, and from the message that
+ * writes the orders table to that table.
+ */
+async function followSequence(page: Page, origin: string): Promise<void> {
+  await page.goto(`${origin}/#/`);
+  await page.locator(".atlas-home").waitFor({ timeout: 30_000 });
+  await page.goto(`${origin}/#/board/web--checkout?node=pay`);
+  await waitForBoard(page);
+  const canvas = await page.locator(".canvas").boundingBox();
+  const blank = async () => {
+    if (canvas) await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height - 60);
+  };
+  await blank();
+  const call = await tagBox(page, "web--checkout", "pay", "ref-tag/pay-orders");
+  await page.mouse.dblclick(call.x, call.y);
+  await page.waitForURL(/#\/board\/api--orders/, { timeout: 15_000 });
+  await waitForBoard(page);
+  const panel = page.locator(".source-panel");
+  await panel.locator(".guard-name").getByText("requireCustomer").waitFor({ timeout: 15_000 });
+  await panel.locator(".data-edge .target-ref").getByText("db:orders").first().waitFor();
+
+  // The boards that link here list the handler's sequence; it opens on its participant.
+  await panel.locator(".appearances > summary").click();
+  await panel
+    .getByRole("button", { name: /Placing an order \(handler\)/ })
+    .first()
+    .click();
+  await page.waitForURL(/#\/board\/place-order-handler/, { timeout: 15_000 });
+  await waitForBoard(page);
+  await panel.locator(".node-head .kind").getByText("Our system").waitFor({ timeout: 15_000 });
+
+  // A double click on the message that inserts the order opens the orders table.
+  await blank();
+  const insert = await tagBox(page, "place-order-handler", "api", "edge-label/insert");
+  await page.mouse.dblclick(insert.x, insert.y);
+  await page.waitForURL(/#\/board\/overview-db/, { timeout: 15_000 });
+  await waitForBoard(page);
+  await panel.locator(".node-id").getByText("orders", { exact: true }).waitFor({ timeout: 15_000 });
+}
+
+describe("from the Pay button through the endpoint's sequence to the table it writes", () => {
+  test("on a served atlas", async () => {
+    const server = await start({ atlas: { dir: atlasDir, root: fixtures } });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => localStorage.setItem("groundboard.locale", "en"));
+      await followSequence(page, server.origin);
+    } finally {
+      await context.close();
+      await server.close();
+    }
+  });
+});
+
 describe("from the Pay button to the job it starts", () => {
   test("on a served atlas", async () => {
     const server = await start({ atlas: { dir: atlasDir, root: fixtures } });

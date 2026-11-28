@@ -486,7 +486,7 @@ describe("missing-flow hints", () => {
             {
               id: "insert",
               path: "server/orders-routes.ts",
-              line: 9,
+              line: 15,
               quote: 'const order = await db.insert("orders"',
             },
           ],

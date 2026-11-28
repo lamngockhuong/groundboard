@@ -28,6 +28,10 @@ const expected = JSON.parse(readFileSync(path.join(fixtures, "expected-atlas.jso
   calls: Record<string, string[]>;
   tables: Record<string, string[]>;
   jobs: Record<string, string[]>;
+  /** Each sequence board and the endpoint its participant explains. */
+  sequences: Record<string, string>;
+  /** Button, endpoint, sequence board and table, followed one into the next. */
+  chain: string[];
 };
 const names = readdirSync(atlasDir).filter((n) => n.endsWith(".board.json"));
 
@@ -200,6 +204,37 @@ describe("examples/fixtures/.groundboard", () => {
     const board = load(slug);
     const defined = board.nodes.filter((n) => n.kind === "job").map((n) => n.ref);
     expect(defined.sort()).toEqual([...refs].sort());
+  });
+
+  test.each(Object.entries(expected.sequences))(
+    "%s is a sequence whose participant explains %s",
+    (slug, endpoint) => {
+      const board = load(slug);
+      expect(board.nodes.some((n) => n.kind === "participant")).toBe(true);
+      const explainer = board.nodes.find((n) => n.kind === "participant" && n.ref === endpoint);
+      expect(explainer?.category).toBe("system");
+      expect(board.fragments?.map((f) => f.kind)).toEqual(["alt", "loop"]);
+    },
+  );
+
+  test("the chain runs from the Pay button to the endpoint, its sequence and the table it writes", async () => {
+    const [button, endpoint, sequence, table] = expected.chain as [string, string, string, string];
+    const atlas = await buildAtlas(atlasDir, fixtures);
+    const entry = (ref: string) => atlas.refs.find((r) => r.ref === ref);
+    // The button calls the endpoint.
+    expect(entry(endpoint)?.usedIn).toContainEqual(
+      expect.objectContaining({ slug: "web--checkout", edgeId: "pay-orders" }),
+    );
+    expect(entry(button)?.definedIn[0]?.slug).toBe("web--checkout");
+    // The endpoint's handler needs a sequence, and the sequence's participant explains it.
+    expect(entry(endpoint)).toMatchObject({ needsFlow: true, flowShape: "sequence" });
+    expect(entry(endpoint)?.usedIn).toContainEqual({ slug: sequence, nodeId: "api" });
+    // A message of the sequence writes the table.
+    expect(entry(table)?.usedIn).toContainEqual(
+      expect.objectContaining({ slug: sequence, edgeId: "insert" }),
+    );
+    // Nothing is left without its flow, elements and endpoints alike.
+    expect((atlas.warnings ?? []).filter((w) => w.includes("no flow yet"))).toEqual([]);
   });
 
   test("the served atlas leads from the Pay button to the endpoint, its table and its job", async () => {

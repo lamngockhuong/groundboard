@@ -64,7 +64,9 @@ describe("links across boards in the library", () => {
     if (result.status !== "ok") throw new Error(JSON.stringify(result));
     const elements = (result.scene as { elements: Array<{ id: string }> }).elements as never[];
     const [endpoint] = selectedCitations(elements, { "node/create-order": true });
-    expect(endpoint?.guards).toEqual([]);
+    expect(endpoint?.guards).toMatchObject([
+      { name: "requireCustomer", sources: [{ id: "route-post" }] },
+    ]);
     expect(endpoint?.dataEdges).toMatchObject([
       {
         edgeId: "create-writes",
@@ -72,6 +74,7 @@ describe("links across boards in the library", () => {
         toRef: "db:orders",
         sources: [{ id: "insert-order" }],
       },
+      { edgeId: "create-writes-lines", kind: "writes", toRef: "db:order-items" },
       { edgeId: "create-enqueues", kind: "enqueues", toRef: "batch:send-receipt" },
     ]);
     // A tag selects its edge, named by the endpoint it starts from.

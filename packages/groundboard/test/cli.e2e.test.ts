@@ -409,6 +409,47 @@ describe("groundboard CLI", () => {
     expect(json.warnings).toHaveLength(1);
   });
 
+  test("atlas check: the sample atlas explains every endpoint whose handler has logic", () => {
+    const fixtures = "examples/fixtures";
+    const result = run([
+      "atlas",
+      "check",
+      `${fixtures}/.groundboard`,
+      "--root",
+      fixtures,
+      "--json",
+    ]);
+    expect(result.status, result.stderr).toBe(0);
+    const atlas = JSON.parse(result.stdout);
+    expect(atlas.refs.find((r: { ref: string }) => r.ref === "api:orders/post")).toMatchObject({
+      needsFlow: true,
+      flowShape: "sequence",
+    });
+    expect(atlas.warnings ?? []).toEqual([]);
+    // Without its sequence, the endpoint is named with the board it needs.
+    const copy = path.join(tmp, "endpoint-atlas");
+    cpSync(path.join(repoRoot, fixtures), copy, { recursive: true });
+    rmSync(path.join(copy, ".groundboard", "place-order-handler.board.json"));
+    const missing = run(["atlas", "check"], undefined, copy);
+    expect(missing.status, missing.stderr).toBe(0);
+    expect(missing.stdout).toContain(
+      "\nwarning: 1 endpoint(s) whose handler has logic have no flow yet: `api:orders/post` (sequence);",
+    );
+  });
+
+  test("render and png draw the sequence board", () => {
+    const board = "examples/fixtures/.groundboard/place-order-handler.board.json";
+    const scene = run(["render", board, "-o", "-", "--check-sources", "examples/fixtures"]);
+    expect(scene.status, scene.stderr).toBe(0);
+    const ids = (JSON.parse(scene.stdout).elements as Array<{ id: string }>).map((e) => e.id);
+    expect(ids).toContain("fragment/pay");
+    expect(ids).toContain("lifeline/bank");
+    const out = path.join(tmp, "handler.png");
+    const png = run(["png", board, "-o", out]);
+    expect(png.status, png.stderr).toBe(0);
+    expect(existsSync(out)).toBe(true);
+  });
+
   test("atlas check: grounding, --require and --baseline", () => {
     const spec = "examples/fixtures/lifecycle/spec";
     const args = ["atlas", "check", `${spec}/.groundboard`, "--root", spec];
