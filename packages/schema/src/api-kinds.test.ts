@@ -107,19 +107,36 @@ describe("endpoint guards", () => {
   const guarded = (guards: unknown, extra: Record<string, unknown> = {}) =>
     apiBoard([{ method: "POST", path: "/v1/orders", ref: "api:orders/post", guards, ...extra }]);
 
-  test("guards citing the line that attaches them are valid and add no claim", () => {
-    const board = guarded([
-      { name: "requireCustomer", sourceIds: ["r"] },
-      { name: "role: admin", sourceIds: ["r"] },
-    ]);
+  test("each guard and the handler is a claim of its own, grounded by what it cites", () => {
+    const board = guarded(
+      [
+        { name: "requireCustomer", sourceIds: ["r"] },
+        { name: "role: admin", sourceIds: ["spec"] },
+      ],
+      { handler: { shape: "flow", sourceIds: ["r"] } },
+    );
+    board.sources.push({
+      id: "spec",
+      kind: "doc",
+      path: "docs/api.md",
+      line: 3,
+      quote: "Admins only",
+    } as never);
     const parsed = parseBoard(board);
     expect(parsed.ok, JSON.stringify(parsed)).toBe(true);
     if (!parsed.ok) return;
-    const plain = parseBoard(
-      apiBoard([{ method: "POST", path: "/v1/orders", ref: "api:orders/post" }]),
-    );
-    if (!plain.ok) throw new Error("plain board is invalid");
-    expect(boardClaims(parsed.value)).toEqual(boardClaims(plain.value));
+    const claims = boardClaims(parsed.value).filter((c) => c.on === "guard" || c.on === "handler");
+    expect(claims).toEqual([
+      { path: "nodes[1].guards[0]", id: "e0", on: "guard", index: 0, grounding: "code" },
+      { path: "nodes[1].guards[1]", id: "e0", on: "guard", index: 1, grounding: "spec" },
+      { path: "nodes[1].handler", id: "e0", on: "handler", grounding: "code" },
+    ]);
+    const manual = parseBoard(guarded([{ name: "auth" }], { manual: true }));
+    if (!manual.ok) throw new Error("manual endpoint refused");
+    expect(boardClaims(manual.value).find((c) => c.on === "guard")).toMatchObject({
+      grounding: "none",
+      manual: true,
+    });
   });
 
   test("an empty list says the handler was read and has no guard", () => {

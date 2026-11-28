@@ -324,11 +324,21 @@ export function renderExcalidraw(
   const nodeGrounding = new Map<string, Grounding>();
   const edgeGrounding = new Map<string, Grounding>();
   const operandGrounding = new Map<string, Grounding>();
+  /** Each endpoint guard's grounding, by `<endpoint id>#<index>`. */
+  const guardGrounding = new Map<string, Grounding>();
   for (const claim of claims) {
     if (claim.on === "operand") operandGrounding.set(claim.id, claim.grounding);
+    else if (claim.on === "guard")
+      guardGrounding.set(`${claim.id}#${claim.index}`, claim.grounding);
+    else if (claim.on === "handler") continue;
     else (claim.on === "node" ? nodeGrounding : edgeGrounding).set(claim.id, claim.grounding);
   }
   const manualIds = new Set(claims.filter((c) => c.manual).map((c) => `${c.on}:${c.id}`));
+  /** Whether an endpoint's guards rest on a specification only: no guard cites quoted code. */
+  const guardSpecOnly = (node: BoardNode): boolean => {
+    const groundings = (node.guards ?? []).map((_, j) => guardGrounding.get(`${node.id}#${j}`));
+    return groundings.length > 0 && !groundings.includes("code") && groundings.includes("spec");
+  };
   /**
    * What the viewer reads about a claim: its grounding, every time, so it never has to guess one;
    * and for a claim a person changed, that it is manual and which sources it cited before.
@@ -573,10 +583,14 @@ export function renderExcalidraw(
       ...(source.path !== undefined ? { path: source.path } : {}),
       ...(source.guards !== undefined
         ? {
-            guards: source.guards.map((guard) => ({
-              name: guard.name,
-              sources: cite(guard.sourceIds).map(toData),
-            })),
+            guards: source.guards.map((guard, j) => {
+              const grounding = guardGrounding.get(`${source.id}#${j}`);
+              return {
+                name: guard.name,
+                sources: cite(guard.sourceIds).map(toData),
+                ...(grounding !== undefined ? { grounding } : {}),
+              };
+            }),
           }
         : {}),
       sources: cite(source.sourceIds).map(toData),
@@ -734,7 +748,7 @@ export function renderExcalidraw(
           dotted: specOnly,
           ...(mark.tag ? { tag: mark.tag } : {}),
         }),
-        ...renderRowParts(node, customData, rowTagData),
+        ...renderRowParts(node, customData, rowTagData, guardSpecOnly(source)),
       );
       continue;
     }
@@ -967,6 +981,7 @@ function renderRowParts(
   node: LaidOutNode,
   customData: Record<string, unknown>,
   tagData: ReadonlyMap<string, { customData: Record<string, unknown>; dotted: boolean }>,
+  guardSpec = false,
 ): ExcalidrawElement[] {
   const parts = node.rowParts;
   if (parts === undefined) return [];
@@ -989,6 +1004,20 @@ function renderRowParts(
         customData,
       }),
     );
+    if (guardSpec) {
+      // Backed by a specification only, like any spec claim: tagged so.
+      out.push(
+        specTag(
+          `${nodeElementId(node.id)}/guard/spec`,
+          parts.guard.x + parts.guard.width + 4,
+          parts.guard.y + 2,
+          {
+            frameId,
+            customData,
+          },
+        ),
+      );
+    }
   }
   for (const tag of parts.tags) {
     const data = tagData.get(tag.edgeId);

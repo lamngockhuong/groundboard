@@ -388,4 +388,35 @@ describe("endpoint rows", () => {
     });
     expect((els.get("node/get-order/guard") as TextElement).text).toBe("no guard found");
   });
+
+  test("a guard line backed by a document only is tagged spec, and each guard carries its grounding", async () => {
+    const { parseBoard } = await import("@groundboard/schema");
+    const parsed = parseBoard(
+      apiBoard((raw) => {
+        const nodes = raw.nodes as Array<Record<string, unknown>>;
+        (nodes[1] as Record<string, unknown>).guards = [
+          { name: "admins only", sourceIds: ["spec"] },
+        ];
+        (nodes[2] as Record<string, unknown>).guards = [
+          { name: "requireCustomer", sourceIds: ["route-get"] },
+        ];
+        (raw.sources as Array<Record<string, unknown>>).push({
+          id: "spec",
+          kind: "doc",
+          path: "docs/api.md",
+          line: 1,
+          quote: "Admins only",
+        });
+      }),
+    );
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.error));
+    const board = parsed.value;
+    const scene = renderExcalidraw(await layoutBoard(board), board);
+    const els = byId(scene.elements);
+    expect((els.get("node/create-order/guard/spec") as TextElement).text).toBe("spec");
+    expect(els.has("node/get-order/guard/spec")).toBe(false);
+    expect(els.get("node/create-order/guard")?.customData?.groundboard).toMatchObject({
+      guards: [{ name: "admins only", grounding: "spec" }],
+    });
+  });
 });

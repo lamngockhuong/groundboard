@@ -136,8 +136,13 @@ export interface Claim {
   /** JSON path of the node, edge or operand, e.g. `nodes[3]`, `fragments[0].operands[1]`. */
   path: string;
   id: string;
-  /** `operand`: the guard of a fragment's operand on a sequence board. */
-  on: "node" | "edge" | "operand";
+  /**
+   * `operand`: the guard of a fragment's operand on a sequence board. `guard` and `handler`: a
+   * guard of an endpoint (`id` the endpoint's, `index` the guard's) and its handler's logic.
+   */
+  on: "node" | "edge" | "operand" | "guard" | "handler";
+  /** For a guard: its place in the endpoint's `guards`. */
+  index?: number;
   grounding: Grounding;
   /** Added or reworded by a person in the viewer, so not checked: always `none`. */
   manual?: true;
@@ -151,8 +156,8 @@ export interface Claim {
 export const isScreenEdgeClaim = isClaimEdge;
 
 /**
- * Every claim of a board with its grounding, nodes first, then edges, then the guards of
- * fragment operands, in board order.
+ * Every claim of a board with its grounding, nodes first, then the guards and handlers of
+ * endpoints, then edges, then the guards of fragment operands, in board order.
  */
 export function boardClaims(
   board: Pick<Board, "nodes" | "edges" | "sources"> & Partial<Pick<Board, "fragments">>,
@@ -169,6 +174,30 @@ export function boardClaims(
       grounding: nodeGrounding(node, sources),
       ...(node.manual ? { manual: true as const } : {}),
     });
+  });
+  // An endpoint's guards and its handler cite sources of their own, so each is a claim.
+  board.nodes.forEach((node, i) => {
+    if (node.kind !== "endpoint") return;
+    const manual = node.manual ? { manual: true as const } : {};
+    node.guards?.forEach((guard, j) => {
+      claims.push({
+        path: `nodes[${i}].guards[${j}]`,
+        id: node.id,
+        on: "guard",
+        index: j,
+        grounding: node.manual ? "none" : groundingOf(guard.sourceIds, sources),
+        ...manual,
+      });
+    });
+    if (node.handler !== undefined) {
+      claims.push({
+        path: `nodes[${i}].handler`,
+        id: node.id,
+        on: "handler",
+        grounding: node.manual ? "none" : groundingOf(node.handler.sourceIds, sources),
+        ...manual,
+      });
+    }
   });
   const screens = new Set(board.nodes.filter((n) => n.kind === "screen").map((n) => n.id));
   board.edges.forEach((edge, i) => {
