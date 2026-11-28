@@ -54,6 +54,23 @@ export interface LaidOutNode {
   /** Absolute top-left of the text, for wire shapes, which place their own text. Other shapes centre bound text. */
   textX?: number;
   textY?: number;
+  /** An endpoint's row with its guard line and its tags, at absolute positions. */
+  rowParts?: LaidOutRowParts;
+}
+
+/** A tag in an endpoint's row: one read, write or enqueue edge, drawn instead of an arrow. */
+export interface LaidOutRowTag extends LaidOutText {
+  edgeId: string;
+  ref: string;
+  kind: "reads" | "writes" | "enqueues";
+  textWidth: number;
+  textHeight: number;
+}
+
+export interface LaidOutRowParts {
+  /** The guard line; `empty` when the handler was read and attaches no guard. */
+  guard?: LaidOutText & { empty: boolean };
+  tags: LaidOutRowTag[];
 }
 
 export interface LaidOutGroup {
@@ -117,6 +134,8 @@ export interface LaidOutEdge {
   points: Point[];
   /** Set instead of an arrow route and a label: the edge's tag and list line. */
   marker?: LaidOutRefMarker;
+  /** Set instead of an arrow route: the edge is a tag in the row of `rowId` (`from`). */
+  inRow?: { rowId: string };
   label?: LaidOutEdgeLabel;
 }
 

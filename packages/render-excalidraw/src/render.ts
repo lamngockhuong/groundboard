@@ -93,6 +93,8 @@ export const groupElementId = (id: string) => `group/${id}`;
 export const groupLabelElementId = (id: string) => `group-label/${id}`;
 export const refTagElementId = (id: string) => `ref-tag/${id}`;
 export const refLineElementId = (id: string) => `ref-line/${id}`;
+/** A read, write or enqueue drawn as a tag in its endpoint's row. */
+export const rowTagElementId = (id: string) => `row-tag/${id}`;
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
@@ -376,7 +378,16 @@ export function renderExcalidraw(
 
   // Edges first, so every node knows which arrows bind to it.
   const arrows: { el: ArrowElement; label?: TextElement; tag?: TextElement }[] = [];
+  /** Each row tag's scene data, by edge id; the tag is drawn with its endpoint's row. */
+  const rowTagData = new Map<string, { customData: Record<string, unknown>; dotted: boolean }>();
   for (const edge of laidOut.edges) {
+    if (edge.inRow !== undefined) {
+      rowTagData.set(edge.id, {
+        customData: { groundboard: edgeData(edge.id, edge.kind, edge.toRef) },
+        dotted: markOf("edge", edge.id).dotted,
+      });
+      continue;
+    }
     if (edge.marker !== undefined) {
       edgeElements.push(
         ...renderRefMarker(edge, edge.marker, {
@@ -511,6 +522,14 @@ export function renderExcalidraw(
       ...(source.unresolved !== undefined ? { unresolved: source.unresolved } : {}),
       ...(source.layoutFrom !== undefined ? { layoutFrom: source.layoutFrom } : {}),
       ...(source.platform !== undefined ? { platform: source.platform } : {}),
+      ...(source.guards !== undefined
+        ? {
+            guards: source.guards.map((guard) => ({
+              name: guard.name,
+              sources: cite(guard.sourceIds).map(toData),
+            })),
+          }
+        : {}),
       sources: cite(source.sourceIds).map(toData),
       ...groundingField("node", source.id, source.priorSourceIds),
     },
@@ -605,6 +624,7 @@ export function renderExcalidraw(
           dotted: specOnly,
           ...(mark.tag ? { tag: mark.tag } : {}),
         }),
+        ...renderRowParts(node, customData, rowTagData),
       );
       continue;
     }
@@ -822,6 +842,75 @@ function renderRow(
         frameId,
         customData: options.customData,
         label,
+      }),
+    );
+  }
+  return out;
+}
+
+/**
+ * The guard line and the tags of an endpoint's row, inside its card's frame. The guard line
+ * carries the endpoint's data, so a click on it selects the endpoint; each tag carries its
+ * edge's data, so a click on it selects the read, write or enqueue it stands for.
+ */
+function renderRowParts(
+  node: LaidOutNode,
+  customData: Record<string, unknown>,
+  tagData: ReadonlyMap<string, { customData: Record<string, unknown>; dotted: boolean }>,
+): ExcalidrawElement[] {
+  const parts = node.rowParts;
+  if (parts === undefined) return [];
+  const frameId = nodeElementId(node.screenId as string);
+  const out: ExcalidrawElement[] = [];
+  if (parts.guard !== undefined) {
+    out.push(
+      text({
+        id: `${nodeElementId(node.id)}/guard`,
+        x: parts.guard.x,
+        y: parts.guard.y,
+        width: parts.guard.width,
+        height: parts.guard.height,
+        text: parts.guard.text,
+        fontSize: parts.guard.fontSize,
+        textAlign: "left",
+        verticalAlign: "top",
+        strokeColor: parts.guard.empty ? MUTED_TEXT : INK,
+        frameId,
+        customData,
+      }),
+    );
+  }
+  for (const tag of parts.tags) {
+    const data = tagData.get(tag.edgeId);
+    if (data === undefined) continue;
+    const style = EDGE_STYLES[tag.kind];
+    const id = rowTagElementId(tag.edgeId);
+    const common = { frameId, customData: data.customData, groupIds: [id] };
+    out.push(
+      shape("rectangle", {
+        id,
+        x: tag.x,
+        y: tag.y,
+        width: tag.width,
+        height: tag.height,
+        strokeColor: style.strokeColor,
+        backgroundColor: "#ffffff",
+        strokeStyle: data.dotted ? SPEC_STROKE : style.strokeStyle,
+        roundness: { type: 3 },
+        ...common,
+      }),
+      text({
+        id: `${id}/text`,
+        x: round(tag.x + (tag.width - tag.textWidth) / 2),
+        y: round(tag.y + (tag.height - tag.textHeight) / 2),
+        width: tag.textWidth,
+        height: tag.textHeight,
+        text: tag.text,
+        fontSize: tag.fontSize,
+        textAlign: "left",
+        verticalAlign: "top",
+        strokeColor: INK,
+        ...common,
       }),
     );
   }
@@ -1247,6 +1336,24 @@ function renderLegend(
           height: 16,
           strokeColor: ACCENT,
           strokeStyle: "dashed",
+          roundness: { type: 3 },
+          frameId: "legend",
+        }),
+    });
+  }
+  if (laidOut.edges.some((e) => e.inRow !== undefined)) {
+    rows.push({
+      key: "row-tag",
+      label: "reads / writes / enqueues: a table or job on another board",
+      swatch: (id, sx, sy) =>
+        shape("rectangle", {
+          id,
+          x: sx,
+          y: sy + 6,
+          width: 44,
+          height: 16,
+          strokeColor: EDGE_STYLES.writes.strokeColor,
+          backgroundColor: "#ffffff",
           roundness: { type: 3 },
           frameId: "legend",
         }),

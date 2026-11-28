@@ -16,26 +16,29 @@ const webRoot = path.join(packageDir, "dist", "web");
 const fixtures = realpathSync(path.resolve(packageDir, "../../examples/fixtures"));
 const atlasDir = path.join(fixtures, ".groundboard");
 
-/** Each hop: the board on screen, the tag of the link on it, and where the link leads. */
+/**
+ * Each hop: the board on screen, the scene element of the link's tag on it (a numbered tag on a
+ * screen, a tag in an endpoint's row), and where the link leads.
+ */
 const CHAIN = [
   {
     from: "web--checkout",
     node: "pay",
-    tag: "pay-orders",
+    tag: "ref-tag/pay-orders",
     to: "api--orders",
     target: "create-order",
   },
   {
     from: "api--orders",
     node: "create-order",
-    tag: "create-writes",
+    tag: "row-tag/create-writes",
     to: "overview-db",
     target: "orders",
   },
   {
     from: "api--orders",
     node: "create-order",
-    tag: "create-enqueues",
+    tag: "row-tag/create-enqueues",
     to: "overview-batch",
     target: "send-receipt",
   },
@@ -122,7 +125,7 @@ async function tagBox(
   page: Page,
   slug: string,
   nodeId: string,
-  edgeId: string,
+  tagId: string,
 ): Promise<{ x: number; y: number }> {
   const elements = await sceneOf(slug);
   const find = (id: string) => {
@@ -132,7 +135,7 @@ async function tagBox(
   };
   const centre = (e: SceneElement) => [e.x + e.width / 2, e.y + e.height / 2] as const;
   const [nx, ny] = centre(find(`node/${nodeId}`));
-  const [tx, ty] = centre(find(`ref-tag/${edgeId}`));
+  const [tx, ty] = centre(find(tagId));
   const zoomText = await page.locator(".canvas .reset-zoom-button").first().textContent();
   const zoom = Number.parseInt(zoomText ?? "100", 10) / 100;
   const canvas = await page.locator(".canvas").boundingBox();

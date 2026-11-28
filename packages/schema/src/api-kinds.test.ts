@@ -103,6 +103,61 @@ describe("API resources and endpoints", () => {
   });
 });
 
+describe("endpoint guards", () => {
+  const guarded = (guards: unknown, extra: Record<string, unknown> = {}) =>
+    apiBoard([{ method: "POST", path: "/v1/orders", ref: "api:orders/post", guards, ...extra }]);
+
+  test("guards citing the line that attaches them are valid and add no claim", () => {
+    const board = guarded([
+      { name: "requireCustomer", sourceIds: ["r"] },
+      { name: "role: admin", sourceIds: ["r"] },
+    ]);
+    const parsed = parseBoard(board);
+    expect(parsed.ok, JSON.stringify(parsed)).toBe(true);
+    if (!parsed.ok) return;
+    const plain = parseBoard(
+      apiBoard([{ method: "POST", path: "/v1/orders", ref: "api:orders/post" }]),
+    );
+    if (!plain.ok) throw new Error("plain board is invalid");
+    expect(boardClaims(parsed.value)).toEqual(boardClaims(plain.value));
+  });
+
+  test("an empty list says the handler was read and has no guard", () => {
+    const parsed = parseBoard(guarded([]));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.value.nodes[1]?.guards).toEqual([]);
+  });
+
+  test("a guard needs a source that can back it, unless the endpoint is manual", () => {
+    const unquoted = guarded([{ name: "requireCustomer", sourceIds: ["bare"] }]);
+    unquoted.sources.push({ id: "bare", path: "server/auth.ts", line: 3 } as never);
+    expect(messages(unquoted)).toContain(
+      "nodes[1].guards[0].sourceIds: guard `requireCustomer` of endpoint `e0` cites no source that can back it; cite the line that attaches it to the route, or a quoted code source, a doc source, a figma source, a mockup with a path, or a link with a quote",
+    );
+    expect(messages(guarded([{ name: "auth", sourceIds: ["nope"] }]))).toContain(
+      "nodes[1].guards[0].sourceIds[0]: guard `auth` of endpoint `e0` cites source `nope`, which is not a source id",
+    );
+    expect(messages(guarded([{ name: "auth" }], { manual: true }))).toEqual([]);
+  });
+
+  test("at most eight guards, and only on endpoints", () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({ name: `g${i}`, sourceIds: ["r"] }));
+    expect(messages(guarded(many))).toContain(
+      "nodes[1].guards: nodes[1].guards has more than 8 items",
+    );
+    const board = apiBoard([]);
+    (board.nodes[0] as Record<string, unknown>).guards = [];
+    expect(messages(board).join(" ")).toContain("guards is only allowed on `endpoint` nodes");
+  });
+
+  test("a guard name that looks like an email is a warning", () => {
+    const parsed = parseBoard(guarded([{ name: "allow ana@example.com", sourceIds: ["r"] }]));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok)
+      expect(lintBoardText(parsed.value).join(" ")).toContain("nodes[1].guards[0].name");
+  });
+});
+
 describe("calls edges", () => {
   const screen = (edge: Record<string, unknown>) => ({
     schemaVersion: 1,

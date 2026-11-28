@@ -1,6 +1,6 @@
 import { type Board, isCompactScreen, screenFamilies } from "@groundboard/schema";
 import type { ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
-import { cardRows, layoutCard } from "./card.ts";
+import { cardRows, isRowTagEdge, layoutCard } from "./card.ts";
 import { type FrameMarkers, layoutRefMarkers, localRouteRoom } from "./ref-markers.ts";
 import { type FrameReference, layoutReferences, type ReferenceSize } from "./references.ts";
 import { type FamilyLayout, layoutFamily } from "./screen-states.ts";
@@ -69,6 +69,8 @@ export interface ElkInput {
   familyEdges: Set<string>;
   /** Reference images beside frames, by screen id, relative to the frame's body. */
   references: Map<string, FrameReference>;
+  /** Edges drawn as a tag in an endpoint's row (see `isRowTagEdge`). */
+  rowTagEdges: Set<string>;
 }
 
 /** Group padding leaves room at the top for the group's label. */
@@ -160,8 +162,10 @@ export function toElk(
   for (const [screenId, frame] of markers) {
     for (const marker of frame.markers) markerEdges.set(marker.edgeId, screenId);
   }
+  // A read, write or enqueue out of an endpoint is a tag in its row: no chip, no arrow.
+  const rowTagEdges = new Set(board.edges.filter((e) => isRowTagEdge(e, kindOf)).map((e) => e.id));
   for (const edge of board.edges) {
-    if (edge.toRef === undefined || markerEdges.has(edge.id)) continue;
+    if (edge.toRef === undefined || markerEdges.has(edge.id) || rowTagEdges.has(edge.id)) continue;
     if (!chips.has(chipId(edge.toRef))) chips.set(chipId(edge.toRef), edge.toRef);
   }
 
@@ -293,7 +297,7 @@ export function toElk(
   const familyAt = (nodeId: string) => familyOf.get(placed(nodeId));
 
   for (const edge of board.edges) {
-    if (markerEdges.has(edge.id)) continue;
+    if (markerEdges.has(edge.id) || rowTagEdges.has(edge.id)) continue;
     const from = placed(edge.from);
     const to = edge.toRef !== undefined ? chipId(edge.toRef) : placed(edge.to as string);
     // A foreign key without a label names its columns and how many rows it relates.
@@ -342,6 +346,7 @@ export function toElk(
     familyOf,
     familyEdges,
     references,
+    rowTagEdges,
   };
 }
 

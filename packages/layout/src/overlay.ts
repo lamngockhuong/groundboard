@@ -111,6 +111,10 @@ export function applyOverlay(laidOut: LaidOutBoard, board: Board, overlay: Overl
     const out = shiftBox(node, d);
     if (node.textX !== undefined) out.textX = round(node.textX + d.dx);
     if (node.textY !== undefined) out.textY = round(node.textY + d.dy);
+    if (node.rowParts !== undefined) {
+      out.rowParts = { tags: node.rowParts.tags.map((tag) => shiftBox(tag, d)) };
+      if (node.rowParts.guard !== undefined) out.rowParts.guard = shiftBox(node.rowParts.guard, d);
+    }
     return out;
   });
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -125,6 +129,8 @@ export function applyOverlay(laidOut: LaidOutBoard, board: Board, overlay: Overl
 
   const edges: LaidOutEdge[] = laidOut.edges.map((edge) => {
     if (edge.marker) return { ...edge, marker: shiftMarker(edge.marker) };
+    // A tag moves with its row, which carries it in `rowParts`.
+    if (edge.inRow) return edge;
     const from = deltaOf(edge.from);
     const to = deltaOf(edge.to);
     if (!from && !to) return edge;

@@ -48,7 +48,7 @@ describe("links across boards in the library", () => {
     const result = await renderBoardLocally(api.input.board);
     if (result.status !== "ok") throw new Error(JSON.stringify(result));
     const elements = (result.scene as { elements: Array<{ id: string }> }).elements as never[];
-    const ref = selectedRefTarget(elements, { "ref-tag/create-writes": true });
+    const ref = selectedRefTarget(elements, { "row-tag/create-writes": true });
     expect(ref).toBe("db:orders");
     expect(boardDefiningRef(buildLibraryIndex(entries), ref as string)).toEqual({
       slug: "overview-db",
@@ -75,26 +75,26 @@ describe("links across boards in the library", () => {
 
   it("follows the Pay button through the API to the table it writes and the job it starts", async () => {
     const index = buildLibraryIndex(entries);
-    const follow = async (slug: string, tag: string) => {
+    const follow = async (slug: string, elementId: string) => {
       const entry = entries.find((e) => e.slug === slug);
       if (entry?.input.type !== "board") throw new Error(slug);
       const result = await renderBoardLocally(entry.input.board);
       if (result.status !== "ok") throw new Error(JSON.stringify(result));
       const elements = (result.scene as { elements: unknown[] }).elements as never[];
-      const ref = selectedRefTarget(elements, { [`ref-tag/${tag}`]: true });
+      const ref = selectedRefTarget(elements, { [elementId]: true });
       return ref === null ? null : boardDefiningRef(index, ref);
     };
-    expect(await follow("web--checkout", "pay-orders")).toEqual({
+    expect(await follow("web--checkout", "ref-tag/pay-orders")).toEqual({
       slug: "api--orders",
       nodeId: "create-order",
       label: "Place an order",
     });
-    expect(await follow("api--orders", "create-writes")).toEqual({
+    expect(await follow("api--orders", "row-tag/create-writes")).toEqual({
       slug: "overview-db",
       nodeId: "orders",
       label: "orders",
     });
-    expect(await follow("api--orders", "create-enqueues")).toEqual({
+    expect(await follow("api--orders", "row-tag/create-enqueues")).toEqual({
       slug: "overview-batch",
       nodeId: "send-receipt",
       label: "Send the receipt",

@@ -186,6 +186,8 @@ function subjectOf(el: El, byId: Map<string, El>): string {
   if (/\/(spec|manual)$/.test(el.id)) return "spec tag";
   if (prefix === "ref-tag") return "ref tag";
   if (prefix === "ref-line") return "ref line";
+  if (prefix === "row-tag") return `${String(gb.kind)} tag`;
+  if (el.id.endsWith("/guard")) return "endpoint guard";
   if (el.id.endsWith("/unresolved")) return "unresolved marker";
   if (el.id.endsWith("/action")) return "action marker";
   if (/\/diag[12]$/.test(el.id)) return "image placeholder";
@@ -352,6 +354,7 @@ const dataCoverageBoard = {
       path: "/cart/lines",
       ref: "api:cart/post-lines",
       sourceIds: ["s"],
+      guards: [{ name: "requireCustomer", sourceIds: ["s"] }],
     },
     {
       id: "lines",
@@ -369,6 +372,17 @@ const dataCoverageBoard = {
       trigger: { type: "queue", queue: "sync" },
       sourceIds: ["s"],
     },
+    {
+      id: "remove",
+      kind: "endpoint",
+      label: "Remove a line",
+      parentId: "cart",
+      method: "DELETE",
+      path: "/cart/lines/:id",
+      ref: "api:cart/delete-lines-id",
+      sourceIds: ["s"],
+      guards: [],
+    },
     { id: "start", kind: "step", label: "Add to cart", sourceIds: ["s"] },
   ],
   edges: [
@@ -376,6 +390,10 @@ const dataCoverageBoard = {
     { id: "writes", from: "add", to: "lines", kind: "writes", label: "writes", sourceIds: ["s"] },
     { id: "reads", from: "sync", to: "lines", kind: "reads", label: "reads", sourceIds: ["s"] },
     { id: "enq", from: "add", to: "sync", kind: "enqueues", label: "enqueues", sourceIds: ["s"] },
+    // Drawn as tags in the endpoint's row.
+    { id: "t-reads", from: "remove", toRef: "db:cart", kind: "reads", sourceIds: ["s"] },
+    { id: "t-writes", from: "remove", toRef: "db:cart-lines", kind: "writes", sourceIds: ["s"] },
+    { id: "t-enq", from: "remove", toRef: "batch:sync-stock", kind: "enqueues", sourceIds: ["s"] },
   ],
   sources: coverageBoard.sources.slice(0, 1),
 };
@@ -463,6 +481,10 @@ describe("legibility of board colours in the PNG", () => {
       ...ELEMENT_ROLES.map((r) => `element ${r}`),
       ...[1, 2, 3, 4].map((d) => `group depth ${d}`),
       "table column",
+      "reads tag",
+      "writes tag",
+      "enqueues tag",
+      "endpoint guard",
       "spec tag",
       "legend",
     ];

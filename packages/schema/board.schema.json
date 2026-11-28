@@ -231,6 +231,34 @@
             "minLength": 1,
             "maxLength": 300
           },
+          "guards": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "sourceIds": {
+                  "default": [],
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9_.:-]+$"
+                  }
+                }
+              },
+              "required": [
+                "name"
+              ]
+            }
+          },
           "pathPrefix": {
             "type": "string",
             "minLength": 1,

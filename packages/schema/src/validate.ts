@@ -117,6 +117,7 @@ const NODE_FIELD_KINDS: ReadonlyArray<[keyof BoardNode, ReadonlyArray<string>]> 
   ["parentId", ["element", "endpoint"]],
   ["method", ["endpoint"]],
   ["path", ["endpoint"]],
+  ["guards", ["endpoint"]],
   ["pathPrefix", ["resource"]],
   ["columns", ["table"]],
   ["trigger", ["job"]],
@@ -991,6 +992,23 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
         routes.set(key, node.id);
       }
     }
+    node.guards?.forEach((guard, j) => {
+      const at = ["nodes", i, "guards", j];
+      guard.sourceIds.forEach((sourceId, k) => {
+        if (!sources.has(sourceId)) {
+          add(
+            [...at, "sourceIds", k],
+            `guard \`${guard.name}\` of endpoint \`${node.id}\` cites source \`${sourceId}\`, which is not a source id`,
+          );
+        }
+      });
+      if (!node.manual && !backsBehaviour(guard.sourceIds)) {
+        add(
+          [...at, "sourceIds"],
+          `guard \`${guard.name}\` of endpoint \`${node.id}\` cites no source that can back it; cite the line that attaches it to the route, or ${BEHAVIOUR_SOURCES}`,
+        );
+      }
+    });
     if (node.ref === undefined) {
       add(["nodes", i, "ref"], `endpoint \`${node.id}\` needs a ref such as \`api:orders/get-id\``);
       return;

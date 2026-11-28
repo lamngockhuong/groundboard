@@ -18,6 +18,8 @@ export const LIMITS = {
   tag: 40,
   /** layouts one screen is drawn in */
   layoutsPerScreen: 5,
+  /** guards of one endpoint */
+  guardsPerEndpoint: 8,
   /** columns of one table */
   columns: 200,
   /** notes in a layout overlay, and the overlay file's size in bytes */

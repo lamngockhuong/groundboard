@@ -307,6 +307,16 @@ export const RetrySchema = z.object({
   backoff: z.string().min(1).max(60).optional(),
 });
 
+/**
+ * A check an endpoint's route runs before its handler: a middleware, a decorator such as
+ * `@UseGuards`, a role or policy check. `name` is how the code names it; `sourceIds` cite the
+ * line that attaches it to the route.
+ */
+export const GuardSchema = z.object({
+  name: z.string().min(1).max(120),
+  sourceIds: z.array(id).max(LIMITS.sourceIdsPerNode).default([]),
+});
+
 export const NodeSchema = z.object({
   id,
   kind: z.enum(NODE_KINDS),
@@ -361,6 +371,11 @@ export const NodeSchema = z.object({
   method: z.enum(HTTP_METHODS).optional(),
   /** `endpoint` only, required: its path as the route declares it, starting with `/`. */
   path: z.string().min(1).max(LIMITS.shortText).optional(),
+  /**
+   * `endpoint` only: the checks its route runs before the handler. Omitted: the handler was not
+   * read. Empty: it was read and attaches no guard, which is not a claim that it is public.
+   */
+  guards: z.array(GuardSchema).max(LIMITS.guardsPerEndpoint).optional(),
   /** `resource` only: a prefix every endpoint path of the resource starts with, e.g. `/v1`. */
   pathPrefix: z.string().min(1).max(LIMITS.shortText).optional(),
   /** `table` only: its columns in declaration order. Each defines `db:<table>/<column-slug>`. */
@@ -455,6 +470,7 @@ export type BoardNode = Board["nodes"][number];
 export type BoardEdge = Board["edges"][number];
 export type BoardGroup = Board["groups"][number];
 export type BoardSource = Board["sources"][number];
+export type EndpointGuard = NonNullable<BoardNode["guards"]>[number];
 export type CodeSource = Extract<BoardSource, { kind: "code" }>;
 export type FigmaSource = Extract<BoardSource, { kind: "figma" }>;
 export type DocSource = Extract<BoardSource, { kind: "doc" }>;
