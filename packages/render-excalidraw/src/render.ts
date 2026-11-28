@@ -383,7 +383,10 @@ export function renderExcalidraw(
   for (const edge of laidOut.edges) {
     if (edge.inRow !== undefined) {
       rowTagData.set(edge.id, {
-        customData: { groundboard: edgeData(edge.id, edge.kind, edge.toRef) },
+        // The endpoint it starts from, so the viewer can list it under the endpoint.
+        customData: {
+          groundboard: { ...edgeData(edge.id, edge.kind, edge.toRef), from: edge.from },
+        },
         dotted: markOf("edge", edge.id).dotted,
       });
       continue;

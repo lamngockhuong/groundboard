@@ -6,6 +6,7 @@ import { copyText, flowPrompt } from "../flow-hints.ts";
 import { t } from "../i18n.ts";
 import {
   type Citation,
+  type DataEdge,
   formatLocation,
   type Grounding,
   isCheckedCitation,
@@ -349,6 +350,86 @@ function FlowHint({
   );
 }
 
+/** An endpoint's guards, each with what it cites; "none found" for an empty list. */
+function Guards({
+  guards,
+  stale,
+}: {
+  guards: NonNullable<NodeCitations["guards"]>;
+  stale: ReadonlySet<string>;
+}) {
+  return (
+    <div className="panel-block guards">
+      <h4 className="panel-section">
+        {t("sources.guards")}
+        {guards.length > 0 ? <span className="count">{guards.length}</span> : null}
+      </h4>
+      {guards.length === 0 ? (
+        <p className="muted">{t("sources.noGuard")}</p>
+      ) : (
+        <ul className="guard-list">
+          {guards.map((guard) => (
+            <li key={`${guard.name}:${guard.sources.map((c) => c.id).join(",")}`}>
+              <code className="guard-name">{guard.name}</code>
+              {guard.sources.length > 0 ? (
+                <SourceList sources={guard.sources} stale={stale} />
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The tables and jobs an endpoint reads, writes or enqueues: the tags in its row, listed as
+ * buttons so they are reached with the keyboard too, each with what it cites.
+ */
+function DataEdges({
+  edges,
+  atlas,
+  currentSlug,
+  stale,
+  onOpen,
+}: {
+  edges: DataEdge[];
+  atlas: AtlasIndex | null;
+  currentSlug: string | null;
+  stale: ReadonlySet<string>;
+  onOpen?: (place: AtlasPlace) => void;
+}) {
+  return (
+    <div className="panel-block data-edges">
+      <h4 className="panel-section">
+        {t("sources.dataAccess")}
+        <span className="count">{edges.length}</span>
+      </h4>
+      <ul className="data-edge-list">
+        {edges.map((edge) => {
+          const defining = atlas ? boardDefiningRef(atlas, edge.toRef) : null;
+          return (
+            <li key={edge.edgeId} className="data-edge">
+              <div className="data-edge-head">
+                <span className="data-edge-kind">{t(`sources.tag.${edge.kind}`)}</span>
+                <code className="target-ref">{edge.toRef}</code>
+                {defining && onOpen && defining.slug !== currentSlug ? (
+                  <button type="button" className="secondary" onClick={() => onOpen(defining)}>
+                    {t("sources.open")}
+                    <Icon name="next" size={14} />
+                  </button>
+                ) : null}
+              </div>
+              {edge.manual ? <p className="muted">{t("sources.manual")}</p> : null}
+              {edge.sources.length > 0 ? <SourceList sources={edge.sources} stale={stale} /> : null}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 /** The title of the board on screen: an element is defined only on its own screen board. */
 const screenTitle = (atlas: AtlasIndex | null, slug: string | null): string | undefined =>
   slug === null ? undefined : atlas?.boards.find((b) => b.slug === slug)?.title;
@@ -426,6 +507,18 @@ function NodeSources({
           <SourceList sources={node.sources} stale={stale} />
         )}
       </div>
+
+      {node.guards !== undefined ? <Guards guards={node.guards} stale={stale} /> : null}
+
+      {node.dataEdges && node.dataEdges.length > 0 ? (
+        <DataEdges
+          edges={node.dataEdges}
+          atlas={atlas}
+          currentSlug={currentSlug}
+          stale={stale}
+          onOpen={onOpen}
+        />
+      ) : null}
 
       {node.priorSources && node.priorSources.length > 0 ? (
         <div className="panel-block">

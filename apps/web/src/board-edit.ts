@@ -301,3 +301,41 @@ export function setTableColumns(board: RawBoard, tableId: string, text: string):
   out[at] = next;
   return checked({ ...board, nodes: out });
 }
+
+interface Guard {
+  name: string;
+  sourceIds?: string[];
+}
+
+/** An endpoint's guards as the panel shows them: one name per line. */
+export function guardsText(guards: unknown): string {
+  if (!Array.isArray(guards)) return "";
+  return (guards as Guard[])
+    .map((g) => (typeof g.name === "string" ? g.name : ""))
+    .filter((name) => name !== "")
+    .join("\n");
+}
+
+/**
+ * Replaces an endpoint's guards with the ones written in the panel, one per line. A guard kept
+ * under the same name keeps its sources; clearing every line leaves an empty list, which says
+ * the handler has no guard. The endpoint becomes manual, its sources moved to `priorSourceIds`.
+ */
+export function setEndpointGuards(board: RawBoard, endpointId: string, text: string): EditResult {
+  const nodes = items(board, "nodes");
+  const at = nodes.findIndex((n) => n.id === endpointId);
+  const endpoint = nodes[at];
+  if (endpoint?.kind !== "endpoint") {
+    return { ok: false, issues: [{ path: "", message: `no endpoint \`${endpointId}\`` }] };
+  }
+  const before = new Map(
+    (Array.isArray(endpoint.guards) ? (endpoint.guards as Guard[]) : []).map((g) => [g.name, g]),
+  );
+  const names = [...new Set(text.split("\n").map((line) => line.trim()))].filter(Boolean);
+  if (guardsText(endpoint.guards) === names.join("\n")) return { ok: true, board };
+  const next = asManual(endpoint);
+  next.guards = names.map((name) => ({ ...(before.get(name) ?? {}), name }));
+  const out = [...nodes];
+  out[at] = next;
+  return checked({ ...board, nodes: out });
+}

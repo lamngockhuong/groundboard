@@ -435,6 +435,19 @@ changed since the board was made; the quote may no longer match." with a warning
 the colour alone. "Appears in" offers "Open defining board" when another board defines the
 ref, then lists the other boards with the same ref as link buttons.
 
+An endpoint whose handler was read adds a "Guards" section: each guard's name in mono with its
+citations below it, or the muted line "No guard found in the handler. This does not say the
+endpoint is public." for an empty list; never the word "public" alone. Below it, "Tables and
+jobs" lists the endpoint's reads, writes and enqueues, one row each: the verb, the target ref in
+mono and an "Open" button to the board that defines it, then the query it cites. The canvas
+cannot focus a single tag, so this list is the keyboard's way to every tag of the row.
+
+On the canvas, an endpoint's row keeps its route on the first line; under it, the guard line in
+the small size (ink, or `muted` text for "no guard found"), then the tags: small rounded boxes
+on a white fill whose outline is the edge's colour (`writes` solid, `reads` and `enqueues`
+dashed) and whose text is ink, so the verb is read, not only the colour. A tag selects as its
+edge and a double click opens its target, as a numbered tag does on a screen.
+
 ### Navigation
 With an atlas, the sidebar is the navigation: board links, "Atlas home", the filter and the
 command palette; the toolbar steps to the previous or next board of the same group. Without

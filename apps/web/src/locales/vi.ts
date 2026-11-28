@@ -499,4 +499,12 @@ export const vi: Messages = {
   "editPanel.trigger.schedule": "Lịch chạy (cron)",
   "editPanel.trigger.queue": "Hàng đợi",
   "editPanel.trigger.event": "Sự kiện",
+  "sources.guards": "Guard",
+  "sources.noGuard":
+    "Không thấy guard nào trong handler. Điều này không có nghĩa endpoint ai cũng gọi được.",
+  "sources.dataAccess": "Bảng và job",
+  "sources.tag.reads": "đọc",
+  "sources.tag.writes": "ghi",
+  "sources.tag.enqueues": "đẩy vào hàng đợi",
+  "editPanel.guards": "Guard, mỗi dòng một guard",
 };

@@ -353,6 +353,19 @@ On a screen board, a control that calls an endpoint gets a \`calls\` edge with
 \`toRef: "api:orders/post"\`, citing the line that calls it; it is drawn as a numbered tag, like
 a navigation to another screen.
 
+An endpoint whose handler was read lists its \`guards\`: what the route runs before the handler
+(a middleware, a decorator such as \`@UseGuards\`, a role or policy check), each
+\`{ "name": "requireCustomer", "sourceIds": ["auth-line"] }\` citing the line that attaches it,
+at most 8. A guard applied to every route is listed on each endpoint, citing that one line.
+\`"guards": []\` says the handler was read and attaches none, drawn as "no guard found"; it does
+not say the endpoint is public, since a gateway may still guard it. Leave \`guards\` out when the
+handler was not read. The guard line is drawn under the endpoint's route in its row.
+
+A \`reads\`, \`writes\` or \`enqueues\` edge with \`toRef\` out of an endpoint is drawn as a small tag
+inside the endpoint's row (\`writes orders\`, \`enqueues send-receipt\`), not as an arrow; the
+reader selects the tag to see the query it cites and double-clicks it to open the table's or the
+job's board.
+
 ## Database tables
 
 A \`table\` node defines \`db:<table>\`, the slug its name lowercased with \`_\` as \`-\`

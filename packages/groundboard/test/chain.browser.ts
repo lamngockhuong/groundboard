@@ -34,6 +34,7 @@ const CHAIN = [
     tag: "row-tag/create-writes",
     to: "overview-db",
     target: "orders",
+    quote: 'const order = await db.insert("orders"',
   },
   {
     from: "api--orders",
@@ -90,6 +91,17 @@ async function followChain(page: Page, origin: string): Promise<void> {
     // canvas first, then double-click the tag.
     const canvas = await page.locator(".canvas").boundingBox();
     if (canvas) await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height - 60);
+    if ("quote" in hop) {
+      // Selecting the tag shows the query it cites.
+      await page.mouse.click(box.x, box.y);
+      await page
+        .locator(".node-sources .quote")
+        .filter({ hasText: hop.quote })
+        .first()
+        .waitFor({ timeout: 15_000 });
+      if (canvas)
+        await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height - 60);
+    }
     await page.mouse.dblclick(box.x, box.y);
     await page.waitForURL(new RegExp(`#/board/${hop.to}`), { timeout: 15_000 });
     await waitForBoard(page);

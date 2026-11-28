@@ -19,7 +19,8 @@
       "method": "GET",
       "path": "/api/products",
       "ref": "api:products/get",
-      "sourceIds": ["route-get"]
+      "sourceIds": ["route-get"],
+      "guards": []
     }
   ],
   "edges": [

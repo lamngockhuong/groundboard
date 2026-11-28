@@ -6,7 +6,7 @@ import { boardDefiningRef } from "../src/atlas-nav.ts";
 import type { LibraryEntry } from "../src/library.ts";
 import { buildLibraryIndex } from "../src/library-index.ts";
 import { renderBoardLocally } from "../src/local-render.ts";
-import { selectedRefTarget } from "../src/sources.ts";
+import { selectedCitations, selectedRefTarget } from "../src/sources.ts";
 
 const atlasDir = path.resolve(import.meta.dirname, "../../../examples/fixtures/.groundboard");
 const entries: LibraryEntry[] = readdirSync(atlasDir)
@@ -54,6 +54,32 @@ describe("links across boards in the library", () => {
       slug: "overview-db",
       nodeId: "orders",
       label: "orders",
+    });
+  });
+
+  it("an endpoint lists its guards and the tables and jobs it touches, each with its source", async () => {
+    const api = entries.find((e) => e.slug === "api--orders");
+    if (api?.input.type !== "board") throw new Error("fixture");
+    const result = await renderBoardLocally(api.input.board);
+    if (result.status !== "ok") throw new Error(JSON.stringify(result));
+    const elements = (result.scene as { elements: Array<{ id: string }> }).elements as never[];
+    const [endpoint] = selectedCitations(elements, { "node/create-order": true });
+    expect(endpoint?.guards).toEqual([]);
+    expect(endpoint?.dataEdges).toMatchObject([
+      {
+        edgeId: "create-writes",
+        kind: "writes",
+        toRef: "db:orders",
+        sources: [{ id: "insert-order" }],
+      },
+      { edgeId: "create-enqueues", kind: "enqueues", toRef: "batch:send-receipt" },
+    ]);
+    // A tag selects its edge, named by the endpoint it starts from.
+    const [tag] = selectedCitations(elements, { "row-tag/create-writes/text": true });
+    expect(tag).toMatchObject({
+      edgeId: "create-writes",
+      toRef: "db:orders",
+      fromLabel: expect.any(String),
     });
   });
 

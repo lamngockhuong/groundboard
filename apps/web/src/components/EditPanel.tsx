@@ -22,6 +22,7 @@ import {
   addNode,
   columnsText,
   type EditResult,
+  guardsText,
   NODE_TEXT_FIELDS,
   type NodeTextField,
   type RawBoard,
@@ -29,6 +30,7 @@ import {
   removeEdge,
   removeNode,
   setEdgeLabel,
+  setEndpointGuards,
   setNodeText,
   setTableColumns,
 } from "../board-edit.ts";
@@ -391,6 +393,15 @@ export const EditPanel = forwardRef<EditPanelHandle, EditPanelProps>(function Ed
               value={columnsText(node.columns)}
               multiline
               onCommit={(value) => void apply((b) => setTableColumns(b, str(node.id), value))}
+            />
+          ) : null}
+          {node.kind === "endpoint" ? (
+            <CommitField
+              key={`${str(node.id)}:guards`}
+              label={t("editPanel.guards")}
+              value={guardsText(node.guards)}
+              multiline
+              onCommit={(value) => void apply((b) => setEndpointGuards(b, str(node.id), value))}
             />
           ) : null}
           <p className="muted edit-note">{t("editPanel.manualNote")}</p>

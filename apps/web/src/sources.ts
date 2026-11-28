@@ -86,7 +86,27 @@ export interface NodeCitations {
   manual?: boolean;
   /** What a reworded claim cited before; to check again, never evidence. */
   priorSources?: Citation[];
+  /**
+   * Set for an endpoint whose handler was read: the checks its route runs before the handler,
+   * each with what it cites. Empty when the handler attaches none.
+   */
+  guards?: Array<{ name: string; sources: Citation[] }>;
+  /** Set for an endpoint: the tables and jobs it reads, writes or enqueues, drawn as tags. */
+  dataEdges?: DataEdge[];
 }
+
+/** A read, write or enqueue drawn as a tag in an endpoint's row. */
+export interface DataEdge {
+  edgeId: string;
+  kind: "reads" | "writes" | "enqueues";
+  toRef: string;
+  sources: Citation[];
+  manual?: boolean;
+}
+
+/** The prefix of the scene element of a tag in an endpoint's row. */
+export const ROW_TAG_PREFIX = "row-tag/";
+const DATA_KINDS = new Set(["reads", "writes", "enqueues"]);
 
 /** The fields of an Excalidraw element this module reads. */
 export interface ElementLike {
@@ -231,6 +251,7 @@ export function nodeCitations(element: ElementLike): NodeCitations | null {
     ...(grounding ? { grounding } : {}),
     ...(data.manual === true ? { manual: true } : {}),
     ...(prior.length > 0 ? { priorSources: prior } : {}),
+    ...(Array.isArray(data.guards) ? { guards: data.guards.flatMap(toGuard) } : {}),
   };
   if (typeof data.nodeId === "string") return { nodeId: data.nodeId, ...common };
   if (
@@ -240,6 +261,37 @@ export function nodeCitations(element: ElementLike): NodeCitations | null {
     return { nodeId: data.edgeId, edgeId: data.edgeId, ...common };
   }
   return null;
+}
+
+function toGuard(value: unknown): Array<{ name: string; sources: Citation[] }> {
+  if (!isRecord(value) || typeof value.name !== "string") return [];
+  const sources = Array.isArray(value.sources)
+    ? value.sources.map(toCitation).filter((c): c is Citation => c !== null)
+    : [];
+  return [{ name: value.name, sources }];
+}
+
+/** The tags drawn in the row of an endpoint, in scene order. */
+export function endpointDataEdges(elements: readonly ElementLike[], nodeId: string): DataEdge[] {
+  const out: DataEdge[] = [];
+  for (const element of elements) {
+    if (element.isDeleted || !element.id.startsWith(ROW_TAG_PREFIX)) continue;
+    if (element.id.slice(ROW_TAG_PREFIX.length).includes("/")) continue; // the tag's text
+    const data = element.customData?.groundboard;
+    if (!isRecord(data) || data.from !== nodeId) continue;
+    if (typeof data.edgeId !== "string" || typeof data.toRef !== "string") continue;
+    if (typeof data.kind !== "string" || !DATA_KINDS.has(data.kind)) continue;
+    out.push({
+      edgeId: data.edgeId,
+      kind: data.kind as DataEdge["kind"],
+      toRef: data.toRef,
+      sources: Array.isArray(data.sources)
+        ? data.sources.map(toCitation).filter((c): c is Citation => c !== null)
+        : [],
+      ...(data.manual === true ? { manual: true } : {}),
+    });
+  }
+  return out;
 }
 
 const textOf = (element: ElementLike): string =>
@@ -270,7 +322,10 @@ function nodeLabel(
   nodeId: string,
 ): string | undefined {
   const element = elementForNode(elements, nodeId);
-  return element ? tidy(labels.get(element.id) ?? textOf(element)) : undefined;
+  if (!element) return undefined;
+  // A card's row draws its text beside the box, as `<id>/text`, not bound to it.
+  const rowText = elements.find((e) => e.id === `${element.id}/text` && !e.isDeleted);
+  return tidy(labels.get(element.id) ?? (rowText ? textOf(rowText) : textOf(element)));
 }
 
 /** Adds the text drawn for the node or arrow, and for the node a navigation starts from. */
@@ -316,7 +371,12 @@ export function selectedCitations(
       citations.edgeId !== undefined ? `edge:${citations.edgeId}` : `node:${citations.nodeId}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    result.push(withLabels(citations, elements, labels));
+    const labelled = withLabels(citations, elements, labels);
+    if (citations.kind === "endpoint" && citations.edgeId === undefined) {
+      const dataEdges = endpointDataEdges(elements, citations.nodeId);
+      if (dataEdges.length > 0) labelled.dataEdges = dataEdges;
+    }
+    result.push(labelled);
   }
   return result;
 }

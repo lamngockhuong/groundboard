@@ -19,7 +19,8 @@
       "method": "POST",
       "path": "/api/orders",
       "ref": "api:orders/post",
-      "sourceIds": ["route-post"]
+      "sourceIds": ["route-post"],
+      "guards": []
     },
     {
       "id": "get-order",
@@ -29,7 +30,8 @@
       "method": "GET",
       "path": "/api/orders/:id",
       "ref": "api:orders/get-id",
-      "sourceIds": ["route-get"]
+      "sourceIds": ["route-get"],
+      "guards": []
     }
   ],
   "edges": [

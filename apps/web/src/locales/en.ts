@@ -513,4 +513,11 @@ export const en = {
   "editPanel.trigger.schedule": "Schedule (cron)",
   "editPanel.trigger.queue": "Queue",
   "editPanel.trigger.event": "Event",
+  "sources.guards": "Guards",
+  "sources.noGuard": "No guard found in the handler. This does not say the endpoint is public.",
+  "sources.dataAccess": "Tables and jobs",
+  "sources.tag.reads": "reads",
+  "sources.tag.writes": "writes",
+  "sources.tag.enqueues": "enqueues",
+  "editPanel.guards": "Guards, one per line",
 } as const;

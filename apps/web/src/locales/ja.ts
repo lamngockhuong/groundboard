@@ -502,4 +502,12 @@ export const ja: Messages = {
   "editPanel.trigger.schedule": "スケジュール (cron)",
   "editPanel.trigger.queue": "キュー",
   "editPanel.trigger.event": "イベント",
+  "sources.guards": "ガード",
+  "sources.noGuard":
+    "ハンドラーにガードは見つかりませんでした。公開されているという意味ではありません。",
+  "sources.dataAccess": "テーブルとジョブ",
+  "sources.tag.reads": "読み取り",
+  "sources.tag.writes": "書き込み",
+  "sources.tag.enqueues": "キューに追加",
+  "editPanel.guards": "ガード（1行に1つ）",
 };

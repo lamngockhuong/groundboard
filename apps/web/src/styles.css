@@ -2111,6 +2111,35 @@ details.edit-section > :not(summary) + * {
   flex: none;
 }
 
+/* An endpoint's guards and the tables and jobs it touches, each with what it cites. */
+.guard-list,
+.data-edge-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guard-name {
+  font-weight: 600;
+}
+
+.data-edge-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.data-edge-kind {
+  font-weight: 600;
+}
+
+.data-edge-head > button {
+  margin-left: auto;
+}
+
 /* An element that calls an API or changes state with no flow drawn for it yet. */
 .flow-hint {
   border: 1px solid var(--warn-line);
