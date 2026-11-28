@@ -17,6 +17,7 @@ import {
   participantRemoval,
   removeMessage,
   removeParticipant,
+  type SequenceEditResult,
   setFragmentKind,
   setMessage,
   setOperandGuard,
@@ -137,11 +138,31 @@ function operandsAround(board: RawBoard, operandId: string | undefined): string[
 }
 
 /** What the next move up or down will do to the message's fragments, said before it happens. */
-function moveNote(board: RawBoard, move: MessageMove | null, dir: "up" | "down"): string | null {
-  if (move === null || move.kind === "swap") return null;
+function moveNote(
+  board: RawBoard,
+  edgeId: string,
+  move: MessageMove | null,
+  dir: "up" | "down",
+): string | null {
+  if (move === null) return null;
+  // A move that empties a branch removes its frame: say which, rather than only where it goes.
+  const removed = removedBy(moveMessage(board, edgeId, dir === "up" ? -1 : 1));
+  if (removed) return t(`sequenceEdit.${dir}Removes`, { fragments: removed });
+  if (move.kind === "swap") return null;
   const name = fragmentName(board, move.operandId);
   if (move.kind === "enter") return t(`sequenceEdit.${dir}Enters`, { fragment: name });
   return t(`sequenceEdit.${dir}Leaves`, { fragment: name });
+}
+
+/** The frames an edit would remove, named `alt [declined]`; null when it removes none. */
+function removedBy(result: SequenceEditResult): string | null {
+  if (!result.ok || !result.removed || result.removed.length === 0) return null;
+  return result.removed
+    .map((f) => {
+      const guard = f.emptied[0]?.guard;
+      return guard ? `${f.kind} [${guard}]` : f.kind;
+    })
+    .join(", ");
 }
 
 /** A form that adds a message: who sends it to whom, its label and how it is sent. */
@@ -487,6 +508,7 @@ export function SequenceEditPanel({ board, selection, apply }: Props) {
           {(["up", "down"] as const).map((dir) => {
             const note = moveNote(
               board,
+              str(message.id),
               messageMove(board, str(message.id), dir === "up" ? -1 : 1),
               dir,
             );
@@ -535,7 +557,16 @@ export function SequenceEditPanel({ board, selection, apply }: Props) {
           <button
             type="button"
             className="danger"
-            onClick={() => void apply((b) => removeMessage(b, str(message.id)))}
+            onClick={() => {
+              const removed = removedBy(removeMessage(board, str(message.id)));
+              if (
+                removed &&
+                !window.confirm(t("sequenceEdit.removeMessageConfirm", { fragments: removed }))
+              ) {
+                return;
+              }
+              void apply((b) => removeMessage(b, str(message.id)));
+            }}
           >
             {t("sequenceEdit.removeMessage")}
           </button>

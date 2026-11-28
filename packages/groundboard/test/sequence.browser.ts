@@ -365,6 +365,14 @@ describe("editing a sequence board", () => {
       await panel.getByRole("button", { name: "Remove participant" }).click();
       await page.waitForTimeout(800);
 
+      // Message 7 is alone in the declined branch: moving it up would remove that frame.
+      await focus("402", /7\. 402 declined/);
+      await panel
+        .getByText(
+          "Moving it up removes the frame alt [declined]; the messages it held become manual.",
+        )
+        .waitFor({ timeout: 10_000 });
+
       // Four undos and four redos: one history for every step.
       for (let i = 0; i < 4; i++) {
         await page.getByRole("button", { name: "Undo" }).click();

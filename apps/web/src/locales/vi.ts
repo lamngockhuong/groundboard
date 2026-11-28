@@ -586,4 +586,10 @@ export const vi: Messages = {
   "sequenceEdit.around": "Các fragment bao quanh message này",
   "sequenceEdit.editFragment": "Sửa {fragment}",
   "editPanel.noGuard": "Handler không có guard",
+  "sequenceEdit.upRemoves":
+    "Dời lên sẽ xoá khung {fragments}; các message trong khung thành manual.",
+  "sequenceEdit.downRemoves":
+    "Dời xuống sẽ xoá khung {fragments}; các message trong khung thành manual.",
+  "sequenceEdit.removeMessageConfirm":
+    "Xoá message này cũng xoá khung {fragments}, các message trong khung thành manual. Vẫn xoá?",
 };

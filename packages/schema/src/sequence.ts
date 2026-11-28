@@ -408,16 +408,37 @@ function checkRuns(
 
 type Raw = Record<string, unknown>;
 
+/** A fragment `pruneFragments` removed: its id and kind, and its operands left with no message. */
+export interface RemovedFragment {
+  id: string;
+  kind: string;
+  /** The operands that held no message any more, with their guards, in their order. */
+  emptied: Array<{ id: string; guard?: string }>;
+}
+
+export interface PruneResult<B> {
+  board: B;
+  /** Fragments removed, in the order they went. */
+  removed: RemovedFragment[];
+  /** Messages a removed fragment held directly, moved out to the operand around it. */
+  lifted: string[];
+}
+
 /**
  * Tidies the fragments of a sequence board after messages were removed or moved, on its raw
  * JSON: an operand left with no message is dropped; a fragment left with fewer operands than
  * its kind takes is removed, its messages and its fragments moved to the operand it sat in (or
  * to the top level). Repeated until nothing changes. Every other field is kept as written.
+ * Returns the board (the same object when nothing changed), the fragments removed and the
+ * messages they held.
  */
-export function pruneFragments<B extends Raw>(board: B): B {
+export function pruneFragments<B extends Raw>(board: B): PruneResult<B> {
   let edges = (Array.isArray(board.edges) ? board.edges : []) as Raw[];
   let fragments = (Array.isArray(board.fragments) ? board.fragments : []) as Raw[];
-  if (fragments.length === 0) return board;
+  const removed: RemovedFragment[] = [];
+  const lifted = new Set<string>();
+  if (fragments.length === 0) return { board, removed, lifted: [] };
+  let changed = false;
   const operandsOf = (fragment: Raw) =>
     (Array.isArray(fragment.operands) ? fragment.operands : []) as Raw[];
   for (;;) {
@@ -436,10 +457,22 @@ export function pruneFragments<B extends Raw>(board: B): B {
         operandsOf(f).filter(holds).length < (FRAGMENT_OPERANDS[f.kind as FragmentKind]?.min ?? 1),
     );
     if (gone !== undefined) {
+      changed = true;
+      removed.push({
+        id: String(gone.id),
+        kind: String(gone.kind),
+        emptied: operandsOf(gone)
+          .filter((op) => !holds(op))
+          .map((op) => ({
+            id: String(op.id),
+            ...(typeof op.guard === "string" ? { guard: op.guard } : {}),
+          })),
+      });
       const ids = new Set(operandsOf(gone).map((op) => String(op.id)));
       const parent = typeof gone.parentOperandId === "string" ? gone.parentOperandId : undefined;
       const lift = (item: Raw, key: "operandId" | "parentOperandId"): Raw => {
         if (typeof item[key] !== "string" || !ids.has(item[key] as string)) return item;
+        if (key === "operandId") lifted.add(String(item.id));
         const out = { ...item };
         if (parent === undefined) delete out[key];
         else out[key] = parent;
@@ -452,12 +485,14 @@ export function pruneFragments<B extends Raw>(board: B): B {
     // Then the operands that hold no message.
     const emptied = fragments.some((f) => !operandsOf(f).every(holds));
     if (!emptied) break;
+    changed = true;
     fragments = fragments.map((f) =>
       operandsOf(f).every(holds) ? f : { ...f, operands: operandsOf(f).filter(holds) },
     );
   }
+  if (!changed) return { board, removed, lifted: [] };
   const out: Raw = { ...board, edges };
   if (fragments.length > 0) out.fragments = fragments;
   else delete out.fragments;
-  return out as B;
+  return { board: out as B, removed, lifted: [...lifted] };
 }

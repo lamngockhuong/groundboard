@@ -376,7 +376,7 @@ describe("pruneFragments", () => {
     const board = sequence();
     // The declined branch loses its only message.
     board.edges.splice(6, 1);
-    const pruned = pruneFragments(board as unknown as Record<string, unknown>);
+    const pruned = pruneFragments(board as unknown as Record<string, unknown>).board;
     expect(parseBoard(pruned).ok).toBe(true);
     const fragments = pruned.fragments as Array<Record<string, unknown>>;
     // The alt is gone: its messages and its loop move to the top level.
@@ -387,20 +387,31 @@ describe("pruneFragments", () => {
     expect(edges.find((e) => e.id === "m5")?.operandId).toBe("each");
   });
 
+  test("reports the fragments it removed, the operands left empty, and the messages it lifted out", () => {
+    const board = sequence();
+    board.edges.splice(6, 1);
+    const result = pruneFragments(board as unknown as Record<string, unknown>);
+    expect(result.removed).toEqual([
+      { id: "pay", kind: "alt", emptied: [{ id: "declined", guard: "declined" }] },
+    ]);
+    // The messages ok held directly; m5 stays in its loop.
+    expect(result.lifted).toEqual(["m4", "m6"]);
+  });
+
   test("removes a loop left with no message, and the fragments field once none is left", () => {
     const board = sequence();
     board.edges.splice(4, 1);
-    const pruned = pruneFragments(board as unknown as Record<string, unknown>);
+    const pruned = pruneFragments(board as unknown as Record<string, unknown>).board;
     expect((pruned.fragments as Array<{ id: string }>).map((f) => f.id)).toEqual(["pay"]);
     expect(parseBoard(pruned).ok).toBe(true);
     const bare = { ...board, edges: board.edges.slice(0, 3) };
-    const none = pruneFragments(bare as unknown as Record<string, unknown>);
+    const none = pruneFragments(bare as unknown as Record<string, unknown>).board;
     expect("fragments" in none).toBe(false);
     expect(parseBoard(none).ok).toBe(true);
   });
 
   test("leaves a board whose fragments all hold messages as it is", () => {
     const board = sequence() as unknown as Record<string, unknown>;
-    expect(pruneFragments(board)).toEqual(board);
+    expect(pruneFragments(board)).toEqual({ board, removed: [], lifted: [] });
   });
 });

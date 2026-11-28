@@ -599,4 +599,10 @@ export const en = {
   "sequenceEdit.around": "Fragments around this message",
   "sequenceEdit.editFragment": "Edit {fragment}",
   "editPanel.noGuard": "The handler has no guard",
+  "sequenceEdit.upRemoves":
+    "Moving it up removes the frame {fragments}; the messages it held become manual.",
+  "sequenceEdit.downRemoves":
+    "Moving it down removes the frame {fragments}; the messages it held become manual.",
+  "sequenceEdit.removeMessageConfirm":
+    "Removing this message also removes the frame {fragments}, and the messages it held become manual. Remove it?",
 } as const;

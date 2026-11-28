@@ -417,9 +417,12 @@ gets its label, its category, "Move left" and "Move right" (`Alt+←`, `Alt+→`
 message from it or a participant after it, and "Remove participant", whose confirmation counts
 the messages that go with it. A selected message gets its label, type, sender and receiver,
 "Move up" and "Move down" (`Alt+↑`, `Alt+↓`), a muted line that says before it happens when the
-next move takes it out of or into a fragment ("Moving it down puts it in alt [authorized]"), a
+next move takes it out of or into a fragment ("Moving it down puts it in alt [authorized]"), or
+removes a frame it would leave empty ("Moving it up removes the frame alt [declined]; the
+messages it held become manual"), a
 form to add a message after it, "Wrap in a fragment…", "Split the branch here" and "Remove
-message". Several messages picked with Shift can be wrapped together. A selected guard, tag,
+message", which asks first when it would remove a frame. A message moved out of a frame that is
+removed or unwrapped becomes manual. Several messages picked with Shift can be wrapped together. A selected guard, tag,
 frame or divider gets its operand's condition, the fragment's kind, "Start a new branch at" and
 "Remove the frame, keep its messages". Each edit is one step of the same undo history; moving a
 column changes no claim, so nothing becomes manual, while moving a message, rewording a guard or

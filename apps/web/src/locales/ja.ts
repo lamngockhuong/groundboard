@@ -588,4 +588,10 @@ export const ja: Messages = {
   "sequenceEdit.around": "このメッセージを囲むフラグメント",
   "sequenceEdit.editFragment": "{fragment} を編集",
   "editPanel.noGuard": "ハンドラーにガードはない",
+  "sequenceEdit.upRemoves":
+    "上へ移動すると枠 {fragments} が削除され、中のメッセージは手動編集になります。",
+  "sequenceEdit.downRemoves":
+    "下へ移動すると枠 {fragments} が削除され、中のメッセージは手動編集になります。",
+  "sequenceEdit.removeMessageConfirm":
+    "このメッセージを削除すると枠 {fragments} も削除され、中のメッセージは手動編集になります。削除しますか？",
 };

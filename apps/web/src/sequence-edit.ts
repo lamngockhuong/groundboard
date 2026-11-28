@@ -3,6 +3,7 @@ import {
   type FragmentKind,
   operandChain,
   pruneFragments,
+  type RemovedFragment,
 } from "@groundboard/schema";
 import {
   asManual,
@@ -81,37 +82,60 @@ function withOperand(edge: Item, operandId: string | undefined): Item {
 }
 
 /** Replaces one edge, tidies the fragments, and checks the result. */
-function finish(board: RawBoard, edges: Item[], fragments?: Item[]): EditResult {
+function finish(board: RawBoard, edges: Item[], fragments?: Item[]): SequenceEditResult {
   const next: RawBoard = { ...board, edges };
   if (fragments !== undefined) {
     if (fragments.length > 0) next.fragments = fragments;
     else delete next.fragments;
   }
-  return checked(tidy(next));
+  return checkedTidy(next);
 }
 
+/** A fragment an edit removes, named for the panel by its kind and its emptied operand's guard. */
+export type RemovedFrame = RemovedFragment;
+
+/** An edit's result, with the fragments it removed on the way. */
+export type SequenceEditResult = EditResult & { removed?: RemovedFrame[] };
+
 /**
- * Tidies the fragments after an edit (`pruneFragments`), then drops the sources only the guards
- * of the operands it removed cited.
+ * Tidies the fragments after an edit (`pruneFragments`): a message lifted out of a removed
+ * fragment becomes manual, since the board no longer says it happens under that condition, and
+ * the sources only the removed operands' guards cited are dropped.
  */
-function tidy(board: RawBoard): RawBoard {
-  const pruned = pruneFragments(board);
-  if (pruned === board || !Array.isArray(board.sources)) return pruned;
-  const before = operandsOf(board);
-  const kept = new Set(operandsOf(pruned).map((o) => o.id));
-  const fromGone = new Set(
-    before
-      .filter((o) => !kept.has(o.id))
-      .flatMap((o) => [...strs(o.sourceIds), ...strs(o.priorSourceIds)]),
-  );
-  if (fromGone.size === 0) return pruned;
-  const cited = citedSources(pruned);
-  const orphans = new Set([...fromGone].filter((id) => !cited.has(id)));
-  if (orphans.size === 0) return pruned;
-  return {
+function tidy(board: RawBoard): { board: RawBoard; removed: RemovedFrame[] } {
+  const { board: pruned, removed, lifted } = pruneFragments(board);
+  if (pruned === board) return { board, removed };
+  const up = new Set(lifted);
+  let out: RawBoard = {
     ...pruned,
-    sources: (board.sources as Item[]).filter((s) => !orphans.has(String(s.id))),
+    edges: list(pruned, "edges").map((e) =>
+      up.has(String(e.id)) && e.manual !== true ? asManual(e) : e,
+    ),
   };
+  if (Array.isArray(board.sources)) {
+    const kept = new Set(operandsOf(pruned).map((o) => o.id));
+    const fromGone = new Set(
+      operandsOf(board)
+        .filter((o) => !kept.has(o.id))
+        .flatMap((o) => [...strs(o.sourceIds), ...strs(o.priorSourceIds)]),
+    );
+    const cited = citedSources(out);
+    const orphans = new Set([...fromGone].filter((id) => !cited.has(id)));
+    if (orphans.size > 0) {
+      out = {
+        ...out,
+        sources: (board.sources as Item[]).filter((x) => !orphans.has(String(x.id))),
+      };
+    }
+  }
+  return { board: out, removed };
+}
+
+/** Checks a tidied board, carrying the fragments the tidying removed. */
+function checkedTidy(board: RawBoard): SequenceEditResult {
+  const { board: next, removed } = tidy(board);
+  const result = checked(next);
+  return result.ok && removed.length > 0 ? { ...result, removed } : result;
 }
 
 const strs = (value: unknown): string[] =>
@@ -166,7 +190,7 @@ export function participantRemoval(board: RawBoard, nodeId: string): string[] {
 }
 
 /** Removes a participant with its messages and the sources nothing cites any more. */
-export function removeParticipant(board: RawBoard, nodeId: string): EditResult {
+export function removeParticipant(board: RawBoard, nodeId: string): SequenceEditResult {
   const goneEdges = new Set(participantRemoval(board, nodeId));
   const goneSources = new Set(
     orphanedSources(board, (item) => item.id === nodeId || goneEdges.has(String(item.id))),
@@ -179,7 +203,7 @@ export function removeParticipant(board: RawBoard, nodeId: string): EditResult {
   if (Array.isArray(board.sources)) {
     next.sources = (board.sources as Item[]).filter((s) => !goneSources.has(String(s.id)));
   }
-  return checked(tidy(next));
+  return checkedTidy(next);
 }
 
 /**
@@ -258,7 +282,7 @@ export function addMessage(
 }
 
 /** Removes a message, tidies the fragments, and drops the sources nothing cites any more. */
-export function removeMessage(board: RawBoard, edgeId: string): EditResult {
+export function removeMessage(board: RawBoard, edgeId: string): SequenceEditResult {
   const goneSources = new Set(
     orphanedSources(board, (item) => item.id === edgeId && "from" in item),
   );
@@ -266,7 +290,7 @@ export function removeMessage(board: RawBoard, edgeId: string): EditResult {
   if (Array.isArray(board.sources)) {
     next.sources = (board.sources as Item[]).filter((s) => !goneSources.has(String(s.id)));
   }
-  return checked(tidy(next));
+  return checkedTidy(next);
 }
 
 /** What moving a message one step would do: swap it, or take it out of or into a fragment. */
@@ -314,7 +338,7 @@ export function messageMove(board: RawBoard, edgeId: string, step: -1 | 1): Mess
 }
 
 /** Moves a message one step up or down (see `messageMove`); the message becomes manual. */
-export function moveMessage(board: RawBoard, edgeId: string, step: -1 | 1): EditResult {
+export function moveMessage(board: RawBoard, edgeId: string, step: -1 | 1): SequenceEditResult {
   const move = messageMove(board, edgeId, step);
   if (move === null)
     return refuse(step < 0 ? "already the first message" : "already the last message");
@@ -536,8 +560,9 @@ export function unwrapFragment(board: RawBoard, fragmentId: string): EditResult 
       ])
       .filter((id) => !citedElsewhere(board, id, gone)),
   );
+  // Its messages leave the condition the frame stated, so each becomes manual.
   const edges = list(board, "edges").map((e) =>
-    typeof e.operandId === "string" && gone.has(e.operandId) ? withOperand(e, parent) : e,
+    typeof e.operandId === "string" && gone.has(e.operandId) ? asManual(withOperand(e, parent)) : e,
   );
   const rest = fragments
     .filter((f) => f !== fragment)

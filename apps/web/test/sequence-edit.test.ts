@@ -172,6 +172,56 @@ describe("messages", () => {
   });
 });
 
+describe("edits that dissolve a fragment", () => {
+  it("moving message 7 up or removing it removes the alt, and the messages it held become manual", () => {
+    for (const edit of [
+      (b: RawBoard) => moveMessage(b, "m7", -1),
+      (b: RawBoard) => removeMessage(b, "m7"),
+    ]) {
+      const start = board();
+      const history = new EditHistory<RawBoard>(start);
+      const result = edit(start);
+      const done = ok(result);
+      expect(fragments(done.board).map((f) => f.id)).toEqual(["lines"]);
+      expect((result as { removed?: unknown }).removed).toEqual([
+        { id: "pay", kind: "alt", emptied: [{ id: "declined", guard: "declined" }] },
+      ]);
+      for (const id of ["m4", "m6"]) {
+        expect(edge(done.board, id)).toMatchObject({
+          manual: true,
+          priorSourceIds: expect.any(Array),
+        });
+        expect(edge(done.board, id).operandId).toBeUndefined();
+      }
+      // m5 stays in its loop and is not touched.
+      expect(edge(done.board, "m5").manual).toBeUndefined();
+      expect(parseBoard(done.board).ok).toBe(true);
+      history.push(done.board);
+      expect(history.undo()).toEqual(start);
+    }
+  });
+
+  it("moving message 5 down out of its loop removes the loop and makes the message manual", () => {
+    const start = board();
+    const result = moveMessage(start, "m5", 1);
+    const done = ok(result);
+    expect(fragments(done.board).map((f) => f.id)).toEqual(["pay"]);
+    expect((result as { removed?: unknown }).removed).toEqual([
+      { id: "lines", kind: "loop", emptied: [{ id: "each", guard: "each cart line" }] },
+    ]);
+    expect(edge(done.board, "m5")).toMatchObject({ manual: true, operandId: "ok" });
+    const history = new EditHistory<RawBoard>(start);
+    history.push(done.board);
+    expect(history.undo()).toEqual(start);
+  });
+
+  it("unwrapping a fragment makes the messages it held manual", () => {
+    const done = ok(unwrapFragment(board(), "lines"));
+    expect(edge(done.board, "m5")).toMatchObject({ manual: true, operandId: "ok" });
+    expect(edge(done.board, "m4").manual).toBeUndefined();
+  });
+});
+
 describe("fragments", () => {
   it("wraps messages that follow each other in an opt inside the operand they share", () => {
     const wrapped = wrapMessages(
