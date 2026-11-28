@@ -102,7 +102,7 @@ plugins/groundboard/evals/scripts/run-eval.sh --case checkout-why-declined --run
   --ablation none --keep-temp --max-cost-usd 2
 
 # Full comparison: every case, three runs per arm, with and without the plugin.
-plugins/groundboard/evals/scripts/run-eval.sh --ablation with-without --runs 3 --max-cost-usd 45
+plugins/groundboard/evals/scripts/run-eval.sh --ablation with-without --runs 3 --max-cost-usd 50
 ```
 
 - `--allow-tools` grants only what the skill's own `allowed-tools` lists: writing the board, the
@@ -136,35 +136,39 @@ Read it per grader, not only per case (`report.html` shows both arms' verdicts f
 
 ## Cost
 
-Three smoke runs of `checkout-why-declined` (2026-11-27 and 28, Claude Code 2.1.332, Linux under
-WSL2, default model, haiku judge, `--runs 1 --ablation none`). None rendered the board, each for
-a reason in the setup (below):
+Four smoke runs of `checkout-why-declined` (2026-11-27 and 28, Claude Code 2.1.332, Linux under
+WSL2, default model, haiku judge, `--runs 1 --ablation none`). Runs 1 to 3 stopped on a reason in
+the setup; run 4 wrote the `.excalidraw` but not the PNG, for a reason in Claude Code (below):
 
 | Run | Setup | Cost | Time | Turns | Score |
 |---|---|---|---|---|---|
 | 1 | direct `claude plugin eval` | 1.09 USD | 282 s | 36 | 0.09 |
 | 2 | same, `--keep-temp` | 0.77 USD | 255 s | 23 | 0.27 |
 | 3 | `run-eval.sh` (Node copy first on `PATH`), `--keep-temp` | 0.87 USD | 140 s | 27 | 0.18 |
+| 4 | `run-eval.sh` with the Volta home, `--keep-temp`, `--max-cost-usd 2` | 2.43 USD | 447 s | 43 | 0.36 |
 
 The judge cost 0.002 USD per run, since most judge graders had no PNG to read; with a PNG each
-image judge adds about a cent.
+image judge adds about a cent. Run 4 went over its 2 USD ceiling because the ceiling is checked
+only before a run starts; once crossed, it skipped the paid judges (04 to 06). Much of run 4's
+cost came from working around the read-only shell: the agent printed the 46 KB render in seven
+pieces to save it with the Write tool.
 
 A full comparison is 4 cases × 2 arms × 3 runs = 24 agent runs. A with-arm run that renders, draws
 the PNG and repeats the fresh-eyes review after each fix does more turns than these runs did, so
-take 1 to 2 USD per with-arm run and 0.5 to 1 USD per without-arm run: 18 to 36 USD for the full
-run; `--max-cost-usd 45` leaves room. Run one at a time it takes about two hours; `-j 4` cuts the
+take 1.5 to 2.5 USD per with-arm run (run 4 also sent the board to two fresh-eyes reviewers) and
+0.5 to 1 USD per without-arm run: 24 to 42 USD for the full run; `--max-cost-usd 50` leaves room. Run one at a time it takes about two hours; `-j 4` cuts the
 wall time to about 30 minutes on the same rate limit.
 
 ## Smoke run results
 
-| Grader | Run 1 | Run 2 | Run 3 | Why |
-|---|---|---|---|---|
-| `01-sources-checked` | fail | fail | fail | no `.excalidraw`: `npx` could not start (below) |
-| `02-image-drawn` | fail | fail | fail | no PNG, same cause |
-| `03-open-question-named` | fail | pass | pass | run 1 asked "How does authorize report a refused card? (Payments team)", but the grader then demanded a guest-checkout question, off the asked path; it now accepts any named question |
-| `04-no-invented-actor` | fail | pass | fail | run 1: the actor list left out refunds and other customers, which `decisions.md` names. Run 3: the board explains a declined card as "a card the bank refuses", and the rubric listed the bank as invented; it now counts only an actor drawn as its own step |
-| `05-reader-answers`, `06-premises-stated` | fail | fail | fail | no PNG to read |
-| `07-skill-fired` | pass | pass | pass | the skill loaded |
+| Grader | Run 1 | Run 2 | Run 3 | Run 4 | Why |
+|---|---|---|---|---|---|
+| `01-sources-checked` | fail | fail | fail | pass | runs 1 to 3: no `.excalidraw`, `npx` could not start (below); run 4 rendered it |
+| `02-image-drawn` | fail | fail | fail | fail | runs 1 to 3: same cause; run 4: the shell could not write the PNG (below) |
+| `03-open-question-named` | fail | pass | pass | pass | run 1 asked "How does authorize report a refused card? (Payments team)", but the grader then demanded a guest-checkout question, off the asked path; it now accepts any named question |
+| `04-no-invented-actor` | fail | pass | fail | skipped | run 1: the actor list left out refunds and other customers, which `decisions.md` names. Run 3: the board explains a declined card as "a card the bank refuses", and the rubric listed the bank as invented; it now counts only an actor drawn as its own step. Run 4: skipped once the cost ceiling was crossed |
+| `05-reader-answers`, `06-premises-stated` | fail | fail | fail | skipped | no PNG to read; run 4 skipped them at the cost ceiling |
+| `07-skill-fired` | pass | pass | pass | pass | the skill loaded |
 
 **Why nothing rendered.** Run 2's trace (`--keep-temp`) shows the skill load, read the code, write
 `.groundboard/checkout-declined.board.json`, and then every Node command stop at once:
@@ -204,7 +208,29 @@ The fix writes a Volta home to the run's temporary `HOME` from the scaffold (see
 run"). Checked outside the eval: a temporary `HOME` made read-only after the scaffold, with
 `~/.volta/bin` first on `PATH`, reproduces `Could not create directory .../.volta` without the
 Volta home, and with it `npx groundboard render --check-sources` writes the `.excalidraw` and
-`npx groundboard png` draws the PNG. Not yet checked inside an eval run.
+`npx groundboard png` draws the PNG. Run 4 confirmed it inside an eval run: `npx groundboard`
+started, and `validate --check-sources` passed.
+
+**Why run 4 drew no PNG.** Every shell command that wrote a file failed, in the workspace and in
+the run's own temporary directory alike:
+
+```text
+$ npx groundboard png .groundboard/checkout-declined.board.json -o .groundboard/checkout-declined.png
+groundboard png: cannot write .groundboard/checkout-declined.png: EROFS
+$ npx groundboard validate .groundboard/checkout-declined.board.json --check-sources .
+.groundboard/checkout-declined.board.json: valid, sources checked
+zsh:1: read-only file system: /tmp/claude-eval-r0ORwW/tmp/claude-1000/cwd-2e5a
+```
+
+The sandbox settings the harness wrote for the run (`config/settings.json` in the kept
+directory) allow writes to the run's `home` and `tmp`, both under `/tmp/claude-eval-r0ORwW/`, and
+deny writes to `//tmp`, the system temporary directory they live in; the deny wins. Claude Code
+2.1.332 leaves the run's parent directory out of that deny list on macOS only, so on Linux a run
+whose agent writes files from the shell cannot pass. Setting `TMPDIR` should not help: the list of
+temporary directories the harness denies reads `TMPDIR` as well (read from the bundled code, not
+tried). This is not in the setup, and the documentation says a granted
+`Bash` can write to the run's workspace. The agent saved the `.excalidraw` with the Write tool,
+from the render printed to standard output, but the Write tool cannot save a binary PNG.
 
 ## Known blockers
 
@@ -215,6 +241,11 @@ Volta home, and with it `npx groundboard render --check-sources` writes the `.ex
   (`Volta error: Node is not available.`, `Volta update error: Could not create directory
   .../home/.volta`). Run `prepare-tool.sh`, then the suite through `scripts/run-eval.sh`. Volta is
   handled; nvm or asdf shims first on the login-shell `PATH` are not.
+- **On Linux, shell commands cannot write files in an eval run** (`EROFS`, `read-only file
+  system: /tmp/claude-eval-.../tmp/...`): the harness denies writes to `/tmp`, where the run's
+  own directories are (see "Why run 4 drew no PNG"). Until Claude Code fixes it, the PNG graders
+  fail on Linux; run the suite on macOS, where the harness leaves the run's directory out of that deny
+  (read from the bundled code; not tried here).
 - **The plugin's MCP server does not start** in an eval run (`has no mock and is NOT started`),
   so the skill always takes its CLI fallback; that is the path these cases test.
 - **`@groundboard/png` is not on npm**, so the PNG comes from this repository's build through
