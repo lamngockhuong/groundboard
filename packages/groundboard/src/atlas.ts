@@ -11,6 +11,7 @@ import {
   type HandlerShape,
   type Issue,
   isCheckable,
+  isSequenceBoard,
   type LayoutOrigin,
   lintBoardText,
   lintOverlayText,
@@ -77,6 +78,8 @@ export interface AtlasBoardEntry {
   layoutFrom: LayoutOrigin[];
   /** The board's tags, in the order it lists them; empty when it has none or is invalid. */
   tags: string[];
+  /** A flow board drawn as a sequence diagram (it has participants). */
+  sequence?: true;
   /** How many claims (screens, interactive elements, grounded nodes, navigates edges) sit at each grounding. */
   grounding: Record<Grounding, number>;
   /** JSON paths of the claims backed by the specification only, at most `MAX_SPEC_ONLY_PATHS`. */
@@ -307,6 +310,7 @@ export async function buildAtlas(
       uncheckedSources: board.sources.filter((s) => !isCheckable(s)).length,
       layoutFrom,
       tags: board.tags ?? [],
+      ...(isSequenceBoard(board) ? { sequence: true as const } : {}),
       grounding: countGrounding(claims),
       specOnly: specOnly.slice(0, MAX_SPEC_ONLY_PATHS),
       specOnlyTruncated: specOnly.length > MAX_SPEC_ONLY_PATHS,

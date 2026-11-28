@@ -1107,6 +1107,7 @@ export function App() {
         staleSourceIds={loaded.staleSourceIds}
         missingFlows={missingFlows}
         onOpen={(place) => openPlace(place, tabsShown ? "new" : "preview")}
+        onFocus={focusNode}
       />
     ) : null;
 

@@ -139,7 +139,7 @@ describe("the served viewer reaches nothing off this machine", () => {
     const atlas = { dir: path.join(fixtures, ".groundboard"), root: fixtures };
     const result = await withViewer({ atlas }, async (page, origin) => {
       const links: string[] = [];
-      for (const slug of ["overview-web", "web--checkout", "place-order"]) {
+      for (const slug of ["overview-web", "web--checkout", "place-order", "place-order-handler"]) {
         await page.goto(`${origin}/#/board/${slug}`);
         await waitForBoard(page);
         links.push(...(await externalLinks(page, origin)));
@@ -162,7 +162,7 @@ describe("the served viewer reaches nothing off this machine", () => {
       const links = await externalLinks(page, origin);
       await openExampleBoards(page, origin, path.join(fixtures, ".groundboard"));
       // Several boards in a row also exercise the shared render worker past its first layout.
-      for (const slug of ["overview-web", "web--checkout", "mobile--cart"]) {
+      for (const slug of ["overview-web", "web--checkout", "mobile--cart", "place-order-handler"]) {
         await page.goto(`${origin}/#/board/${slug}`);
         await waitForBoard(page);
       }

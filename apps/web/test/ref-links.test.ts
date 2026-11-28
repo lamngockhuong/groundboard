@@ -147,3 +147,81 @@ describe("links across boards in the library", () => {
     expect(atlas?.boards[0]?.issues[0]?.message).toContain("graphql");
   });
 });
+
+describe("a sequence board in the viewer", () => {
+  const scene = async () => {
+    const { sequenceBoard } = await import("../../../packages/schema/test/sequence-board.ts");
+    const result = await renderBoardLocally(sequenceBoard());
+    if (result.status !== "ok") throw new Error(JSON.stringify(result));
+    return (result.scene as { elements: Array<{ id: string }> }).elements as never[];
+  };
+
+  it("a message reads its number, its type, its two participants and its neighbours", async () => {
+    const elements = await scene();
+    const [message] = selectedCitations(elements, { "edge-label/m2": true });
+    expect(message).toMatchObject({
+      edgeId: "m2",
+      kind: "message",
+      number: 2,
+      messageType: "sync",
+      label: "2. authorize(amount)",
+      fromLabel: "Orders API",
+      toLabel: "Payment gateway",
+      previousId: "m1",
+      nextId: "m3",
+      sources: [{ id: "auth" }],
+    });
+    const [first] = selectedCitations(elements, { "edge/m1": true });
+    expect(first?.previousId).toBeUndefined();
+    expect(first?.ref).toBe("api:orders/post");
+  });
+
+  it("a guard selects its operand, with its fragment's kind and its condition's source", async () => {
+    const elements = await scene();
+    const [operand] = selectedCitations(elements, { "operand-guard/declined": true });
+    expect(operand).toMatchObject({
+      nodeId: "declined",
+      operandId: "declined",
+      fragmentKind: "alt",
+      fragmentId: "pay",
+      guard: "declined",
+      sources: [{ id: "if-ok" }],
+      grounding: "code",
+    });
+    const [tag] = selectedCitations(elements, { "fragment-tag/lines/text": true });
+    expect(tag).toMatchObject({ operandId: "each", fragmentKind: "loop" });
+  });
+
+  it("a participant reads its category and its label", async () => {
+    const elements = await scene();
+    const [bank] = selectedCitations(elements, { "node/bank/caption": true });
+    expect(bank).toMatchObject({
+      nodeId: "bank",
+      kind: "participant",
+      category: "external",
+      label: "Payment gateway",
+    });
+  });
+
+  it("a double click on a message or a participant with a ref opens what it reaches", async () => {
+    const elements = await scene();
+    expect(selectedRefTarget(elements, { "edge/m4": true, "edge-label/m4": true })).toBe(
+      "db:orders",
+    );
+    expect(selectedRefTarget(elements, { "node/q": true, "node/q/text": true })).toBe(
+      "batch:send-receipt",
+    );
+    expect(selectedRefTarget(elements, { "edge/m2": true })).toBeNull();
+  });
+
+  it("lists the participants and the messages for the palette, and reaches a message by id", async () => {
+    const { boardNodes, elementForNode } = await import("../src/sources.ts");
+    const elements = await scene();
+    const nodes = boardNodes(elements);
+    expect(nodes.filter((n) => n.kind === "message").map((n) => n.label)).toContain(
+      "2. authorize(amount)",
+    );
+    expect(nodes.find((n) => n.nodeId === "bank")?.label).toBe("Payment gateway");
+    expect(elementForNode(elements, "m2")?.id).toBe("edge/m2");
+  });
+});

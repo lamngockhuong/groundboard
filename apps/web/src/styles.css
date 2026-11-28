@@ -2140,6 +2140,20 @@ details.edit-section > :not(summary) + * {
   margin-left: auto;
 }
 
+/* A flow board drawn as a sequence diagram, beside its title in the sidebar. */
+.nav-sequence {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted);
+}
+
+/* Stepping through the messages of a sequence board without the mouse. */
+.message-steps {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
 /* An element that calls an API or changes state with no flow drawn for it yet. */
 .flow-hint {
   border: 1px solid var(--warn-line);

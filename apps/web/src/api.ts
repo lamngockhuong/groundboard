@@ -115,6 +115,8 @@ export interface AtlasBoard {
   layoutFrom: string[];
   /** Labels that group the board with others in the sidebar; empty when it has none. */
   tags: string[];
+  /** A flow board drawn as a sequence diagram. */
+  sequence?: true;
   /** Sources that cannot be checked offline: Figma, links, mockups without a file. */
   uncheckedSources: number;
   /** Claims by grounding: backed by code, by the specification only, or unresolved. */
@@ -266,6 +268,7 @@ export function toAtlas(value: unknown): AtlasIndex | null {
           ? (b.status as AtlasBoardStatus)
           : "invalid",
       layoutFrom: strings(b.layoutFrom),
+      ...(b.sequence === true ? { sequence: true as const } : {}),
       tags: [...new Set(strings(b.tags))],
       uncheckedSources: count(b.uncheckedSources),
       grounding: toGrounding(b.grounding),

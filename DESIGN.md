@@ -415,6 +415,38 @@ Outside edit mode the canvas still takes drags and drawings, which nothing saves
 first such change, a note at the bottom of the canvas says so, with "Edit" (moved boxes and
 drawn notes carry over) and "Discard changes".
 
+### Sequence boards
+A board with participants is drawn as a sequence diagram, not by the graph layout. Participants
+stand in a row in the order the board lists them, each a box with its label and, under it in the
+small size, its category; a dashed neutral lifeline (`MUTED`) runs down from each, locked and
+carrying no data, so a click beside a message never lands on it. The categories are told apart
+by shape as well as colour, and the category is written in the box, so a grey print still reads:
+a person has no box, only a small figure at its top left; our own system is a solid indigo box
+(`#364fc7` on `#edf2ff`); an outside service a dashed violet box (`#862e9c` on `#f8f0fc`); a
+database a green box (`#2b8a3e` on `#ebfbee`) with a cylinder's arcs top and bottom; a queue an
+orange box (`#c2410c` on `#fff4e6`) with three bars down its right edge. No category is red: red
+means something is wrong.
+
+Messages go one per row, numbered in the order the board lists them (`2. authorize(amount)`),
+the label above the line on a canvas-coloured backdrop that hides the lifelines behind it. A
+call that waits is a solid ink line with a filled head, a reply a dashed line with an open head,
+an async message a solid line with an open head and "(async)" after its label, so the kind never
+rests on the arrowhead alone. A fragment is a thin `MUTED` frame round the rows of its messages,
+its kind in a small tag at the top-left corner (`alt`, `loop`), its first guard beside the tag
+in brackets, and a dashed divider above each later operand with that operand's guard under it.
+Every header and divider takes a band of its own, so no text overlaps. Text is ink (4.5:1 and
+more in both themes), strokes at least 3:1, as the legibility test checks.
+
+The Sources panel names a participant by its category, a message by its number and label with
+"From A to B", its type and what it cites, and an operand by its fragment's kind, its condition
+and one sentence saying what the kind means ("Only one of these branches happens..."). A
+message's panel has "Previous message" and "Next message", the keyboard's way through the
+diagram; the command palette lists participants and messages too. A double click on a message
+or a participant that carries a ref opens the board that defines it. The sidebar files a
+sequence board under Flows with a small two-lifeline icon after its title, named "Sequence
+diagram" for screen readers. Presenting shows the participants first, then one message per
+step, each fragment with the first message of its operand.
+
 ### Command palette
 Ctrl K (Cmd K on macOS) opens it from anywhere, the canvas included, where it takes the key
 before Excalidraw's "add link". A modal dialog, 40rem wide, 12vh from the top: a borderless

@@ -1,4 +1,10 @@
-import { DEFINING_KINDS as DEFINERS, type HandlerShape } from "@groundboard/schema";
+import {
+  DEFINING_KINDS as DEFINERS,
+  FRAGMENT_KINDS,
+  type HandlerShape,
+  MESSAGE_TYPES,
+  PARTICIPANT_CATEGORIES,
+} from "@groundboard/schema";
 import { useEffect, useRef, useState } from "react";
 import type { AtlasIndex, AtlasPlace } from "../api.ts";
 import { boardDefiningRef } from "../atlas-nav.ts";
@@ -27,6 +33,8 @@ interface SourcePanelProps {
   /** Refs of elements that call an API or change state with no flow yet. */
   missingFlows?: ReadonlySet<string>;
   onOpen?: (place: AtlasPlace) => void;
+  /** Selects a node or a message of the board on screen, as a deep link would. */
+  onFocus?: (id: string) => void;
 }
 
 const NO_MISSING: ReadonlySet<string> = new Set();
@@ -447,6 +455,38 @@ function endpointLabel(node: NodeCitations): string | undefined {
   return label.slice(route.length).trim() || undefined;
 }
 
+const isOneOf = <T extends string>(list: readonly T[], value: string | undefined): value is T =>
+  value !== undefined && (list as readonly string[]).includes(value);
+
+/** What a node is, as its chip says: a role, a participant's category, a message's type... */
+function kindLabel(node: NodeCitations): string {
+  if (node.kind === "participant" && isOneOf(PARTICIPANT_CATEGORIES, node.category)) {
+    return t(`participant.${node.category}`);
+  }
+  if (node.kind === "message") {
+    return t(`message.${isOneOf(MESSAGE_TYPES, node.messageType) ? node.messageType : "sync"}`);
+  }
+  if (node.operandId !== undefined && isOneOf(FRAGMENT_KINDS, node.fragmentKind)) {
+    return t(`fragment.${node.fragmentKind}`);
+  }
+  return node.role ?? node.kind;
+}
+
+/** An operand: its guard, and what its fragment's kind means for a reader who does not code. */
+function OperandText({ node }: { node: NodeCitations }) {
+  const kind = isOneOf(FRAGMENT_KINDS, node.fragmentKind) ? node.fragmentKind : "opt";
+  return (
+    <>
+      {node.guard ? (
+        <p className="action">
+          <strong>{t("sequence.guard")}</strong> {node.guard}
+        </p>
+      ) : null}
+      <p className="detail">{t(`fragment.${kind}.explain`)}</p>
+    </>
+  );
+}
+
 /** The title of the board on screen: an element is defined only on its own screen board. */
 const screenTitle = (atlas: AtlasIndex | null, slug: string | null): string | undefined =>
   slug === null ? undefined : atlas?.boards.find((b) => b.slug === slug)?.title;
@@ -459,6 +499,7 @@ function NodeSources({
   stale,
   missingFlows,
   onOpen,
+  onFocus,
 }: {
   node: NodeCitations;
   atlas: AtlasIndex | null;
@@ -466,11 +507,15 @@ function NodeSources({
   stale: ReadonlySet<string>;
   missingFlows: ReadonlySet<string>;
   onOpen?: (place: AtlasPlace) => void;
+  onFocus?: (id: string) => void;
 }) {
   const isEdge = node.edgeId !== undefined;
+  const isMessage = node.kind === "message";
   // A defining kind (REF_DEFINERS) defines its ref unless it is a copy of a shared layout's
-  // element; any other node, and an edge, points at one.
-  const target = node.toRef ?? (pointsAtRef(node, atlas, currentSlug) ? node.ref : undefined);
+  // element; any other node, and an edge, points at one. A message reaches its ref.
+  const target =
+    node.toRef ??
+    (isMessage ? node.ref : pointsAtRef(node, atlas, currentSlug) ? node.ref : undefined);
   const refName = node.ref ?? node.toRef;
   // An arrow drawn as a numbered tag has no text of its own: it is named by where it starts.
   const title = node.label ?? (isEdge ? node.fromLabel : undefined);
@@ -481,14 +526,19 @@ function NodeSources({
         {title ? <span className="node-label">{title}</span> : null}
         <span className="node-meta">
           <span className="node-id">{node.nodeId}</span>
-          {node.kind ? <span className="kind">{node.role ?? node.kind}</span> : null}
+          {node.kind ? <span className="kind">{kindLabel(node)}</span> : null}
         </span>
       </h3>
-      {isEdge && node.fromLabel && node.label ? (
+      {isMessage && node.fromLabel && node.toLabel ? (
+        <p className="node-from">
+          {t("sequence.fromTo", { from: node.fromLabel, to: node.toLabel })}
+        </p>
+      ) : isEdge && node.fromLabel && node.label ? (
         <p className="node-from">
           {t("sources.from")} <strong>{node.fromLabel}</strong>
         </p>
       ) : null}
+      {node.operandId !== undefined ? <OperandText node={node} /> : null}
       {node.manual ? (
         <p className="grounding grounding-none" title={t("sources.manualTitle")}>
           {t("sources.manual")}
@@ -551,6 +601,29 @@ function NodeSources({
         <Target target={target} atlas={atlas} currentSlug={currentSlug} onOpen={onOpen} />
       ) : null}
 
+      {isMessage && onFocus && (node.previousId || node.nextId) ? (
+        <div className="panel-block message-steps">
+          <button
+            type="button"
+            className="secondary"
+            disabled={!node.previousId}
+            onClick={() => node.previousId && onFocus(node.previousId)}
+          >
+            <Icon name="back" size={14} />
+            {t("sequence.previous")}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={!node.nextId}
+            onClick={() => node.nextId && onFocus(node.nextId)}
+          >
+            {t("sequence.next")}
+            <Icon name="next" size={14} />
+          </button>
+        </div>
+      ) : null}
+
       {node.kind === "element" &&
       node.edgeId === undefined &&
       node.ref !== undefined &&
@@ -603,6 +676,7 @@ export function SourcePanel({
   staleSourceIds,
   missingFlows = NO_MISSING,
   onOpen,
+  onFocus,
 }: SourcePanelProps) {
   const stale = staleSourceIds?.length ? new Set(staleSourceIds) : NO_STALE;
   return (
@@ -623,13 +697,14 @@ export function SourcePanel({
       ) : (
         nodes.map((node) => (
           <NodeSources
-            key={`${node.edgeId ? "edge" : "node"}:${node.nodeId}`}
+            key={`${node.edgeId ? "edge" : node.operandId ? "operand" : "node"}:${node.nodeId}`}
             node={node}
             atlas={atlas}
             currentSlug={currentSlug}
             stale={stale}
             missingFlows={missingFlows}
             onOpen={onOpen}
+            onFocus={onFocus}
           />
         ))
       )}
