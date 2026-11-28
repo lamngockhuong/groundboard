@@ -72,7 +72,8 @@ Pick the board shape that answers the question:
 | "what talks to what, in which order", a handler that calls an outside service, a queue or a batch | sequence diagram | `participant` | `message`, with `fragments` for branches and loops |
 
 A sequence diagram is a board of its own: it holds only participants, questions, notes and
-messages (see the guide's "Sequence diagrams").
+messages (see the guide's "Sequence diagrams"). Give `category: "person"` only to a real human (a
+customer, an admin); an outside service is `external` and cites the line that creates its client.
 
 A board may combine shapes in separate groups, for example a flow plus a "why" group.
 

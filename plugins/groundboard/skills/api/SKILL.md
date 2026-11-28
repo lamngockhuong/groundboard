@@ -171,7 +171,8 @@ When the person asked how an endpoint works, or asked for the explanation of the
 the shape step 2P picked: its first node carries the endpoint's ref (on a sequence board, the
 participant that stands for the handler), and a step on the client's side only links to it with a
 `calls` edge. When a sequence board for the endpoint exists already, read it first and keep its
-participants in the order `nodes` lists them; add a new participant at the end.
+participants in the order `nodes` lists them; add a new participant at the end. Only a real human
+(a customer, an admin) is a `person`; an outside service is `external` and cites its client.
 
 ### 5. Check and repair
 

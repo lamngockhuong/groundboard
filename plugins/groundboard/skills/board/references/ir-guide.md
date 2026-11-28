@@ -432,13 +432,15 @@ participants holds neither messages nor fragments.
 - **Participants** are the columns, in the order of `nodes`. Each has a `category`: `person`,
   `system` (ours), `external` (an outside service), `database` or `queue`. Anything but a
   person cites a source that locates it: the line that creates its client, imports its SDK or
-  opens its connection. A participant may carry a `ref` it points at (`api:`, `db:`, `batch:`,
+  opens its connection. `person` is only for a real human (a customer, an admin, an operator),
+  never for an outside system written as a person to skip its citation. A participant may carry
+  a `ref` it points at (`api:`, `db:`, `batch:`,
   `web:`, `mobile:`); it never defines one.
 - **Messages** are the rows, in the order of `edges`, numbered by the viewer. `from` and `to` are
   participants (the same one for a call to itself). `messageType` is `sync` (a call that waits,
   the default), `reply` or `async`. Each cites the line that makes the call (for a reply, the
   line that returns or receives the result). A message may carry a `ref` to what it reaches
-  (`db:orders`), and has no `toRef`.
+  (`db:orders`, or a screen such as `web:checkout`, never an element), and has no `toRef`.
 - **Fragments** are in the top-level `fragments`: `{ id, kind, label?, parentOperandId?,
   operands: [{ id, guard?, sourceIds }] }`. `alt` (one branch of several) and `par` (at the same
   time) take two operands or more; `opt` (only if), `loop` (repeated) and `break` (leave the
