@@ -185,6 +185,12 @@ describe("fragments", () => {
     // The loop moves in with its message.
     expect(fragments(result.board).find((f) => f.id === "lines")?.parentOperandId).toBe(operand.id);
     expect(wrapMessages(board(), ["m2", "m4"], "opt", "").ok).toBe(false);
+    // A message at the top level and one inside the alt: the frame would hold only one of them.
+    const partial = wrapMessages(board(), ["m3", "m4"], "opt", "");
+    expect(partial.ok).toBe(false);
+    expect(partial.ok ? "" : partial.issues[0]?.message).toContain(
+      "crosses the edge of a fragment",
+    );
     // Across the alt's two branches there is no shared operand to wrap in.
     expect(wrapMessages(board(), ["m6", "m7"], "opt", "").ok).toBe(false);
   });

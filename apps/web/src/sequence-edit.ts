@@ -376,10 +376,19 @@ export function wrapMessages(
   if (parent !== undefined) fragment.parentOperandId = parent;
   const result = finish(board, edges, [...fragments, fragment]);
   if (!result.ok) return result;
-  // Nothing moved in: the messages cross the edge of a fragment, so no frame can hold them.
-  if (!list(result.board, "fragments").some((f) => f.id === fragmentId)) {
+  // Every picked message must have moved in; one left out means the selection crosses the edge
+  // of a fragment, so no frame can hold it whole.
+  const inside = new Set(
+    operandId === undefined ? [] : [operandId, ...(secondId ? [secondId] : [])],
+  );
+  const held = (edge: Item) => chainOf(result.board, edge).some((op) => inside.has(op));
+  const kept = list(result.board, "fragments").some((f) => f.id === fragmentId);
+  const all = list(result.board, "edges")
+    .filter((e) => ids.has(String(e.id)))
+    .every(held);
+  if (!kept || !all) {
     return refuse(
-      "these messages cross the edge of a fragment; select messages inside one operand",
+      "the selection crosses the edge of a fragment; select messages inside one operand",
     );
   }
   return { ...result, id: fragmentId };
