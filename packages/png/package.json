@@ -1,6 +1,6 @@
 {
   "name": "@groundboard/png",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0-rc.2",
   "description": "PNG rendering for groundboard: draws an Excalidraw scene to an image in Node, without a browser.",
   "license": "MIT",
   "author": "Lam Ngoc Khuong",
