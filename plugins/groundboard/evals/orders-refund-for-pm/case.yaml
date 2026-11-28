@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: orders-refund-for-pm
+expected_outcome: |
+  A product manager reads off the board, in product words, that an order can be cancelled only while pending, that a paid order is refunded instead, that a packed order cannot be refunded until it is shipped and delivered, and why cancelled and refunded stay two statuses. The gap between the README (ship or restock a packed order) and the code (no way back from packed to stock) is a question naming who decides.
+context:
+  scaffold_script: scaffold.sh

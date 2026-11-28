@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: checkout-why-declined
+expected_outcome: |
+  The board explains, citing the checkout code, that the card is authorized before stock is reserved, that a short SKU makes the checkout void the authorization and decline with "out of stock", that payment is captured only once every line is reserved, and why the team chose that order. What the code cannot answer (such as what the gateway does with a refused card) is a question naming who must answer.
+context:
+  scaffold_script: scaffold.sh

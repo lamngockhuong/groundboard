@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: orders-after-placed
+expected_outcome: |
+  The board follows an order from `POST /orders` (stored as placed, 201 with the order id) to the `send-receipt` job and its retries, the nightly `close-stale-orders` job, and the `order.paid` handler that packs it. Nothing in the repository publishes `order.paid`, so how an order gets paid is a question naming who must answer, not an invented payment step.
+context:
+  scaffold_script: scaffold.sh
