@@ -268,7 +268,7 @@ export const vi: Messages = {
   "layer.notes": "Chú giải & ghi chú",
   "layer.notes.hint": "chú giải và các ghi chú dưới tiêu đề",
   "layer.flowHints": "Gợi ý flow",
-  "layer.flowHints.hint": "phần tử gọi API hoặc đổi trạng thái mà chưa có flow",
+  "layer.flowHints.hint": "phần tử và endpoint có logic mà chưa có flow",
 
   "tags.tooLong": "Mỗi tag dài tối đa {max} ký tự.",
   "tags.tooMany": "Mỗi board có tối đa {max} tag.",
@@ -507,4 +507,16 @@ export const vi: Messages = {
   "sources.tag.writes": "ghi",
   "sources.tag.enqueues": "đẩy vào hàng đợi",
   "editPanel.guards": "Guard, mỗi dòng một guard",
+  "flowHint.endpointExplain":
+    "Handler của endpoint này có logic, nhưng chưa có flow hay sequence nào bắt đầu từ nó.",
+  "flowHint.endpointPrompt.flow":
+    "/groundboard:board Vẽ flow những gì {endpoint} làm trong handler, node đầu mang ref `{ref}`, và trích dẫn handler",
+  "flowHint.endpointPrompt.state":
+    "/groundboard:board Vẽ state machine những gì {endpoint} làm trong handler, node đầu mang ref `{ref}`, và trích dẫn handler",
+  "flowHint.endpointPrompt.sequence":
+    "/groundboard:board Vẽ sequence diagram những gì {endpoint} làm trong handler, participant đại diện handler mang ref `{ref}`, và trích dẫn handler",
+  "home.missingFlowsEndpoints_one": "{count} endpoint chưa có flow",
+  "home.missingFlowsEndpoints_other": "{count} endpoint chưa có flow",
+  "home.missingFlowsEndpointsHint":
+    "Các endpoint có handler rẽ nhánh, đổi trạng thái hoặc gọi ra ngoài mà chưa có flow hay sequence nào.",
 };

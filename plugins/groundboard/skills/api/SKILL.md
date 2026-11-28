@@ -110,6 +110,30 @@ From the specification (2S) there is no handler to read: write no `guards`, unle
 document states the security requirement of the operation (OpenAPI `security`), which you cite
 as a `doc` source.
 
+### 2P. Pick the board each handler needs
+
+Decide from the handler you read in step 2H whether its logic needs a board of its own, and
+which one:
+
+| What the handler does (read in the code) | `handler.shape` | Board |
+|---|---|---|
+| reads or writes one table, with no branch | no `handler` | the card is enough |
+| branches inside (`if`, `switch`, an error thrown on a condition) | `flow` | a flow board |
+| changes the state of a record (`status = ...`) | `state` | a state machine |
+| calls out (an identity provider such as Cognito, a bank's API, a queue, a batch) | `sequence` | a sequence board |
+
+When several hold, prefer `sequence`, then `state`, then `flow`. Cite in `handler.sourceIds`
+the very line that makes it so: the outside call, the state change, the branch. An endpoint
+with `handler` and nothing that explains it is listed by `check_atlas` and marked "No flow
+yet" in the viewer.
+
+What explains an endpoint is a board drawn with `/groundboard:board` whose first node carries
+the endpoint's ref (on a sequence board, the participant that stands for the handler). A step
+on the client's side that calls the endpoint only links to it with a `calls` edge whose `toRef`
+is the endpoint's ref, and never carries that ref itself; otherwise the hint goes quiet while
+nothing explains the handler. When you find such a client step carrying an endpoint's ref on a
+flow board, turn it into a `calls` edge and say so in the report.
+
 ### 3. Write the board
 
 - One `resource` node: `label` the resource as people say it, `ref: "api:<resource>"`,
@@ -123,6 +147,8 @@ as a `doc` source.
   when you did not read the handler.
 - The `reads`, `writes` and `enqueues` edges of step 2H, from the endpoint, with `toRef`. They are
   drawn as tags inside the endpoint's row, not as arrows.
+- `handler: { "shape": "<flow|state|sequence>", "sourceIds": [...] }` on each endpoint step 2P
+  picked a board for.
 - A resource with more than 40 endpoints is too tall to read: split it by sub-resource
   (`api:orders-admin`). Each guard line and row of tags makes a row taller, so split sooner
   (around 25 endpoints) when most endpoints have both.
@@ -154,6 +180,8 @@ Without the MCP tools, run `npx groundboard validate <file> --check-sources .` a
 - the resources and how many endpoints each has, from which framework and files;
 - routes skipped and why (health checks, static files, catch-alls);
 - the `calls` edges added, per screen board, and calls you could not follow to a route;
+- the endpoints by the board step 2P picked for them (none, flow, state, sequence), and those
+  still without an explanation; client steps you turned into `calls` edges;
 - how many endpoints have a guard and how many have none found, and the `reads`, `writes` and
   `enqueues` edges by target board; queries and jobs left without an edge because their board
   does not exist yet;

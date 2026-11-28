@@ -1,4 +1,4 @@
-import { DEFINING_KINDS as DEFINERS } from "@groundboard/schema";
+import { DEFINING_KINDS as DEFINERS, type HandlerShape } from "@groundboard/schema";
 import { useEffect, useRef, useState } from "react";
 import type { AtlasIndex, AtlasPlace } from "../api.ts";
 import { boardDefiningRef } from "../atlas-nav.ts";
@@ -302,15 +302,19 @@ function FlowHint({
   label,
   screen,
   refName,
+  endpoint,
 }: {
   label?: string;
   screen?: string;
   refName: string;
+  /** For an endpoint: the board its handler needs, and its route. */
+  endpoint?: { shape: HandlerShape; method?: string; path?: string };
 }) {
   const prompt = flowPrompt({
     ref: refName,
     ...(label !== undefined ? { label } : {}),
     ...(screen !== undefined ? { screen } : {}),
+    ...(endpoint !== undefined ? { endpoint } : {}),
   });
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
   const fallback = useRef<HTMLInputElement>(null);
@@ -320,7 +324,9 @@ function FlowHint({
   return (
     <div className="flow-hint panel-block">
       <h4 className="panel-section">{t("flowHint.missing")}</h4>
-      <p className="flow-hint-explain">{t("flowHint.explain")}</p>
+      <p className="flow-hint-explain">
+        {t(endpoint !== undefined ? "flowHint.endpointExplain" : "flowHint.explain")}
+      </p>
       <button
         type="button"
         className="flow-hint-copy"
@@ -428,6 +434,17 @@ function DataEdges({
       </ul>
     </div>
   );
+}
+
+/**
+ * What an endpoint does, without its route: the row's text is `POST /orders  Place an order`,
+ * and the prompt names the route apart.
+ */
+function endpointLabel(node: NodeCitations): string | undefined {
+  const route = [node.method, node.path].filter(Boolean).join(" ");
+  const label = node.label;
+  if (label === undefined || route === "" || !label.startsWith(route)) return label;
+  return label.slice(route.length).trim() || undefined;
 }
 
 /** The title of the board on screen: an element is defined only on its own screen board. */
@@ -543,6 +560,22 @@ function NodeSources({
           refName={node.ref}
           {...(node.label !== undefined ? { label: node.label } : {})}
           {...(screen !== undefined ? { screen } : {})}
+        />
+      ) : null}
+
+      {node.kind === "endpoint" &&
+      node.edgeId === undefined &&
+      node.ref !== undefined &&
+      missingFlows.has(node.ref) ? (
+        <FlowHint
+          key={node.ref}
+          refName={node.ref}
+          endpoint={{
+            shape: atlas?.refs.find((r) => r.ref === node.ref)?.flowShape ?? "flow",
+            ...(node.method !== undefined ? { method: node.method } : {}),
+            ...(node.path !== undefined ? { path: node.path } : {}),
+          }}
+          {...(endpointLabel(node) !== undefined ? { label: endpointLabel(node) } : {})}
         />
       ) : null}
 

@@ -1,12 +1,17 @@
-import { type ElementRole, missingFlowRefs, parseRef } from "@groundboard/schema";
+import {
+  type ElementRole,
+  type HandlerShape,
+  missingFlowRefs,
+  parseRef,
+} from "@groundboard/schema";
 import type { AtlasIndex, AtlasPlace } from "./api.ts";
 import { orderedBoards } from "./atlas-nav.ts";
 import { t } from "./i18n.ts";
 
 /**
- * Which elements call an API or change state with no flow drawn for them yet. The source panel,
- * the marks on the canvas and the atlas home all read the same set, so their counts agree, and
- * the set is the one `atlas check` warns about.
+ * Which elements call an API or change state, and which endpoints have a handler with logic,
+ * with no flow drawn for them yet. The source panel, the marks on the canvas and the atlas home
+ * all read the same set, so their counts agree, and the set is the one `atlas check` warns about.
  */
 
 const EMPTY: ReadonlySet<string> = new Set();
@@ -22,7 +27,7 @@ export function missingFlowSet(atlas: AtlasIndex | null): ReadonlySet<string> {
   return missing.length === 0 ? EMPTY : new Set(missing);
 }
 
-/** The elements with no flow yet on one screen board, in ref order. */
+/** The elements with no flow yet on one screen board, or the endpoints on one API board. */
 export interface MissingFlowGroup {
   slug: string;
   title: string;
@@ -42,6 +47,8 @@ export interface MissingFlowItem {
   label?: string;
   /** What the element is drawn as, when the index carries it. */
   role?: ElementRole;
+  /** An endpoint whose handler has logic, and the board that should explain it. */
+  endpoint?: { shape: HandlerShape };
 }
 
 /** The screen ref a screen board defines (`web:upload` on `web--upload`), when it has one. */
@@ -68,36 +75,43 @@ function groupPrefix(
   const screens = new Set(
     items.map((item) => {
       const parsed = parseRef(item.ref);
-      return parsed !== null && "screenRef" in parsed ? parsed.screenRef : item.ref;
+      if (parsed === null) return item.ref;
+      return "screenRef" in parsed ? parsed.screenRef : parsed.rootRef;
     }),
   );
   return screens.size === 1 ? [...screens][0] : undefined;
 }
 
 /**
- * Where the elements with no flow yet are, grouped by the screen board that defines each one,
- * the boards in sidebar order. Reads the same set as the source panel and the canvas marks.
+ * Where the elements and endpoints with no flow yet are, grouped by the screen board or the API
+ * board that defines each one, the boards in sidebar order. Reads the same set as the source
+ * panel and the canvas marks.
  */
 export function missingFlowPlaces(atlas: AtlasIndex | null): MissingFlowGroup[] {
   const missing = missingFlowSet(atlas);
   if (atlas === null || missing.size === 0) return [];
-  const screens = new Set(
-    atlas.boards.filter((b) => b.kind === "screen" && b.status !== "invalid").map((b) => b.slug),
-  );
-  const bySlug = new Map<string, Array<{ ref: string; place: AtlasPlace }>>();
+  const usable = atlas.boards.filter((b) => b.status !== "invalid");
+  const screens = new Set(usable.filter((b) => b.kind === "screen").map((b) => b.slug));
+  const apis = new Set(usable.filter((b) => b.kind === "api").map((b) => b.slug));
+  const bySlug = new Map<
+    string,
+    Array<{ ref: string; place: AtlasPlace; shape: HandlerShape | undefined }>
+  >();
   for (const entry of atlas.refs) {
     if (!missing.has(entry.ref)) continue;
-    const place = entry.definedIn.find((p) => screens.has(p.slug));
+    // An element is listed under its screen board, an endpoint under its API board.
+    const homes = entry.flowShape === undefined ? screens : apis;
+    const place = entry.definedIn.find((p) => homes.has(p.slug));
     if (place === undefined) continue;
     const items = bySlug.get(place.slug) ?? [];
-    items.push({ ref: entry.ref, place });
+    items.push({ ref: entry.ref, place, shape: entry.flowShape });
     bySlug.set(place.slug, items);
   }
   return orderedBoards(atlas).flatMap((board) => {
     const items = bySlug.get(board.slug);
     if (!items) return [];
     const prefix = groupPrefix(atlas, board.slug, items);
-    const listed = items.map(({ ref, place }): MissingFlowItem => {
+    const listed = items.map(({ ref, place, shape }): MissingFlowItem => {
       const label = place.label?.replace(/\s+/g, " ").trim();
       return {
         ref,
@@ -106,6 +120,7 @@ export function missingFlowPlaces(atlas: AtlasIndex | null): MissingFlowGroup[] 
           prefix !== undefined && ref.startsWith(`${prefix}/`) ? ref.slice(prefix.length + 1) : ref,
         ...(label ? { label } : {}),
         ...(place.role !== undefined ? { role: place.role } : {}),
+        ...(shape !== undefined ? { endpoint: { shape } } : {}),
       };
     });
     return [{ slug: board.slug, title: board.title, items: listed }];
@@ -123,17 +138,29 @@ function tidy(text: string): string {
 
 /**
  * The line a reader copies to ask for the missing flow, in the interface language: the board
- * skill, the element's label, the screen it is on and its ref. Always a single line.
+ * skill, the element's label, the screen it is on and its ref. For an endpoint: the board its
+ * handler needs (a flow, a state machine or a sequence diagram), its method, path and label, and
+ * the ref its first node must carry. Always a single line.
  */
 export function flowPrompt({
   label,
   screen,
   ref,
+  endpoint,
 }: {
   label?: string;
   screen?: string;
   ref: string;
+  endpoint?: { shape: HandlerShape; method?: string; path?: string };
 }): string {
+  if (endpoint !== undefined) {
+    const route = tidy([endpoint.method, endpoint.path].filter(Boolean).join(" ")) || tidy(ref);
+    const what = tidy(label ?? "");
+    return t(`flowHint.endpointPrompt.${endpoint.shape}`, {
+      endpoint: what ? `${route} (${what})` : route,
+      ref: tidy(ref),
+    });
+  }
   const name = tidy(label ?? "") || ref;
   const on = tidy(screen ?? "") || ref.split("/")[0] || ref;
   return t("flowHint.prompt", { label: name, screen: on, ref: tidy(ref) });
@@ -171,9 +198,9 @@ interface SceneElementLike {
 }
 
 /**
- * The boxes of the elements whose ref has no flow yet, one per board node: the node's own
- * element (`node/<id>`, or `node-<id>` in older scenes), not its marks or labels. Deleted
- * elements are skipped.
+ * The boxes of the elements and endpoint rows whose ref has no flow yet, one per board node: the
+ * node's own element (`node/<id>`, or `node-<id>` in older scenes), not its marks or labels.
+ * Deleted elements are skipped.
  */
 export function flowHintBoxes(
   elements: readonly unknown[],
@@ -187,7 +214,8 @@ export function flowHintBoxes(
     if (el.isDeleted === true) continue;
     const data = (el.customData as { groundboard?: Record<string, unknown> } | null | undefined)
       ?.groundboard;
-    if (data?.kind !== "element" || typeof data.nodeId !== "string") continue;
+    if ((data?.kind !== "element" && data?.kind !== "endpoint") || typeof data.nodeId !== "string")
+      continue;
     if (typeof data.ref !== "string" || !missing.has(data.ref)) continue;
     if (typeof el.x !== "number" || typeof el.y !== "number") continue;
     const nodeId = data.nodeId;

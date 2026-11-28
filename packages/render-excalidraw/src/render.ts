@@ -525,6 +525,8 @@ export function renderExcalidraw(
       ...(source.unresolved !== undefined ? { unresolved: source.unresolved } : {}),
       ...(source.layoutFrom !== undefined ? { layoutFrom: source.layoutFrom } : {}),
       ...(source.platform !== undefined ? { platform: source.platform } : {}),
+      ...(source.method !== undefined ? { method: source.method } : {}),
+      ...(source.path !== undefined ? { path: source.path } : {}),
       ...(source.guards !== undefined
         ? {
             guards: source.guards.map((guard) => ({

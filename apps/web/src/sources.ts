@@ -82,6 +82,9 @@ export interface NodeCitations {
   grounding?: Grounding;
   /** Set for a column's row of a table: the column's name. */
   column?: string;
+  /** Set for an endpoint: its HTTP method and its path as the route declares it. */
+  method?: string;
+  path?: string;
   /** Added or reworded by a person in the viewer: not checked against any source. */
   manual?: boolean;
   /** What a reworded claim cited before; to check again, never evidence. */
@@ -247,6 +250,8 @@ export function nodeCitations(element: ElementLike): NodeCitations | null {
     ...text(data, "layoutFrom"),
     ...text(data, "from"),
     ...text(data, "column"),
+    ...text(data, "method"),
+    ...text(data, "path"),
     sources,
     ...(grounding ? { grounding } : {}),
     ...(data.manual === true ? { manual: true } : {}),

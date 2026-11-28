@@ -277,7 +277,7 @@ export const en = {
   "layer.notes": "Legend & notes",
   "layer.notes.hint": "legend and the notes under the title",
   "layer.flowHints": "Flow hints",
-  "layer.flowHints.hint": "elements that call an API or change state with no flow yet",
+  "layer.flowHints.hint": "elements and endpoints with logic but no flow yet",
 
   // Tags
   "tags.tooLong": "A tag is at most {max} characters.",
@@ -520,4 +520,16 @@ export const en = {
   "sources.tag.writes": "writes",
   "sources.tag.enqueues": "enqueues",
   "editPanel.guards": "Guards, one per line",
+  "flowHint.endpointExplain":
+    "The handler of this endpoint has logic, but no flow or sequence starts at it yet.",
+  "flowHint.endpointPrompt.flow":
+    "/groundboard:board Draw the flow of what {endpoint} does in its handler, its first node carrying ref `{ref}`, and cite the handler",
+  "flowHint.endpointPrompt.state":
+    "/groundboard:board Draw the state machine of what {endpoint} does in its handler, its first node carrying ref `{ref}`, and cite the handler",
+  "flowHint.endpointPrompt.sequence":
+    "/groundboard:board Draw a sequence diagram of what {endpoint} does in its handler, the participant for the handler carrying ref `{ref}`, and cite the handler",
+  "home.missingFlowsEndpoints_one": "{count} endpoint with no flow",
+  "home.missingFlowsEndpoints_other": "{count} endpoints with no flow",
+  "home.missingFlowsEndpointsHint":
+    "Endpoints whose handler branches, changes state or calls out, with no flow or sequence for it yet.",
 } as const;

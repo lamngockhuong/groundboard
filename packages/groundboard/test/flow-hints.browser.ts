@@ -411,6 +411,102 @@ describe("missing-flow hints", () => {
     }
   });
 
+  test("hint at an endpoint whose handler has logic, until a flow node carries its ref", async () => {
+    // The main fixture with its POST /orders endpoint said to need a sequence: nothing explains
+    // it yet, since the Pay button only calls it by toRef.
+    const root = realpathSync(mkdtempSync(path.join(tmpdir(), "groundboard-endpoint-hints-")));
+    cpSync(fixtures, root, { recursive: true });
+    const apiFile = path.join(root, ".groundboard", "api--orders.board.json");
+    const api = JSON.parse(readFileSync(apiFile, "utf8")) as {
+      nodes: Array<Record<string, unknown>>;
+    };
+    const post = api.nodes.find((n) => n.id === "create-order") as Record<string, unknown>;
+    post.handler = { shape: "sequence", sourceIds: ["enqueue-receipt"] };
+    writeFileSync(apiFile, JSON.stringify(api));
+    const server = await startServe(root);
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+      origin: server.origin,
+    });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => localStorage.setItem("groundboard.locale", "en"));
+      await page.goto(`${server.origin}/#/board/api--orders?node=create-order`);
+      await waitForBoard(page);
+      await marks(page).first().waitFor({ timeout: 10_000 });
+      expect(await marks(page).count()).toBe(1);
+      const hint = page.locator(".source-panel .flow-hint");
+      await hint.waitFor({ timeout: 10_000 });
+      expect(await hint.locator(".flow-hint-explain").textContent()).toContain(
+        "The handler of this endpoint has logic",
+      );
+      await hint.getByRole("button", { name: "Copy the request for a developer" }).click();
+      await hint.getByText("Copied").waitFor();
+      const copied = String(await page.evaluate("navigator.clipboard.readText()"));
+      expect(copied).toBe(
+        "/groundboard:board Draw a sequence diagram of what POST /api/orders (Place an order) does in its handler, the participant for the handler carrying ref `api:orders/post`, and cite the handler",
+      );
+
+      await page.goto(`${server.origin}/#/`);
+      const stat = page.locator(".stat-button");
+      await stat.waitFor({ timeout: 10_000 });
+      expect(await stat.locator(".stat-value").textContent()).toBe("1");
+      await stat.click();
+      await page.locator(".missing-flows[open]").waitFor();
+      expect(await page.locator(".missing-flows-title").textContent()).toBe(
+        "1 endpoint with no flow",
+      );
+      const listed = page
+        .locator(".missing-flows")
+        .getByRole("link", { name: "API endpoint Place an order post", exact: true });
+      await listed.click();
+      await waitForBoard(page);
+      expect(page.url()).toContain("#/board/api--orders?node=create-order");
+      await hint.waitFor({ timeout: 10_000 });
+
+      // A flow whose first step carries the endpoint's ref explains it: every hint goes.
+      writeFileSync(
+        path.join(root, ".groundboard", "place-order-handler.board.json"),
+        JSON.stringify({
+          schemaVersion: 1,
+          title: "Placing an order",
+          question: "What does POST /api/orders do?",
+          nodes: [
+            {
+              id: "in",
+              kind: "step",
+              label: "Stores the order",
+              ref: "api:orders/post",
+              sourceIds: ["insert"],
+            },
+          ],
+          sources: [
+            {
+              id: "insert",
+              path: "server/orders-routes.ts",
+              line: 9,
+              quote: 'const order = await db.insert("orders"',
+            },
+          ],
+        }),
+      );
+      // A new board is read when the viewer loads the atlas again.
+      await page.goto(`${server.origin}/#/`);
+      await page.reload();
+      await page.locator(".atlas-home .stats").waitFor();
+      expect(await page.locator(".stat-button").count()).toBe(0);
+      await page.goto(`${server.origin}/#/board/api--orders?node=create-order`);
+      await waitForBoard(page);
+      await page.locator(".source-panel .node-sources").first().waitFor();
+      expect(await marks(page).count()).toBe(0);
+      expect(await page.locator(".source-panel .flow-hint").count()).toBe(0);
+    } finally {
+      await context.close();
+      await server.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test("show nothing where every element that needs a flow has one", async () => {
     const server = await startServe(fixtures);
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });

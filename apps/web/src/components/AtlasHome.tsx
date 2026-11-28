@@ -154,6 +154,18 @@ function MissingFlows({
   ref: Ref<HTMLDetailsElement>;
 }) {
   const total = groups.reduce((sum, g) => sum + g.items.length, 0);
+  const endpoints = groups.reduce(
+    (sum, g) => sum + g.items.filter((item) => item.endpoint !== undefined).length,
+    0,
+  );
+  const elements = total - endpoints;
+  // Two counts in one list: the elements, then the endpoints, each named only when present.
+  const title = [
+    elements > 0 ? tn("home.missingFlowsTitle", elements) : "",
+    endpoints > 0 ? tn("home.missingFlowsEndpoints", endpoints) : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const single = groups.length === 1;
   return (
     <details
@@ -164,10 +176,15 @@ function MissingFlows({
       onToggle={(e) => onToggle(e.currentTarget.open)}
     >
       <summary className="card-head missing-flows-summary">
-        <span className="missing-flows-title">{tn("home.missingFlowsTitle", total)}</span>
+        <span className="missing-flows-title">{title}</span>
         <span className="count">{total}</span>
       </summary>
-      <p className="missing-flows-hint muted">{t("home.missingFlowsHint")}</p>
+      {elements > 0 ? (
+        <p className="missing-flows-hint muted">{t("home.missingFlowsHint")}</p>
+      ) : null}
+      {endpoints > 0 ? (
+        <p className="missing-flows-hint muted">{t("home.missingFlowsEndpointsHint")}</p>
+      ) : null}
       {groups.map((group) => (
         <section key={group.slug} className="missing-flows-group">
           {/* The summary holds text only; the link to the board sits beside it, outside the
@@ -187,7 +204,11 @@ function MissingFlows({
                     href={formatRoute({ view: "board", slug: group.slug, node: item.nodeId })}
                     title={item.ref}
                   >
-                    {item.role ? (
+                    {item.endpoint ? (
+                      <>
+                        <span className="missing-flows-role">{t("nodeKind.endpoint")}</span>{" "}
+                      </>
+                    ) : item.role ? (
                       <>
                         <span className="missing-flows-role">
                           {t(`elementRole.${item.role}`)}

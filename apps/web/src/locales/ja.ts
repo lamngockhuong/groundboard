@@ -268,7 +268,7 @@ export const ja: Messages = {
   "layer.notes": "凡例とメモ",
   "layer.notes.hint": "凡例とタイトル下のメモ",
   "layer.flowHints": "フローのヒント",
-  "layer.flowHints.hint": "API を呼ぶか状態を変えるのにフローがまだない要素",
+  "layer.flowHints.hint": "ロジックがあるのにフローがまだない要素とエンドポイント",
 
   "tags.tooLong": "タグは {max} 文字以内です。",
   "tags.tooMany": "1 つのボードに付けられるタグは {max} 個までです。",
@@ -510,4 +510,16 @@ export const ja: Messages = {
   "sources.tag.writes": "書き込み",
   "sources.tag.enqueues": "キューに追加",
   "editPanel.guards": "ガード（1行に1つ）",
+  "flowHint.endpointExplain":
+    "このエンドポイントのハンドラーにはロジックがありますが、そこから始まるフローやシーケンスはまだありません。",
+  "flowHint.endpointPrompt.flow":
+    "/groundboard:board {endpoint} がハンドラーで行うことのフローを描いて。最初のノードに ref `{ref}` を付け、ハンドラーを引用して",
+  "flowHint.endpointPrompt.state":
+    "/groundboard:board {endpoint} がハンドラーで行うことの状態遷移図を描いて。最初のノードに ref `{ref}` を付け、ハンドラーを引用して",
+  "flowHint.endpointPrompt.sequence":
+    "/groundboard:board {endpoint} がハンドラーで行うことのシーケンス図を描いて。ハンドラーを表す参加者に ref `{ref}` を付け、ハンドラーを引用して",
+  "home.missingFlowsEndpoints_one": "フローのないエンドポイント {count} 件",
+  "home.missingFlowsEndpoints_other": "フローのないエンドポイント {count} 件",
+  "home.missingFlowsEndpointsHint":
+    "ハンドラーが分岐する、状態を変える、外部を呼ぶのに、まだフローやシーケンスがないエンドポイントです。",
 };
