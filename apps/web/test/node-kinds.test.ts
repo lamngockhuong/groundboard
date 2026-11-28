@@ -36,6 +36,8 @@ describe("kindGroupsFor", () => {
 
   it("offers participants only on a sequence board, with the flow group's questions and notes", () => {
     expect(ids([{ kind: "participant" }, { kind: "note" }])).toEqual(["sequence", "flow"]);
+    const groups = kindGroupsFor([{ kind: "participant" }]);
+    expect(groups.flatMap((g) => g.kinds)).toEqual(["participant", "question", "note"]);
     expect(ids([{ kind: "step" }])).not.toContain("sequence");
   });
 
