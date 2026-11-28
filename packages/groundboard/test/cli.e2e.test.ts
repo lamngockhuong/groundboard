@@ -156,13 +156,13 @@ describe("groundboard CLI", () => {
       "--skip-cjk-fonts",
     ]);
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain("exported 17 board(s)");
+    expect(result.stdout).toContain("exported 18 board(s)");
     expect(readFileSync(path.join(out, "index.html"), "utf8")).toContain(
       '<meta name="groundboard:mode" content="static" />',
     );
     expect(existsSync(path.join(out, "fonts", "Xiaolai"))).toBe(false);
     const atlas = JSON.parse(readFileSync(path.join(out, "data", "atlas.json"), "utf8"));
-    expect(atlas.boards).toHaveLength(17);
+    expect(atlas.boards).toHaveLength(18);
     expect(atlas.exported.commit).toMatch(/^[0-9a-f]+$/);
     for (const board of atlas.boards) {
       expect(existsSync(path.join(out, "data", "boards", `${board.slug}.json`)), board.slug).toBe(
@@ -219,7 +219,7 @@ describe("groundboard CLI", () => {
       worktree,
     );
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain("exported 17 board(s)");
+    expect(result.stdout).toContain("exported 18 board(s)");
     expect(readFileSync(path.join(out, "index.html"), "utf8")).toContain(
       "<title>Shop screen atlas</title>",
     );

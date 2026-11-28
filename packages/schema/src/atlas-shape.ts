@@ -165,6 +165,8 @@ export function refsOf(board: Pick<Board, "nodes" | "edges">): {
   for (const edge of board.edges) {
     if (edge.toRef !== undefined)
       used.push({ ref: edge.toRef, nodeId: edge.from, edgeId: edge.id });
+    // A message names what it reaches; like a toRef, it explains nothing by itself.
+    if (edge.ref !== undefined) used.push({ ref: edge.ref, nodeId: edge.from, edgeId: edge.id });
   }
   return { defined, used };
 }

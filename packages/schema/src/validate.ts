@@ -14,6 +14,7 @@ import { endpointSlug } from "./endpoint.ts";
 import { isBehaviourSource, isInteractiveElement, navigatesFromIds } from "./grounding.ts";
 import { LIMITS, SCHEMA_VERSION } from "./limits.ts";
 import { parseRef } from "./ref.ts";
+import { checkSequence } from "./sequence.ts";
 import { familyOf, inheritStateFields, isCompactScreen, stateRoots } from "./states.ts";
 import { columnSlug, findColumn } from "./table.ts";
 import {
@@ -134,6 +135,7 @@ const NODE_FIELD_KINDS: ReadonlyArray<[keyof BoardNode, ReadonlyArray<string>]> 
   ["layout", ["screen"]],
   ["layouts", ["screen"]],
   ["width", ["screen", "element"]],
+  ["category", ["participant"]],
 ];
 
 /**
@@ -284,7 +286,7 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
    */
   const checkPriorSources = (
     item: { id: string; manual?: true; priorSourceIds?: string[] },
-    at: [string, number],
+    at: Array<string | number>,
   ) => {
     if (item.priorSourceIds === undefined) return;
     if (!item.manual) {
@@ -1067,7 +1069,9 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
       add(
         ["edges", i, "to"],
         edge.to === undefined
-          ? `edge \`${edge.id}\` needs \`to\` (a node id) or, for navigates, \`toRef\` (a screen ref)`
+          ? edge.kind === "message"
+            ? `message \`${edge.id}\` needs \`to\`, the participant it goes to; a message has no toRef, and names what it reaches on another board with \`ref\``
+            : `edge \`${edge.id}\` needs \`to\` (a node id) or, for navigates, \`toRef\` (a screen ref)`
           : `edge \`${edge.id}\` has both \`to\` and \`toRef\`; keep one`,
       );
     }
@@ -1076,6 +1080,14 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
         add(
           ["edges", i, field],
           `${field} is only allowed on references edges, not on \`${edge.kind}\` edge \`${edge.id}\``,
+        );
+      }
+    }
+    for (const field of ["messageType", "operandId", "ref"] as const) {
+      if (edge[field] !== undefined && edge.kind !== "message") {
+        add(
+          ["edges", i, field],
+          `${field} is only allowed on message edges, not on \`${edge.kind}\` edge \`${edge.id}\``,
         );
       }
     }
@@ -1138,6 +1150,14 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
         `navigates edge \`${edge.id}\` cites no source that can back a navigation; cite the line that navigates, or ${BEHAVIOUR_SOURCES}`,
       );
     }
+  });
+
+  checkSequence({
+    board,
+    add,
+    backsBehaviour,
+    hasSource: (sourceId) => sources.has(sourceId),
+    checkPriorSources,
   });
 
   // Sources: endLine not before line.

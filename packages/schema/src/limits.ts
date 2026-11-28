@@ -18,6 +18,10 @@ export const LIMITS = {
   tag: 40,
   /** layouts one screen is drawn in */
   layoutsPerScreen: 5,
+  /** fragments of a sequence board, operands of one fragment, and how deep they nest */
+  fragments: 100,
+  operandsPerFragment: 8,
+  fragmentDepth: 4,
   /** guards of one endpoint */
   guardsPerEndpoint: 8,
   /** columns of one table */

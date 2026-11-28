@@ -74,6 +74,7 @@ describe("examples/fixtures/.groundboard", () => {
       "overview-db.board.json",
       "overview-mobile.board.json",
       "overview-web.board.json",
+      "place-order-handler.board.json",
       "place-order.board.json",
       "track-order.board.json",
       "web--account.board.json",
@@ -205,7 +206,10 @@ describe("examples/fixtures/.groundboard", () => {
     const atlas = await buildAtlas(atlasDir, fixtures);
     const definer = (ref: string) => atlas.refs.find((r) => r.ref === ref)?.definedIn[0];
     const used = (ref: string) => atlas.refs.find((r) => r.ref === ref)?.usedIn;
+    // The Pay button calls it; the handler's sequence explains it, its participant carrying it.
     expect(used("api:orders/post")).toEqual([
+      { slug: "place-order-handler", nodeId: "api" },
+      { slug: "place-order-handler", nodeId: "customer", edgeId: "call" },
       { slug: "web--checkout", nodeId: "pay", edgeId: "pay-orders" },
     ]);
     expect(definer("api:orders/post")).toMatchObject({
@@ -216,6 +220,7 @@ describe("examples/fixtures/.groundboard", () => {
     expect(definer("db:orders")).toMatchObject({ slug: "overview-db", nodeId: "orders" });
     expect(used("batch:send-receipt")).toEqual([
       { slug: "api--orders", nodeId: "create-order", edgeId: "create-enqueues" },
+      { slug: "place-order-handler", nodeId: "queue" },
     ]);
     expect(definer("batch:send-receipt")).toMatchObject({
       slug: "overview-batch",

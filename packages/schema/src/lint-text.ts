@@ -205,6 +205,12 @@ export function lintBoardText(board: Board): string[] {
       check(`${at}.note`, column.note);
     });
   });
+  board.fragments?.forEach((fragment, i) => {
+    check(`fragments[${i}].label`, fragment.label);
+    fragment.operands.forEach((operand, j) => {
+      check(`fragments[${i}].operands[${j}].guard`, operand.guard);
+    });
+  });
   warnings.push(...lintEndpointRefs(board));
   board.edges.forEach((edge, i) => {
     check(`edges[${i}].label`, edge.label);

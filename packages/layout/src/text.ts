@@ -28,6 +28,7 @@ export const NODE_SHAPES: Record<NodeKind, NodeShape> = {
   endpoint: "wire",
   table: "frame",
   job: "frame",
+  participant: "rectangle",
 };
 
 /**

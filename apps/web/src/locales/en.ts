@@ -532,4 +532,8 @@ export const en = {
   "home.missingFlowsEndpoints_other": "{count} endpoints with no flow",
   "home.missingFlowsEndpointsHint":
     "Endpoints whose handler branches, changes state or calls out, with no flow or sequence for it yet.",
+  "group.sequence": "Sequence diagrams",
+  "nodeKind.participant": "Participant",
+  "nodeKind.participant.hint":
+    "A person, system, service, database or queue that sends and receives messages",
 } as const;

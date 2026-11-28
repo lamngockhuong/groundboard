@@ -308,6 +308,7 @@ export function renderExcalidraw(
   const nodeGrounding = new Map<string, Grounding>();
   const edgeGrounding = new Map<string, Grounding>();
   for (const claim of claims) {
+    if (claim.on === "operand") continue;
     (claim.on === "node" ? nodeGrounding : edgeGrounding).set(claim.id, claim.grounding);
   }
   const manualIds = new Set(claims.filter((c) => c.manual).map((c) => `${c.on}:${c.id}`));

@@ -143,6 +143,15 @@ export const NODE_STYLES: Record<NodeKind, NodeStyle> = {
     textColor: MUTED_TEXT,
     opacity: 100,
   },
+  // A participant of a sequence board; `PARTICIPANT_STYLES` tells its categories apart.
+  participant: {
+    strokeColor: INK,
+    backgroundColor: "#edf2ff",
+    strokeStyle: "solid",
+    strokeWidth: 1,
+    textColor: INK,
+    opacity: 100,
+  },
 };
 
 /** A column's row in a table's card. */
@@ -233,6 +242,7 @@ export const KIND_LABELS: Record<NodeKind, string> = {
   endpoint: "API endpoint",
   table: "table",
   job: "background job",
+  participant: "participant",
 };
 
 export interface EdgeStyle {
@@ -293,6 +303,13 @@ export const EDGE_STYLES: Record<EdgeKind, EdgeStyle> = {
     strokeStyle: "dashed",
     startArrowhead: null,
     endArrowhead: "arrow",
+  },
+  // A call that waits; `MESSAGE_STYLES` tells replies and async messages apart.
+  message: {
+    strokeColor: INK,
+    strokeStyle: "solid",
+    startArrowhead: null,
+    endArrowhead: "triangle",
   },
 };
 

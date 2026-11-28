@@ -582,6 +582,43 @@ describe("missing flows", () => {
     expect(flowWarning((await buildAtlas(dir, root)).warnings)).toEqual([]);
   });
 
+  test("a participant or a message that points at a ref no board defines is a problem", async () => {
+    write("pay-sequence.board.json", {
+      schemaVersion: 1,
+      title: "Paying",
+      question: "Who talks to whom?",
+      nodes: [
+        { id: "user", kind: "participant", category: "person", label: "Customer" },
+        {
+          id: "api",
+          kind: "participant",
+          category: "system",
+          label: "Orders API",
+          ref: "api:orders/post",
+          sourceIds: ["pay"],
+        },
+      ],
+      edges: [
+        {
+          id: "m1",
+          kind: "message",
+          from: "user",
+          to: "api",
+          label: "pay",
+          ref: "db:payments",
+          sourceIds: ["pay"],
+        },
+      ],
+      sources: [src.pay],
+    });
+    const atlas = await buildAtlas(dir, root);
+    expect(atlas.boards[0]?.status).toBe("ok");
+    expect(atlas.problems.map((p) => p.message)).toEqual([
+      "ref `api:orders/post` is used in pay-sequence (api) but no board defines it",
+      "ref `db:payments` is used in pay-sequence (user) but no board defines it",
+    ]);
+  });
+
   test("warns about elements that change state without a ref, also only a warning", async () => {
     const figma = path.join(repoRoot, "examples/fixtures/figma");
     const atlas = await buildAtlas(path.join(figma, ".groundboard"), figma);

@@ -16,6 +16,7 @@ export const KIND_GROUPS = [
   { id: "api", kinds: ["resource", "endpoint"] },
   { id: "db", kinds: ["table"] },
   { id: "batch", kinds: ["job"] },
+  { id: "sequence", kinds: ["participant"] },
 ] as const satisfies ReadonlyArray<{ id: string; kinds: readonly NodeKind[] }>;
 
 export type KindGroup = (typeof KIND_GROUPS)[number];
@@ -37,8 +38,15 @@ const GROUP_OF_BOARD: Record<AtlasBoardKind, KindGroup["id"]> = {
 export function kindGroupsFor(nodes: ReadonlyArray<Record<string, unknown>>): KindGroup[] {
   // `boardKindOf` reads only each node's kind, which an unvalidated board may lack.
   const kinded = nodes.filter((n) => typeof n.kind === "string") as unknown as Board["nodes"];
+  // A participant belongs on a sequence board only, and a sequence board holds no other group's
+  // kinds but questions and notes, which the flow group offers.
+  if (kinded.some((n) => n.kind === "participant")) {
+    return KIND_GROUPS.filter((g) => g.id === "sequence" || g.id === "flow").reverse();
+  }
   const first = GROUP_OF_BOARD[boardKindOf({ nodes: kinded })];
-  return [...KIND_GROUPS].sort((a, b) => Number(b.id === first) - Number(a.id === first));
+  return KIND_GROUPS.filter((g) => g.id !== "sequence").sort(
+    (a, b) => Number(b.id === first) - Number(a.id === first),
+  );
 }
 
 /** The namespace of the ref each kind defines, for the kinds whose ref is `<namespace>:<slug>`. */

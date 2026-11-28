@@ -522,4 +522,7 @@ export const ja: Messages = {
   "home.missingFlowsEndpoints_other": "フローのないエンドポイント {count} 件",
   "home.missingFlowsEndpointsHint":
     "ハンドラーが分岐する、状態を変える、外部を呼ぶのに、まだフローやシーケンスがないエンドポイントです。",
+  "group.sequence": "シーケンス図",
+  "nodeKind.participant": "参加者",
+  "nodeKind.participant.hint": "メッセージを送受信する人、システム、サービス、データベース、キュー",
 };

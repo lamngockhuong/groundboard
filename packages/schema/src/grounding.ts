@@ -120,18 +120,24 @@ export function isInteractiveElement(node: BoardNode, navigatesFrom: ReadonlySet
 }
 
 /**
- * Whether a node states a claim: a screen, an interactive element, or a node of a grounded
- * kind. Questions, notes and non-interactive elements are not claims.
+ * Whether a node states a claim: a screen, an interactive element, a participant that is not a
+ * person, or a node of a grounded kind. Questions, notes and non-interactive elements are not
+ * claims.
  */
 export function isClaimNode(node: BoardNode, navigatesFrom: ReadonlySet<string>): boolean {
-  return groundedKinds.has(node.kind) || isInteractiveElement(node, navigatesFrom);
+  return (
+    groundedKinds.has(node.kind) ||
+    isInteractiveElement(node, navigatesFrom) ||
+    (node.kind === "participant" && node.category !== undefined && node.category !== "person")
+  );
 }
 
 export interface Claim {
-  /** JSON path of the node or edge, e.g. `nodes[3]`. */
+  /** JSON path of the node, edge or operand, e.g. `nodes[3]`, `fragments[0].operands[1]`. */
   path: string;
   id: string;
-  on: "node" | "edge";
+  /** `operand`: the guard of a fragment's operand on a sequence board. */
+  on: "node" | "edge" | "operand";
   grounding: Grounding;
   /** Added or reworded by a person in the viewer, so not checked: always `none`. */
   manual?: true;
@@ -144,8 +150,13 @@ export interface Claim {
  */
 export const isScreenEdgeClaim = isClaimEdge;
 
-/** Every claim of a board with its grounding, nodes first, in board order. */
-export function boardClaims(board: Pick<Board, "nodes" | "edges" | "sources">): Claim[] {
+/**
+ * Every claim of a board with its grounding, nodes first, then edges, then the guards of
+ * fragment operands, in board order.
+ */
+export function boardClaims(
+  board: Pick<Board, "nodes" | "edges" | "sources"> & Partial<Pick<Board, "fragments">>,
+): Claim[] {
   const sources = new Map(board.sources.map((s) => [s.id, s]));
   const navigatesFrom = navigatesFromIds(board.edges);
   const claims: Claim[] = [];
@@ -168,6 +179,19 @@ export function boardClaims(board: Pick<Board, "nodes" | "edges" | "sources">): 
       on: "edge",
       grounding: edge.manual ? "none" : groundingOf(edge.sourceIds, sources),
       ...(edge.manual ? { manual: true as const } : {}),
+    });
+  });
+  (board.fragments ?? []).forEach((fragment, f) => {
+    fragment.operands.forEach((operand, o) => {
+      if (operand.guard === undefined) return;
+      const manual = operand.manual === true || fragment.manual === true;
+      claims.push({
+        path: `fragments[${f}].operands[${o}]`,
+        id: operand.id,
+        on: "operand",
+        grounding: manual ? "none" : groundingOf(operand.sourceIds, sources),
+        ...(manual ? { manual: true as const } : {}),
+      });
     });
   });
   return claims;

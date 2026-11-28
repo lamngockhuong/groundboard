@@ -412,10 +412,12 @@ describe("missing-flow hints", () => {
   });
 
   test("hint at an endpoint whose handler has logic, until a flow node carries its ref", async () => {
-    // The main fixture with its POST /orders endpoint said to need a sequence: nothing explains
-    // it yet, since the Pay button only calls it by toRef.
+    // The main fixture with its POST /orders endpoint said to need a sequence and its sequence
+    // board left out: nothing explains it, since the Pay button only calls it by toRef.
     const root = realpathSync(mkdtempSync(path.join(tmpdir(), "groundboard-endpoint-hints-")));
     cpSync(fixtures, root, { recursive: true });
+    // Without the sample's sequence of the handler, whose participant explains the endpoint.
+    rmSync(path.join(root, ".groundboard", "place-order-handler.board.json"));
     const apiFile = path.join(root, ".groundboard", "api--orders.board.json");
     const api = JSON.parse(readFileSync(apiFile, "utf8")) as {
       nodes: Array<Record<string, unknown>>;

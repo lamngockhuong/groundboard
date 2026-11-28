@@ -105,7 +105,8 @@
               "resource",
               "endpoint",
               "table",
-              "job"
+              "job",
+              "participant"
             ]
           },
           "label": {
@@ -396,6 +397,16 @@
             "minLength": 1,
             "maxLength": 60
           },
+          "category": {
+            "type": "string",
+            "enum": [
+              "person",
+              "system",
+              "external",
+              "database",
+              "queue"
+            ]
+          },
           "manual": {
             "type": "boolean",
             "const": true
@@ -460,7 +471,8 @@
               "references",
               "reads",
               "writes",
-              "enqueues"
+              "enqueues",
+              "message"
             ]
           },
           "label": {
@@ -496,6 +508,23 @@
               "many-to-one",
               "many-to-many"
             ]
+          },
+          "messageType": {
+            "type": "string",
+            "enum": [
+              "sync",
+              "reply",
+              "async"
+            ]
+          },
+          "operandId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "ref": {
+            "type": "string"
           },
           "manual": {
             "type": "boolean",
@@ -703,6 +732,100 @@
               "label"
             ]
           }
+        ]
+      }
+    },
+    "fragments": {
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "alt",
+              "opt",
+              "loop",
+              "par",
+              "break"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "parentOperandId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "operands": {
+            "minItems": 1,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                },
+                "guard": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "sourceIds": {
+                  "default": [],
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9_.:-]+$"
+                  }
+                },
+                "manual": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "priorSourceIds": {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[A-Za-z0-9_.:-]+$"
+                  }
+                }
+              },
+              "required": [
+                "id"
+              ]
+            }
+          },
+          "manual": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "operands"
         ]
       }
     }

@@ -519,4 +519,8 @@ export const vi: Messages = {
   "home.missingFlowsEndpoints_other": "{count} endpoint chưa có flow",
   "home.missingFlowsEndpointsHint":
     "Các endpoint có handler rẽ nhánh, đổi trạng thái hoặc gọi ra ngoài mà chưa có flow hay sequence nào.",
+  "group.sequence": "Sequence diagram",
+  "nodeKind.participant": "Participant",
+  "nodeKind.participant.hint":
+    "Một người, hệ thống, dịch vụ, cơ sở dữ liệu hay hàng đợi gửi và nhận message",
 };
