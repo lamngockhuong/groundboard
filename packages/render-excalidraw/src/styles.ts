@@ -1,4 +1,10 @@
-import type { EdgeKind, ElementRole, NodeKind } from "@groundboard/schema";
+import type {
+  EdgeKind,
+  ElementRole,
+  MessageType,
+  NodeKind,
+  ParticipantCategory,
+} from "@groundboard/schema";
 
 export type StrokeStyle = "solid" | "dashed" | "dotted";
 export type Arrowhead = "arrow" | "bar" | "dot" | "triangle" | null;
@@ -315,3 +321,67 @@ export const EDGE_STYLES: Record<EdgeKind, EdgeStyle> = {
 
 /** Tint of nested group rectangles, by nesting depth (2 = first nested level). */
 export const GROUP_TINTS = ["#f8f9fa", "#f1f3f5", "#e9ecef", "#dee2e6"];
+
+/**
+ * A participant of a sequence board by category. Told apart by shape as well as colour (a
+ * figure, a dashed outline, a cylinder's arcs, a queue's bars) and by the category written under
+ * its label, so a board printed in grey still reads. No red: red means something is wrong.
+ */
+export const PARTICIPANT_STYLES: Record<
+  ParticipantCategory,
+  { strokeColor: string; backgroundColor: string; strokeStyle: StrokeStyle; textColor: string }
+> = {
+  person: {
+    strokeColor: "transparent",
+    backgroundColor: "transparent",
+    strokeStyle: "solid",
+    textColor: INK,
+  },
+  system: {
+    strokeColor: "#364fc7",
+    backgroundColor: "#edf2ff",
+    strokeStyle: "solid",
+    textColor: INK,
+  },
+  external: {
+    strokeColor: "#862e9c",
+    backgroundColor: "#f8f0fc",
+    strokeStyle: "dashed",
+    textColor: INK,
+  },
+  database: {
+    strokeColor: "#2b8a3e",
+    backgroundColor: "#ebfbee",
+    strokeStyle: "solid",
+    textColor: INK,
+  },
+  queue: {
+    strokeColor: "#c2410c",
+    backgroundColor: "#fff4e6",
+    strokeStyle: "solid",
+    textColor: INK,
+  },
+};
+
+/** The figure drawn for a person, who has no box. */
+export const PERSON_COLOR = INK;
+
+/**
+ * A message by how it is sent: a call that waits has a solid line and a filled head, a reply a
+ * dashed line and an open head, an async message a solid line, an open head and "(async)" after
+ * its label, so the kind never rests on the arrowhead alone.
+ */
+export const MESSAGE_STYLES: Record<
+  MessageType,
+  { strokeColor: string; strokeStyle: StrokeStyle; endArrowhead: Arrowhead }
+> = {
+  sync: { strokeColor: INK, strokeStyle: "solid", endArrowhead: "triangle" },
+  reply: { strokeColor: INK, strokeStyle: "dashed", endArrowhead: "arrow" },
+  async: { strokeColor: INK, strokeStyle: "solid", endArrowhead: "arrow" },
+};
+
+/** Lifelines, fragment frames and the dividers between operands: neutral, at least 3:1. */
+export const LIFELINE_COLOR = MUTED;
+export const FRAGMENT_COLOR = MUTED;
+/** The fill of a fragment's kind tag. */
+export const FRAGMENT_TAG_FILL = "#f1f3f5";

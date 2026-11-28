@@ -10,7 +10,14 @@ import { beforeAll, describe, expect, test } from "vitest";
 import { renderBoard } from "../../groundboard/src/pipeline.ts";
 import { decodePng } from "../../groundboard/src/png.ts";
 import { shape } from "../../render-excalidraw/src/elements.ts";
-import { EDGE_KINDS, ELEMENT_ROLES, NODE_KINDS } from "../../schema/src/board.ts";
+import {
+  EDGE_KINDS,
+  ELEMENT_ROLES,
+  MESSAGE_TYPES,
+  NODE_KINDS,
+  PARTICIPANT_CATEGORIES,
+} from "../../schema/src/board.ts";
+import { sequenceBoard } from "../../schema/test/sequence-board.ts";
 
 type Rgb = readonly [number, number, number];
 type Theme = "light" | "dark";
@@ -55,6 +62,14 @@ const DECORATIVE: Record<string, Accepted> = {
   "dark | image placeholder: stroke": {
     ratio: 1.52,
     reason: "the cross inside an image's outlined box only says 'picture here'",
+  },
+  "light | label backdrop: fill": {
+    ratio: 1,
+    reason: "a canvas-coloured box behind a message label or a guard, there to hide the lifelines",
+  },
+  "dark | label backdrop: fill": {
+    ratio: 1,
+    reason: "a canvas-coloured box behind a message label or a guard, there to hide the lifelines",
   },
 };
 
@@ -187,6 +202,14 @@ function subjectOf(el: El, byId: Map<string, El>): string {
   if (prefix === "ref-tag") return "ref tag";
   if (prefix === "ref-line") return "ref line";
   if (prefix === "row-tag") return `${String(gb.kind)} tag`;
+  if (el.id.endsWith("/backdrop")) return "label backdrop";
+  if (prefix === "lifeline") return "lifeline";
+  if (prefix === "fragment" || prefix === "fragment-label") return "fragment frame";
+  if (prefix === "fragment-tag") return "fragment tag";
+  if (prefix === "operand-guard") return "operand guard";
+  if (prefix === "operand-line") return "operand divider";
+  if (gb.kind === "participant") return `participant ${String(gb.category)}`;
+  if (gb.kind === "message") return `${String(gb.messageType)} message`;
   if (el.id.endsWith("/guard")) return "endpoint guard";
   if (el.id.endsWith("/unresolved")) return "unresolved marker";
   if (el.id.endsWith("/action")) return "action marker";
@@ -414,6 +437,7 @@ beforeAll(async () => {
   }));
   inputs.push({ name: "coverage board", input: coverageBoard });
   inputs.push({ name: "data coverage board", input: dataCoverageBoard });
+  inputs.push({ name: "sequence coverage board", input: sequenceBoard() });
   boards = [];
   for (const { name, input, root } of inputs) {
     const result = await renderBoard(input, {
@@ -474,10 +498,17 @@ describe("legibility of board colours in the PNG", () => {
     expect(off, "dark colours the PNG draws that the computed filter does not predict").toEqual([]);
   });
 
-  test("the boards draw every node kind, edge kind, element role and group depth", () => {
+  test("the boards draw every node kind, edge kind, element role, group depth and sequence part", () => {
     const want = [
-      ...NODE_KINDS.filter((k) => k !== "element").map((k) => `${k} node`),
-      ...EDGE_KINDS.map((k) => `${k} edge`),
+      ...NODE_KINDS.filter((k) => k !== "element" && k !== "participant").map((k) => `${k} node`),
+      ...EDGE_KINDS.filter((k) => k !== "message").map((k) => `${k} edge`),
+      ...PARTICIPANT_CATEGORIES.map((c) => `participant ${c}`),
+      ...MESSAGE_TYPES.map((t) => `${t} message`),
+      "lifeline",
+      "fragment frame",
+      "fragment tag",
+      "operand guard",
+      "operand divider",
       ...ELEMENT_ROLES.map((r) => `element ${r}`),
       ...[1, 2, 3, 4].map((d) => `group depth ${d}`),
       "table column",

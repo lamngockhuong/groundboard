@@ -42,6 +42,8 @@ const PAD = 20;
 const HEAD_PAD_X = 16;
 const HEAD_PAD_Y = 10;
 const MIN_HEAD_WIDTH = 100;
+/** Room the renderer keeps at the left of a person's box for its figure. */
+const PERSON_FIGURE = 24;
 /** Space between the label of a participant and its category under it. */
 const CAPTION_GAP = 2;
 /** Least space between the boxes of two neighbouring participants. */
@@ -116,10 +118,9 @@ export function layoutSequence(board: Board): LaidOutBoard {
     return {
       id: p.id,
       index,
-      width: Math.max(
-        MIN_HEAD_WIDTH,
-        Math.max(labelSize.width, captionSize.width) + 2 * HEAD_PAD_X,
-      ),
+      width:
+        Math.max(MIN_HEAD_WIDTH, Math.max(labelSize.width, captionSize.width) + 2 * HEAD_PAD_X) +
+        (p.category === "person" ? PERSON_FIGURE : 0),
       height: labelSize.height + CAPTION_GAP + captionSize.height + 2 * HEAD_PAD_Y,
       label,
       labelSize,

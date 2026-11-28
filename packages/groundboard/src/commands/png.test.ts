@@ -81,6 +81,19 @@ describe("groundboard png", { timeout: 30_000 }, () => {
     expect(Math.max(image.width, image.height)).toBe(1568);
   });
 
+  test("draws a sequence board, its fragments included, in both themes", async () => {
+    const { sequenceBoard } = await import("../../../schema/test/sequence-board.ts");
+    writeFileSync(path.join(dir, "handler.board.json"), JSON.stringify(sequenceBoard()));
+    for (const theme of ["light", "dark"]) {
+      const io = capture(dir);
+      const out = `handler-${theme}.png`;
+      expect(await run(["png", "handler.board.json", "-o", out, "--theme", theme], io)).toBe(0);
+      const image = decodePng(readFileSync(path.join(dir, out)));
+      expect(image.width).toBeGreaterThan(0);
+      expect(image.height).toBeGreaterThan(0);
+    }
+  });
+
   test("draws an .excalidraw scene as it is, tiled under a small cap", async () => {
     const io = capture(dir);
     const code = await run(

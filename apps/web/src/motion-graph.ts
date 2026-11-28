@@ -38,6 +38,8 @@ export interface MotionArrow {
   /** The arrow's points in scene coordinates, from its start to its end. */
   points: Array<[number, number]>;
   box: Box;
+  /** A message of a sequence board: its place in message order. */
+  number?: number;
 }
 
 type Owner = { kind: "node"; id: string } | { kind: "edge"; id: string };
@@ -50,6 +52,8 @@ export interface MotionGraph {
   nodeById: ReadonlyMap<string, MotionNode>;
   /** The node or edge each element of the scene is drawn for; absent for the rest of the board. */
   owners: ReadonlyMap<string, Owner>;
+  /** A sequence board: its arrows are messages, revealed one at a time in message order. */
+  sequence: boolean;
 }
 
 interface ElementLike {
@@ -148,8 +152,15 @@ export function readMotionGraph(
     const id = el.id as string;
     const edgeId = str(dataOf(el)?.edgeId);
     if (el.type !== "arrow" || edgeId === null || !isEdgeElement(id, edgeId)) continue;
-    const from = nodeByElement.get(str(el.startBinding?.elementId) ?? "");
-    const to = nodeByElement.get(str(el.endBinding?.elementId) ?? "");
+    // A message is bound to no box: its participants are in its data.
+    const data = dataOf(el);
+    const message = data?.kind === "message";
+    const from =
+      nodeByElement.get(str(el.startBinding?.elementId) ?? "") ??
+      (message ? nodeById.get(str(data?.from) ?? "") : undefined);
+    const to =
+      nodeByElement.get(str(el.endBinding?.elementId) ?? "") ??
+      (message ? nodeById.get(str(data?.to) ?? "") : undefined);
     if (!from || !to || !Array.isArray(el.points) || el.points.length < 2) continue;
     const x0 = num(el.x);
     const y0 = num(el.y);
@@ -164,14 +175,16 @@ export function readMotionGraph(
       to: to.id,
       points,
       box: boundsOf(points),
+      ...(message && typeof data?.number === "number" ? { number: data.number } : {}),
     });
   }
+  const sequence = arrows.some((a) => a.number !== undefined);
   const arrowById = new Map(arrows.map((a) => [a.id, a]));
 
   // Who each element is drawn for. A container's text follows the container, which may come
   // later in the scene, so text is settled after everything else.
   const owners = new Map<string, Owner>();
-  if (options.owners === false) return { nodes, arrows, nodeById, owners };
+  if (options.owners === false) return { nodes, arrows, nodeById, owners, sequence };
   const direct = (el: ElementLike): Owner | null => {
     const id = el.id as string;
     const own = nodeByElement.get(id);
@@ -188,6 +201,9 @@ export function readMotionGraph(
       if (from !== null && nodeById.has(from)) return { kind: "node", id: from };
       return null;
     }
+    // A part of a fragment shows with the first message of its operand.
+    const first = str(data?.firstMessage);
+    if (first !== null && arrowById.has(first)) return { kind: "edge", id: first };
     const frame = nodeByElement.get(str(el.frameId) ?? "");
     return frame ? { kind: "node", id: frame.id } : null;
   };
@@ -212,7 +228,7 @@ export function readMotionGraph(
     if (nodeById.has(screenId)) owners.set(el.id, { kind: "node", id: screenId });
   }
 
-  return { nodes, arrows, nodeById, owners };
+  return { nodes, arrows, nodeById, owners, sequence };
 }
 
 /** The board nodes and edges among the selected elements, each once. */
@@ -262,13 +278,22 @@ export interface PresentationStep {
 }
 
 /**
- * The steps of a presentation: breadth first from the nodes no arrow comes into, one level of
+ * The steps of a presentation. A sequence board shows its participants, then one message per
+ * step in message order. Any other board: breadth first from the nodes no arrow comes into, one level of
  * the graph per step, nodes of a level in scene order. When the levels run out while nodes on a
  * closed loop are still unseen, the first of them in scene order starts the next level. Each
  * edge appears once both its ends have, so back edges and self loops come with the later end.
  * Nodes with no arrow at all come last, together.
  */
 export function presentationSteps(graph: MotionGraph): PresentationStep[] {
+  if (graph.sequence) {
+    // A sequence: every participant first, then one message per step, in message order.
+    const messages = [...graph.arrows].sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
+    return [
+      { nodes: graph.nodes.filter((n) => n.unit === n.id).map((n) => n.id), arrows: [] },
+      ...messages.map((m) => ({ nodes: [], arrows: [m.id] })),
+    ];
+  }
   const unitOf = (id: string) => graph.nodeById.get(id)?.unit ?? id;
   const units = graph.nodes.filter((n) => n.unit === n.id);
   const edges = graph.arrows.map((a) => ({ id: a.id, from: unitOf(a.from), to: unitOf(a.to) }));
@@ -356,4 +381,17 @@ export function stepFocus(graph: MotionGraph, step: PresentationStep | undefined
     if (arrow) units.add(unitOf(arrow.from));
   }
   return graph.nodes.filter((n) => n.unit === n.id && units.has(n.id));
+}
+
+/**
+ * The elements a step's camera frames: on a sequence board, the message the step adds (or every
+ * participant, at the first step); elsewhere the nodes `stepFocus` names.
+ */
+export function stepTargets(graph: MotionGraph, step: PresentationStep | undefined): string[] {
+  if (!step) return [];
+  if (graph.sequence && step.arrows.length > 0) {
+    const ids = new Set(step.arrows);
+    return graph.arrows.filter((a) => ids.has(a.id)).map((a) => a.elementId);
+  }
+  return stepFocus(graph, step).map((n) => n.elementId);
 }
