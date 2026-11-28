@@ -259,6 +259,33 @@
               ]
             }
           },
+          "handler": {
+            "type": "object",
+            "properties": {
+              "shape": {
+                "type": "string",
+                "enum": [
+                  "flow",
+                  "state",
+                  "sequence"
+                ]
+              },
+              "sourceIds": {
+                "default": [],
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                }
+              }
+            },
+            "required": [
+              "shape"
+            ]
+          },
           "pathPrefix": {
             "type": "string",
             "minLength": 1,

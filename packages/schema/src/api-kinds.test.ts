@@ -158,6 +158,30 @@ describe("endpoint guards", () => {
   });
 });
 
+describe("endpoint handlers", () => {
+  const withHandler = (handler: unknown, extra: Record<string, unknown> = {}) =>
+    apiBoard([{ method: "POST", path: "/v1/orders", ref: "api:orders/post", handler, ...extra }]);
+
+  test("a handler names the board that explains it and cites the line that makes it so", () => {
+    for (const shape of ["flow", "state", "sequence"]) {
+      expect(messages(withHandler({ shape, sourceIds: ["r"] }))).toEqual([]);
+    }
+    expect(messages(withHandler({ shape: "chart", sourceIds: ["r"] })).join(" ")).toContain(
+      "nodes[1].handler.shape",
+    );
+  });
+
+  test("a handler needs a source that can back it unless the endpoint is manual, and only on endpoints", () => {
+    expect(messages(withHandler({ shape: "flow" }))).toContain(
+      "nodes[1].handler.sourceIds: handler of endpoint `e0` cites no source that can back its logic; cite the line that branches, changes state or calls out, or a quoted code source, a doc source, a figma source, a mockup with a path, or a link with a quote",
+    );
+    expect(messages(withHandler({ shape: "flow" }, { manual: true }))).toEqual([]);
+    const board = apiBoard([]);
+    (board.nodes[0] as Record<string, unknown>).handler = { shape: "flow", sourceIds: ["r"] };
+    expect(messages(board).join(" ")).toContain("handler is only allowed on `endpoint` nodes");
+  });
+});
+
 describe("calls edges", () => {
   const screen = (edge: Record<string, unknown>) => ({
     schemaVersion: 1,

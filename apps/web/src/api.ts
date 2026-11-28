@@ -3,8 +3,14 @@ import {
   type AtlasBoardKind,
   ELEMENT_ROLES,
   type ElementRole,
+  HANDLER_SHAPES,
+  type HandlerShape,
 } from "@groundboard/schema";
 import { t } from "./i18n.ts";
+
+const isHandlerShape = (value: unknown): value is HandlerShape =>
+  (HANDLER_SHAPES as readonly unknown[]).includes(value);
+
 import { type Scene, toScene } from "./input.ts";
 import { isStaticMode } from "./mode.ts";
 import { SLUG_PATTERN } from "./route.ts";
@@ -138,8 +144,13 @@ export interface AtlasRef {
   ref: string;
   definedIn: AtlasPlace[];
   usedIn: AtlasPlace[];
-  /** An element that calls an API or changes state, so a flow should cover it. */
+  /**
+   * An element that calls an API or changes state, or an endpoint whose handler has logic, so a
+   * flow should cover it.
+   */
   needsFlow?: true;
+  /** An endpoint whose handler has logic: the board that should explain it. */
+  flowShape?: HandlerShape;
 }
 
 /** When an exported atlas checked its sources, and against which commit. */
@@ -274,6 +285,7 @@ export function toAtlas(value: unknown): AtlasIndex | null {
       definedIn: toPlaces(r.definedIn),
       usedIn: toPlaces(r.usedIn),
       ...(r.needsFlow === true ? { needsFlow: true as const } : {}),
+      ...(isHandlerShape(r.flowShape) ? { flowShape: r.flowShape } : {}),
     }));
   const exported = toStamp(value.exported);
   const atlasId =

@@ -1,4 +1,4 @@
-import type { Board, BoardEdge, BoardNode, ElementRole, NodeKind } from "./board.ts";
+import type { Board, BoardEdge, BoardNode, ElementRole, HandlerShape, NodeKind } from "./board.ts";
 import { FLOW_EDGE_KINDS } from "./edges.ts";
 import { parseRef, type RefNamespace, rootRefOf } from "./ref.ts";
 import { familyOf, stateRoots } from "./states.ts";
@@ -70,8 +70,13 @@ export interface RefPlace {
   label?: string;
   /** For the definition of an element that has one: what it is drawn as (button, link, ...). */
   role?: ElementRole;
-  /** On an element: it calls an API or changes state, so a flow should cover its ref. */
+  /**
+   * On an element: it calls an API or changes state. On an endpoint: its handler has logic. A
+   * flow should cover its ref either way.
+   */
   needsFlow?: true;
+  /** On an endpoint whose handler has logic: the board that should explain it. */
+  flowShape?: HandlerShape;
   /** On the definition of a screen marked `layout: true`. */
   layout?: true;
   /** On a ref a screen lists in its `layouts`. */
@@ -134,6 +139,10 @@ export function refsOf(board: Pick<Board, "nodes" | "edges">): {
     if (node.ref !== undefined) {
       const place: RefPlace = { ref: node.ref, nodeId: node.id };
       if (node.kind === "element" && sources.has(node.id)) place.needsFlow = true;
+      if (node.kind === "endpoint" && node.handler !== undefined) {
+        place.needsFlow = true;
+        place.flowShape = node.handler.shape;
+      }
       if (definesRef(node) && !pointers.has(node.id)) {
         place.kind = node.kind;
         if (node.label !== undefined) place.label = node.label;
@@ -186,6 +195,8 @@ export interface RefUse {
   usedIn: ReadonlyArray<{ slug: string; nodeId: string; edgeId?: string; asLayout?: boolean }>;
   /** An element that calls an API or changes state, so a flow should cover it. */
   needsFlow?: boolean;
+  /** On an endpoint whose handler has logic: the board that should explain it. */
+  flowShape?: HandlerShape;
 }
 
 /**

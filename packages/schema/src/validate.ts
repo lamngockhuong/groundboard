@@ -118,6 +118,7 @@ const NODE_FIELD_KINDS: ReadonlyArray<[keyof BoardNode, ReadonlyArray<string>]> 
   ["method", ["endpoint"]],
   ["path", ["endpoint"]],
   ["guards", ["endpoint"]],
+  ["handler", ["endpoint"]],
   ["pathPrefix", ["resource"]],
   ["columns", ["table"]],
   ["trigger", ["job"]],
@@ -990,6 +991,23 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
         );
       } else {
         routes.set(key, node.id);
+      }
+    }
+    if (node.handler !== undefined) {
+      const at = ["nodes", i, "handler"];
+      node.handler.sourceIds.forEach((sourceId, k) => {
+        if (!sources.has(sourceId)) {
+          add(
+            [...at, "sourceIds", k],
+            `handler of endpoint \`${node.id}\` cites source \`${sourceId}\`, which is not a source id`,
+          );
+        }
+      });
+      if (!node.manual && !backsBehaviour(node.handler.sourceIds)) {
+        add(
+          [...at, "sourceIds"],
+          `handler of endpoint \`${node.id}\` cites no source that can back its logic; cite the line that branches, changes state or calls out, or ${BEHAVIOUR_SOURCES}`,
+        );
       }
     }
     node.guards?.forEach((guard, j) => {

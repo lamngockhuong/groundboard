@@ -284,6 +284,18 @@ describe("needsFlow", () => {
     expect(index?.refs.map((r) => r.needsFlow)).toEqual([true, undefined, undefined]);
     expect(index?.refs[1]).not.toHaveProperty("needsFlow");
   });
+
+  it("keeps an endpoint's flow shape only when it is a known one", () => {
+    const index = toAtlas({
+      boards: [],
+      refs: [
+        { ref: "api:a/post", definedIn: [], usedIn: [], needsFlow: true, flowShape: "sequence" },
+        { ref: "api:a/get", definedIn: [], usedIn: [], needsFlow: true, flowShape: "chart" },
+      ],
+    });
+    expect(index?.refs.map((r) => r.flowShape)).toEqual(["sequence", undefined]);
+    expect(index?.refs[1]).not.toHaveProperty("flowShape");
+  });
 });
 
 describe("label and role of a place", () => {

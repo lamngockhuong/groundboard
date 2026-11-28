@@ -527,6 +527,61 @@ describe("missing flows", () => {
     expect(flowWarning((await buildAtlas(dir, root)).warnings)).toEqual([]);
   });
 
+  test("an endpoint whose handler has logic is listed with its shape until a node carries its ref", async () => {
+    const apiBoard = (handler?: object) => ({
+      schemaVersion: 1,
+      title: "Orders API",
+      question: "Which endpoints?",
+      nodes: [
+        { id: "orders", kind: "resource", label: "Orders", ref: "api:orders" },
+        {
+          id: "post",
+          kind: "endpoint",
+          label: "Place an order",
+          parentId: "orders",
+          method: "POST",
+          path: "/orders",
+          ref: "api:orders/post",
+          sourceIds: ["pay"],
+          ...(handler ? { handler } : {}),
+        },
+      ],
+      sources: [src.pay],
+    });
+    write("api--orders.board.json", apiBoard());
+    const plain = await buildAtlas(dir, root);
+    expect(flowWarning(plain.warnings)).toEqual([]);
+
+    write("api--orders.board.json", apiBoard({ shape: "sequence", sourceIds: ["pay"] }));
+    const atlas = await buildAtlas(dir, root);
+    expect(atlasHasProblems(atlas)).toBe(false);
+    expect(atlas.refs.find((r) => r.ref === "api:orders/post")).toMatchObject({
+      needsFlow: true,
+      flowShape: "sequence",
+    });
+    expect(flowWarning(atlas.warnings)).toEqual([
+      "1 endpoint(s) whose handler has logic have no flow yet: `api:orders/post` (sequence); draw one with the board skill, its first node carrying the endpoint's ref, e.g. /groundboard:board",
+    ]);
+
+    // A flow whose first step carries the endpoint's ref explains it.
+    write("place-order-handler.board.json", {
+      schemaVersion: 1,
+      title: "Placing an order",
+      question: "What does POST /orders do?",
+      nodes: [
+        {
+          id: "in",
+          kind: "step",
+          label: "Receives the order",
+          ref: "api:orders/post",
+          sourceIds: ["pay"],
+        },
+      ],
+      sources: [src.pay],
+    });
+    expect(flowWarning((await buildAtlas(dir, root)).warnings)).toEqual([]);
+  });
+
   test("warns about elements that change state without a ref, also only a warning", async () => {
     const figma = path.join(repoRoot, "examples/fixtures/figma");
     const atlas = await buildAtlas(path.join(figma, ".groundboard"), figma);

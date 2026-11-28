@@ -8,6 +8,7 @@ import {
   countGrounding,
   type ElementRole,
   type Grounding,
+  type HandlerShape,
   type Issue,
   isCheckable,
   type LayoutOrigin,
@@ -109,8 +110,13 @@ export interface AtlasRef {
    * `toRef` edges (their `from` node), and screens that list the ref in `layouts` (`asLayout`).
    */
   usedIn: Array<AtlasPlace & { edgeId?: string; asLayout?: true }>;
-  /** An element that calls an API or changes state, so a flow should cover it. */
+  /**
+   * An element that calls an API or changes state, or an endpoint whose handler has logic, so a
+   * flow should cover it.
+   */
   needsFlow?: true;
+  /** An endpoint whose handler has logic: the board that should explain it. */
+  flowShape?: HandlerShape;
 }
 
 export interface AtlasIndex {
@@ -334,6 +340,7 @@ export async function buildAtlas(
         ...(place.layout ? { layout: true as const } : {}),
       });
       if (place.needsFlow) refEntry(place.ref).needsFlow = true;
+      if (place.flowShape !== undefined) refEntry(place.ref).flowShape = place.flowShape;
     }
     for (const place of used) {
       refEntry(place.ref).usedIn.push({
@@ -356,10 +363,22 @@ export async function buildAtlas(
 
   // Missing flows are hints, never problems: the check still passes.
   const warnings: string[] = [];
-  const missing = missingFlowRefs(sorted, (slug) => kinds.get(slug));
+  const missingAll = missingFlowRefs(sorted, (slug) => kinds.get(slug));
+  const shapeOf = new Map(sorted.map((r) => [r.ref, r.flowShape]));
+  const missing = missingAll.filter((ref) => shapeOf.get(ref) === undefined);
+  const missingEndpoints = missingAll.filter((ref) => shapeOf.get(ref) !== undefined);
   if (missing.length > 0) {
     warnings.push(
       `${missing.length} element(s) that call an API or change state have no flow yet: ${firstFew(listed(missing.slice(0, MAX_MISSING_FLOW_REFS)), missing.length)}; draw one with the board skill, e.g. /groundboard:board`,
+    );
+  }
+  if (missingEndpoints.length > 0) {
+    const shown = missingEndpoints
+      .slice(0, MAX_MISSING_FLOW_REFS)
+      .map((ref) => `\`${ref}\` (${shapeOf.get(ref)})`)
+      .join(", ");
+    warnings.push(
+      `${missingEndpoints.length} endpoint(s) whose handler has logic have no flow yet: ${firstFew(shown, missingEndpoints.length)}; draw one with the board skill, its first node carrying the endpoint's ref, e.g. /groundboard:board`,
     );
   }
   if (unlinked.length > 0) {

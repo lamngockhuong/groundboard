@@ -131,6 +131,7 @@ export function buildLibraryIndex(entries: readonly LibraryEntry[]): AtlasIndex 
       definerKinds.set(`${place.ref} ${slug} ${place.nodeId}`, place.kind);
       if (place.layout) layoutDefs.add(`${place.ref} ${slug} ${place.nodeId}`);
       if (place.needsFlow) refEntry(place.ref).needsFlow = true;
+      if (place.flowShape !== undefined) refEntry(place.ref).flowShape = place.flowShape;
     }
     for (const place of used) {
       refEntry(place.ref).usedIn.push({

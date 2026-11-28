@@ -317,6 +317,20 @@ export const GuardSchema = z.object({
   sourceIds: z.array(id).max(LIMITS.sourceIdsPerNode).default([]),
 });
 
+/** How the logic of an endpoint's handler is explained: a flow, a state machine or a sequence. */
+export const HANDLER_SHAPES = ["flow", "state", "sequence"] as const;
+export type HandlerShape = (typeof HANDLER_SHAPES)[number];
+
+/**
+ * An endpoint whose handler has logic worth a board of its own: it branches, changes the state
+ * of something, or calls out. `shape` is the board that explains it; `sourceIds` cite the lines
+ * that make it so (the branch, the state change, the outside call).
+ */
+export const HandlerSchema = z.object({
+  shape: z.enum(HANDLER_SHAPES),
+  sourceIds: z.array(id).max(LIMITS.sourceIdsPerNode).default([]),
+});
+
 export const NodeSchema = z.object({
   id,
   kind: z.enum(NODE_KINDS),
@@ -376,6 +390,11 @@ export const NodeSchema = z.object({
    * read. Empty: it was read and attaches no guard, which is not a claim that it is public.
    */
   guards: z.array(GuardSchema).max(LIMITS.guardsPerEndpoint).optional(),
+  /**
+   * `endpoint` only: its handler has logic, so a flow, a state machine or a sequence should
+   * explain it, its first node carrying the endpoint's ref.
+   */
+  handler: HandlerSchema.optional(),
   /** `resource` only: a prefix every endpoint path of the resource starts with, e.g. `/v1`. */
   pathPrefix: z.string().min(1).max(LIMITS.shortText).optional(),
   /** `table` only: its columns in declaration order. Each defines `db:<table>/<column-slug>`. */
