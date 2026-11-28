@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs `claude plugin eval` on this plugin with what every case needs: the scaffold, the tool
-# grants the board skill uses, and the Node copied by prepare-tool.sh first on PATH, so that
-# `npx groundboard` works under the run's temporary HOME. Extra arguments are passed through:
+# grants the board skill uses, and the Node copied by prepare-tool.sh first on PATH (the scaffold
+# also gives Volta shims a home with that Node). Extra arguments are passed through:
 #   scripts/run-eval.sh --case checkout-why-declined --runs 1 --ablation none --keep-temp
 set -euo pipefail
 

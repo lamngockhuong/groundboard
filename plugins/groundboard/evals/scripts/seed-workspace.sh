@@ -19,3 +19,13 @@ printf 'node_modules/\npackage.json\n' > .gitignore
 git init -q
 git add -A
 git -c user.name=fixture -c user.email=fixture@example.invalid commit -q -m "fixture"
+
+# HOME here is the run's temporary home. Where prepare-tool.sh found Volta, give it a Volta home
+# whose only Node is the copy in evals/.tool/node, so the Volta shims the agent's shell puts first
+# on PATH run that Node instead of stopping with "Could not create directory .../.volta".
+if [ -d "$tool/volta" ]; then
+  node_version="$("$tool/node/bin/node" -p 'process.versions.node')"
+  cp -R "$tool/volta" "$HOME/.volta"
+  mkdir -p "$HOME/.volta/tools/image/node"
+  cp -R "$tool/node" "$HOME/.volta/tools/image/node/$node_version"
+fi

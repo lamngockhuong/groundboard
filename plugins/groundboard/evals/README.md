@@ -54,8 +54,8 @@ Two kinds of grader:
 
 The cases draw the PNG with this repository's own build, because `@groundboard/png` is not on
 npm yet and the run's sandbox has no network. The run's agent also gets a temporary `HOME`, so a
-Node installed through a version manager (Volta, nvm, asdf) is not found there. So the build and
-a copy of Node are put next to the suite once:
+Node installed through a version manager is not found there. So the build and a copy of Node are
+put next to the suite once:
 
 ```bash
 pnpm install && pnpm -r build
@@ -68,9 +68,18 @@ for the packages' dependencies; `evals/.tool/` (about 330 MB with Node) is git-i
 Each case's `scaffold.sh` calls `scripts/seed-workspace.sh`, which copies the case's `repo/` into
 the empty workspace, commits it, and copies `evals/.tool/node_modules` beside it, so
 `npx groundboard render` and `npx groundboard png` run from the workspace without the network.
-The scaffold runs only with `--scaffold`, as you and outside the sandbox. `scripts/run-eval.sh`
-puts `evals/.tool/node/bin` first on the `PATH` the run inherits, so `npx` is that Node's and not a
-version manager's shim.
+The scaffold runs only with `--scaffold`, as you and outside the sandbox.
+
+Two things make `npx` find that Node in the run:
+
+- `scripts/run-eval.sh` puts `evals/.tool/node/bin` first on the `PATH` the run inherits.
+- The agent's shell does not keep that order: it rebuilds `PATH` from your login shell (seen in
+  a run, not documented), so whatever your `~/.zshrc` or `~/.profile` puts first comes first.
+  With Volta that is
+  `~/.volta/bin`, whose shims read their Node from `$HOME/.volta`, and the run's `HOME` is empty.
+  So when `prepare-tool.sh` finds Volta, it keeps the three small files a shim reads, and the
+  scaffold writes them, with the Node copy as the only image, to `$HOME/.volta` in the run's
+  temporary home. nvm and asdf are not handled; their shims would need the same treatment.
 
 **Once `@groundboard/png` is published**, at the version the plugin pins, the skill's own command
 `npx -y -p groundboard@<version> -p @groundboard/png@<version> groundboard png ...` still needs the
@@ -127,14 +136,15 @@ Read it per grader, not only per case (`report.html` shows both arms' verdicts f
 
 ## Cost
 
-Two smoke runs of `checkout-why-declined` (2026-11-27, Claude Code 2.1.332, Linux under WSL2,
-default model, haiku judge, `--runs 1 --ablation none`), both before the Node fix, so neither
-rendered the board:
+Three smoke runs of `checkout-why-declined` (2026-11-27 and 28, Claude Code 2.1.332, Linux under
+WSL2, default model, haiku judge, `--runs 1 --ablation none`). None rendered the board, each for
+a reason in the setup (below):
 
-| Run | Cost | Time | Turns | Score |
-|---|---|---|---|---|
-| 1 | 1.09 USD | 282 s | 36 | 0.09 |
-| 2 (`--keep-temp`) | 0.77 USD | 255 s | 23 | 0.27 |
+| Run | Setup | Cost | Time | Turns | Score |
+|---|---|---|---|---|---|
+| 1 | direct `claude plugin eval` | 1.09 USD | 282 s | 36 | 0.09 |
+| 2 | same, `--keep-temp` | 0.77 USD | 255 s | 23 | 0.27 |
+| 3 | `run-eval.sh` (Node copy first on `PATH`), `--keep-temp` | 0.87 USD | 140 s | 27 | 0.18 |
 
 The judge cost 0.002 USD per run, since most judge graders had no PNG to read; with a PNG each
 image judge adds about a cent.
@@ -147,14 +157,14 @@ wall time to about 30 minutes on the same rate limit.
 
 ## Smoke run results
 
-| Grader | Run 1 | Run 2 | Why |
-|---|---|---|---|
-| `01-sources-checked` | fail | fail | no `.excalidraw`: `npx` could not start (below) |
-| `02-image-drawn` | fail | fail | no PNG, same cause |
-| `03-open-question-named` | fail | pass | run 1 asked "How does authorize report a refused card? (Payments team)", but the grader then demanded a guest-checkout question, off the asked path; it now accepts any named question |
-| `04-no-invented-actor` | fail | pass | the actor list in run 1 left out refunds and other customers, which `decisions.md` names |
-| `05-reader-answers`, `06-premises-stated` | fail | fail | no PNG to read |
-| `07-skill-fired` | pass | pass | the skill loaded |
+| Grader | Run 1 | Run 2 | Run 3 | Why |
+|---|---|---|---|---|
+| `01-sources-checked` | fail | fail | fail | no `.excalidraw`: `npx` could not start (below) |
+| `02-image-drawn` | fail | fail | fail | no PNG, same cause |
+| `03-open-question-named` | fail | pass | pass | run 1 asked "How does authorize report a refused card? (Payments team)", but the grader then demanded a guest-checkout question, off the asked path; it now accepts any named question |
+| `04-no-invented-actor` | fail | pass | fail | run 1: the actor list left out refunds and other customers, which `decisions.md` names. Run 3: the board explains a declined card as "a card the bank refuses", and the rubric listed the bank as invented; it now counts only an actor drawn as its own step |
+| `05-reader-answers`, `06-premises-stated` | fail | fail | fail | no PNG to read |
+| `07-skill-fired` | pass | pass | pass | the skill loaded |
 
 **Why nothing rendered.** Run 2's trace (`--keep-temp`) shows the skill load, read the code, write
 `.groundboard/checkout-declined.board.json`, and then every Node command stop at once:
@@ -173,11 +183,28 @@ The grants were not the cause: the `npx groundboard` calls were allowed and ran,
 agent's attempts to look for another Node (`ls`, `which`, `python3`) were denied, as they should
 be. The agent then reviewed the text of the board instead of the image, as the skill says to.
 
-The fix copies the Node that runs `prepare-tool.sh` into `evals/.tool/node` and has `run-eval.sh`
-put it first on `PATH`. Checked outside the eval: with an empty temporary `HOME`, `npx groundboard`
-stops with the same Volta error on the old `PATH`, and with the new `PATH` it renders the board
-with the source check and draws the PNG. Not yet checked inside an eval run: the sandbox reading
-`evals/.tool/node`, although run 2's agent read files under the same plugin directory.
+Run 3 put the Node copy first on `PATH` (`run-eval.sh`), and the agent's shell still ran Volta:
+
+```text
+$ which node
+/home/lamngockhuong/.volta/bin/node
+$ npx groundboard render .groundboard/checkout-declined.board.json -o .groundboard/checkout-declined.excalidraw --check-sources .
+Volta update error: Could not create directory /tmp/claude-eval-WJ3dju/home/.volta
+
+Please ensure that you have the correct permissions.
+```
+
+The `PATH` did reach the run: the eval harness itself ran `npm root --global` with the Node copy
+(`0 verbose cli .../evals/.tool/node/bin/node .../evals/.tool/node/bin/npm` in the run's npm log).
+But the agent's shell rebuilt `PATH` from the login shell, where `~/.zshrc` and `~/.profile` put
+`$VOLTA_HOME/bin` first, without `VOLTA_HOME` itself, so the shim looks for `$HOME/.volta` in the
+empty temporary home and cannot create it in the sandbox.
+
+The fix writes a Volta home to the run's temporary `HOME` from the scaffold (see "Before the first
+run"). Checked outside the eval: a temporary `HOME` made read-only after the scaffold, with
+`~/.volta/bin` first on `PATH`, reproduces `Could not create directory .../.volta` without the
+Volta home, and with it `npx groundboard render --check-sources` writes the `.excalidraw` and
+`npx groundboard png` draws the PNG. Not yet checked inside an eval run.
 
 ## Known blockers
 
@@ -185,8 +212,9 @@ with the source check and draws the PNG. Not yet checked inside an eval run: the
   starts, at no cost: `Sandbox required but unavailable: sandbox is enabled but dependencies are
   missing: socat not installed`. Install both (`apt-get install bubblewrap socat`).
 - **Node from a version manager is not found** under the run's temporary `HOME`
-  (`Volta error: Node is not available.`). Run the suite through `scripts/run-eval.sh` after
-  `prepare-tool.sh`.
+  (`Volta error: Node is not available.`, `Volta update error: Could not create directory
+  .../home/.volta`). Run `prepare-tool.sh`, then the suite through `scripts/run-eval.sh`. Volta is
+  handled; nvm or asdf shims first on the login-shell `PATH` are not.
 - **The plugin's MCP server does not start** in an eval run (`has no mock and is NOT started`),
   so the skill always takes its CLI fallback; that is the path these cases test.
 - **`@groundboard/png` is not on npm**, so the PNG comes from this repository's build through

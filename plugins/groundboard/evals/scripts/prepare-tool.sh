@@ -24,9 +24,23 @@ printf '{ "name": "groundboard-eval-tool", "private": true }\n' > package.json
 npm install --no-audit --no-fund --no-package-lock ./pack/*.tgz >/dev/null
 echo "installed $(cd pack && echo *.tgz) in $tool"
 
-# A copy of the Node that runs this script, for run-eval.sh to put first on PATH. A run's agent
-# gets a temporary HOME, so a version manager's shim (Volta, nvm, asdf) finds no Node there and
-# `npx groundboard` stops with "Volta error: Node is not available".
+# A copy of the Node that runs this script. A run's agent gets a temporary HOME, so a version
+# manager's shim finds no Node there. run-eval.sh puts this copy first on PATH, which is enough
+# when nothing else comes before it.
 node_prefix="$(dirname "$(dirname "$(node -p process.execPath)")")"
 cp -R "$node_prefix" "$tool/node"
-echo "copied Node $("$tool/node/bin/node" --version) from $node_prefix to $tool/node"
+node_version="$("$tool/node/bin/node" -p 'process.versions.node')"
+echo "copied Node $node_version from $node_prefix to $tool/node"
+
+# With Volta, the agent's shell takes PATH from the login shell, where the Volta shims come
+# first, and a shim reads its Node from $HOME/.volta. So keep the few files a shim reads; each
+# run's scaffold writes them to the run's temporary HOME, with the Node copy as the only image.
+if command -v volta >/dev/null 2>&1; then
+  npm_version="$("$tool/node/bin/node" -p "require('$tool/node/lib/node_modules/npm/package.json').version")"
+  mkdir -p "$tool/volta/tools/user" "$tool/volta/tools/inventory/node"
+  touch "$tool/volta/layout.v4"
+  printf '{ "node": { "runtime": "%s", "npm": null }, "pnpm": null, "yarn": null }\n' \
+    "$node_version" > "$tool/volta/tools/user/platform.json"
+  printf '%s' "$npm_version" > "$tool/volta/tools/inventory/node/node-v$node_version-npm"
+  echo "Volta found: each run gets a Volta home whose default Node is $node_version"
+fi
