@@ -37,6 +37,7 @@ const PATHS = {
   pause: "M8 5v14M16 5v14",
   present: "M3 4h18v12H3zM8 20h8M12 16v4M10 7.5v5l4-2.5z",
   chevronDown: "m6 9 6 6 6-6",
+  chevronUp: "m6 15 6-6 6 6",
   close: "M6 6l12 12M18 6 6 18",
   tag: "M3.5 12.5V4h8.5l8.5 8.5-8 8zM8 8h.01",
   layers: "m12 3 9 5-9 5-9-5zM3 12.5l9 5 9-5M3 16.5l9 5 9-5",

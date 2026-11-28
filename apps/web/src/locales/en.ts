@@ -596,4 +596,6 @@ export const en = {
   "sequenceEdit.fragment": "Fragment",
   "sequenceEdit.selectedMessages_one": "{count} message selected",
   "sequenceEdit.selectedMessages_other": "{count} messages selected",
+  "sequenceEdit.around": "Fragments around this message",
+  "sequenceEdit.editFragment": "Edit {fragment}",
 } as const;

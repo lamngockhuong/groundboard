@@ -4,7 +4,7 @@ import {
   MESSAGE_TYPES,
   PARTICIPANT_CATEGORIES,
 } from "@groundboard/schema";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { type EditResult, type RawBoard, setNodeText } from "../board-edit.ts";
 import { t, tn } from "../i18n.ts";
 import {
@@ -119,6 +119,21 @@ function fragmentName(board: RawBoard, operandId: string | undefined): string {
     if (operand) return `${str(fragment.kind)}${operand.guard ? ` [${str(operand.guard)}]` : ""}`;
   }
   return operandId;
+}
+
+/** The operands that contain an operand, outermost first, it included. */
+function operandsAround(board: RawBoard, operandId: string | undefined): string[] {
+  const out: string[] = [];
+  const fragments = list(board, "fragments");
+  let current = operandId;
+  while (current !== undefined && !out.includes(current)) {
+    out.unshift(current);
+    const owner = fragments.find((f) =>
+      (f.operands as Item[] | undefined)?.some((o) => o.id === current),
+    );
+    current = owner ? str(owner.parentOperandId) || undefined : undefined;
+  }
+  return out;
 }
 
 /** What the next move up or down will do to the message's fragments, said before it happens. */
@@ -252,13 +267,16 @@ function AddParticipantForm({
 function MoveButton({
   label,
   keys,
+  shortcut,
   icon,
   onClick,
   disabled,
 }: {
   label: string;
+  /** The key as people read it (`⌥ ↑`), and as `aria-keyshortcuts` names it (`Alt+ArrowUp`). */
   keys: string;
-  icon: "back" | "next" | "chevronDown";
+  shortcut: string;
+  icon: "back" | "next" | "chevronDown" | "chevronUp";
   onClick: () => void;
   disabled?: boolean;
 }) {
@@ -269,7 +287,7 @@ function MoveButton({
       onClick={onClick}
       disabled={disabled}
       title={`${label} (${keys})`}
-      aria-keyshortcuts={keys.replace("⌥", "Alt").replace(" ", "+")}
+      aria-keyshortcuts={shortcut}
     >
       <Icon name={icon} size={14} />
       {label}
@@ -290,10 +308,14 @@ export function SequenceEditPanel({ board, selection, apply }: Props) {
   );
   const message =
     pickedMessages.length === 1 && selection.nodes.length === 0 ? pickedMessages[0] : undefined;
+  // An operand picked from the panel, for the keyboard: the canvas cannot focus a frame.
+  const selectionKey = JSON.stringify(selection);
+  const [pickedOperand, setPickedOperand] = useState<{ key: string; id: string } | null>(null);
+  const fromPanel = pickedOperand?.key === selectionKey ? pickedOperand.id : undefined;
   const operandId =
     selection.operands.length === 1 && selection.nodes.length + selection.edges.length === 0
       ? selection.operands[0]
-      : undefined;
+      : fromPanel;
   const fragment =
     operandId === undefined
       ? undefined
@@ -302,21 +324,32 @@ export function SequenceEditPanel({ board, selection, apply }: Props) {
         );
   const operand = (fragment?.operands as Item[] | undefined)?.find((o) => o.id === operandId);
 
-  const onKeyDown = (event: React.KeyboardEvent) => {
-    const key = isSequenceMoveKey(event.nativeEvent);
+  // Alt and an arrow moves the selected message or participant wherever the keyboard is, the
+  // canvas included, ahead of Excalidraw's own use of the keys.
+  const onKey = useRef<(event: KeyboardEvent) => void>(() => undefined);
+  onKey.current = (event: KeyboardEvent) => {
+    const key = isSequenceMoveKey(event);
     if (key === null) return;
     if (message && (key === "up" || key === "down")) {
       event.preventDefault();
+      event.stopPropagation();
       void apply((b) => moveMessage(b, str(message.id), key === "up" ? -1 : 1));
     } else if (participant && (key === "left" || key === "right")) {
       event.preventDefault();
+      event.stopPropagation();
       void apply((b) => moveParticipant(b, str(participant.id), key === "left" ? -1 : 1));
     }
   };
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => onKey.current(event);
+    window.addEventListener("keydown", listener, true);
+    return () => window.removeEventListener("keydown", listener, true);
+  }, []);
+  /** The operands around the selected message, outermost first, to edit from the keyboard. */
+  const around = message ? operandsAround(board, str(message.operandId) || undefined) : [];
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: the keys move what the panel edits; every move also has a button
-    <div className="sequence-edit" onKeyDown={onKeyDown}>
+    <div className="sequence-edit">
       {participant ? (
         <section className="edit-section" aria-label={t("nodeKind.participant")}>
           <p className="edit-meta">
@@ -345,12 +378,14 @@ export function SequenceEditPanel({ board, selection, apply }: Props) {
             <MoveButton
               label={t("sequenceEdit.moveLeft")}
               keys="⌥ ←"
+              shortcut="Alt+ArrowLeft"
               icon="back"
               onClick={() => void apply((b) => moveParticipant(b, str(participant.id), -1))}
             />
             <MoveButton
               label={t("sequenceEdit.moveRight")}
               keys="⌥ →"
+              shortcut="Alt+ArrowRight"
               icon="next"
               onClick={() => void apply((b) => moveParticipant(b, str(participant.id), 1))}
             />
@@ -435,13 +470,15 @@ export function SequenceEditPanel({ board, selection, apply }: Props) {
             <MoveButton
               label={t("sequenceEdit.moveUp")}
               keys="⌥ ↑"
-              icon="back"
+              shortcut="Alt+ArrowUp"
+              icon="chevronUp"
               disabled={messageMove(board, str(message.id), -1) === null}
               onClick={() => void apply((b) => moveMessage(b, str(message.id), -1))}
             />
             <MoveButton
               label={t("sequenceEdit.moveDown")}
               keys="⌥ ↓"
+              shortcut="Alt+ArrowDown"
               icon="chevronDown"
               disabled={messageMove(board, str(message.id), 1) === null}
               onClick={() => void apply((b) => moveMessage(b, str(message.id), 1))}
@@ -459,6 +496,21 @@ export function SequenceEditPanel({ board, selection, apply }: Props) {
               </p>
             ) : null;
           })}
+          {around.length > 0 ? (
+            <fieldset className="edit-actions edit-fieldset">
+              <legend className="visually-hidden">{t("sequenceEdit.around")}</legend>
+              {around.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className="secondary"
+                  onClick={() => setPickedOperand({ key: selectionKey, id })}
+                >
+                  {t("sequenceEdit.editFragment", { fragment: fragmentName(board, id) })}
+                </button>
+              ))}
+            </fieldset>
+          ) : null}
           <AddMessageForm
             title={t("sequenceEdit.addMessageAfter")}
             participants={participants}
@@ -508,7 +560,7 @@ export function SequenceEditPanel({ board, selection, apply }: Props) {
         </section>
       ) : null}
 
-      {fragment && operand ? (
+      {fragment && operand && (!message || fromPanel) ? (
         <section className="edit-section" aria-label={t("sequenceEdit.fragment")}>
           <p className="edit-meta">
             <code>{str(operand.id)}</code>{" "}

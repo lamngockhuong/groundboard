@@ -1606,6 +1606,12 @@ body.resizing .split-handle {
   align-items: end;
 }
 
+.edit-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
 .sequence-edit {
   display: grid;
   gap: 1rem;

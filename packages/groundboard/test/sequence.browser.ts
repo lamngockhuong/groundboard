@@ -338,9 +338,9 @@ describe("editing a sequence board", () => {
 
       // The guard of the authorized branch, reworded: the wrap moved nothing above the alt, so
       // message 2 anchors it.
-      await focus("authorize", /2\. authorize\(amount\)/);
-      const guard = await at("edge/m2", "operand-guard/ok");
-      await page.mouse.click(guard.x, guard.y);
+      // From the keyboard: the message's panel lists the fragments around it.
+      await focus("insert order", /4\. insert order/);
+      await panel.getByRole("button", { name: "Edit alt [authorized]" }).click();
       const condition = panel.locator('section[aria-label="Fragment"]').getByLabel("Condition");
       await condition.waitFor({ timeout: 10_000 });
       await condition.fill("the payment is authorized");
@@ -355,7 +355,8 @@ describe("editing a sequence board", () => {
       expect(
         await panel.getByText("Moving it down puts it in alt [the payment is authorized].").count(),
       ).toBe(1);
-      await down.focus();
+      expect(await down.getAttribute("aria-keyshortcuts")).toBe("Alt+ArrowDown");
+      // The keys work with the keyboard on the canvas, where the palette left it.
       await page.keyboard.press("Alt+ArrowDown");
       await page.waitForTimeout(800);
 

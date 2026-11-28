@@ -583,4 +583,6 @@ export const vi: Messages = {
   "sequenceEdit.fragment": "Fragment",
   "sequenceEdit.selectedMessages_one": "Đã chọn {count} message",
   "sequenceEdit.selectedMessages_other": "Đã chọn {count} message",
+  "sequenceEdit.around": "Các fragment bao quanh message này",
+  "sequenceEdit.editFragment": "Sửa {fragment}",
 };

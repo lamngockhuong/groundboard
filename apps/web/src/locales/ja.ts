@@ -585,4 +585,6 @@ export const ja: Messages = {
   "sequenceEdit.fragment": "フラグメント",
   "sequenceEdit.selectedMessages_one": "{count} 件のメッセージを選択中",
   "sequenceEdit.selectedMessages_other": "{count} 件のメッセージを選択中",
+  "sequenceEdit.around": "このメッセージを囲むフラグメント",
+  "sequenceEdit.editFragment": "{fragment} を編集",
 };
