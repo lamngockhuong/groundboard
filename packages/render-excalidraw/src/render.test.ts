@@ -342,3 +342,81 @@ describe("element ids", () => {
     expect(duplicates(scene.elements)).toEqual([]);
   });
 });
+
+describe("endpoint rows", () => {
+  const atlas = path.join(import.meta.dirname, "../../../examples/fixtures/.groundboard");
+  const apiBoard = (patch: (raw: Record<string, unknown>) => void) => {
+    const raw = JSON.parse(
+      readFileSync(path.join(atlas, "api--orders.board.json"), "utf8"),
+    ) as Record<string, unknown>;
+    patch(raw);
+    return raw;
+  };
+
+  test("reads, writes and enqueues are tags that carry the edge's data, and no arrow", async () => {
+    const { parseBoard } = await import("@groundboard/schema");
+    const parsed = parseBoard(
+      apiBoard((raw) => {
+        const nodes = raw.nodes as Array<Record<string, unknown>>;
+        (nodes[1] as Record<string, unknown>).guards = [
+          { name: "requireCustomer", sourceIds: ["route-post"] },
+        ];
+        (nodes[2] as Record<string, unknown>).guards = [];
+      }),
+    );
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.error));
+    const board = parsed.value;
+    const scene = renderExcalidraw(await layoutBoard(board), board);
+    const els = byId(scene.elements);
+    expect(scene.elements.filter((e) => e.type === "arrow")).toEqual([]);
+    const tag = els.get("row-tag/create-writes");
+    expect(tag?.type).toBe("rectangle");
+    expect(tag?.frameId).toBe("node/orders");
+    expect(tag?.customData?.groundboard).toMatchObject({
+      edgeId: "create-writes",
+      kind: "writes",
+      toRef: "db:orders",
+    });
+    expect((els.get("row-tag/create-writes/text") as TextElement).text).toBe("writes orders");
+    expect(els.get("row-tag/create-enqueues")?.strokeStyle).toBe("dashed");
+    const guard = els.get("node/create-order/guard") as TextElement;
+    expect(guard.text).toBe("guard: requireCustomer");
+    expect(guard.frameId).toBe("node/orders");
+    expect(guard.customData?.groundboard).toMatchObject({
+      nodeId: "create-order",
+      guards: [{ name: "requireCustomer", sources: [{ id: "route-post" }] }],
+    });
+    expect((els.get("node/get-order/guard") as TextElement).text).toBe("no guard found");
+  });
+
+  test("a guard line backed by a document only is tagged spec, and each guard carries its grounding", async () => {
+    const { parseBoard } = await import("@groundboard/schema");
+    const parsed = parseBoard(
+      apiBoard((raw) => {
+        const nodes = raw.nodes as Array<Record<string, unknown>>;
+        (nodes[1] as Record<string, unknown>).guards = [
+          { name: "admins only", sourceIds: ["spec"] },
+        ];
+        (nodes[2] as Record<string, unknown>).guards = [
+          { name: "requireCustomer", sourceIds: ["route-get"] },
+        ];
+        (raw.sources as Array<Record<string, unknown>>).push({
+          id: "spec",
+          kind: "doc",
+          path: "docs/api.md",
+          line: 1,
+          quote: "Admins only",
+        });
+      }),
+    );
+    if (!parsed.ok) throw new Error(JSON.stringify(parsed.error));
+    const board = parsed.value;
+    const scene = renderExcalidraw(await layoutBoard(board), board);
+    const els = byId(scene.elements);
+    expect((els.get("node/create-order/guard/spec") as TextElement).text).toBe("spec");
+    expect(els.has("node/get-order/guard/spec")).toBe(false);
+    expect(els.get("node/create-order/guard")?.customData?.groundboard).toMatchObject({
+      guards: [{ name: "admins only", grounding: "spec" }],
+    });
+  });
+});

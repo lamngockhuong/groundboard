@@ -439,6 +439,16 @@ export function Sidebar({
                         >
                           <span className={`dot dot-${board.status}`} aria-hidden="true" />
                           <span className="nav-label">{board.title}</span>
+                          {board.sequence ? (
+                            <span
+                              className="nav-sequence"
+                              role="img"
+                              aria-label={t("sequence.badge")}
+                              title={t("sequence.badge")}
+                            >
+                              <Icon name="sequence" size={12} />
+                            </span>
+                          ) : null}
                           {board.status !== "ok" ? (
                             <span className={`nav-status status-text-${board.status}`}>
                               {statusLabel(board.status)}

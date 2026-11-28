@@ -2,8 +2,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { type Board, parseBoard } from "@groundboard/schema";
 import { describe, expect, test } from "vitest";
-import { endpointRowText, layoutCard } from "./card.ts";
+import { endpointGuardText, endpointRowText, layoutCard } from "./card.ts";
 import { layoutBoard } from "./layout.ts";
+import { applyOverlay } from "./overlay.ts";
 
 const atlas = path.resolve(import.meta.dirname, "../../../examples/fixtures/.groundboard");
 
@@ -45,6 +46,96 @@ describe("cards", () => {
       expect(row?.x).toBeGreaterThanOrEqual(resource?.x ?? 0);
       expect(row?.y).toBeGreaterThanOrEqual(resource?.y ?? 0);
     }
+  });
+
+  test("an endpoint's row grows by its guard line and its tags, which wrap at the row's edge", () => {
+    const plain = layoutCard([{ id: "a", text: "POST /api/orders  Place an order" }]);
+    const tags = ["orders", "order-items", "send-receipt"].map((name, i) => ({
+      edgeId: `e${i}`,
+      ref: `db:${name}`,
+      kind: "writes" as const,
+      text: `writes ${name}`,
+    }));
+    const full = layoutCard([
+      {
+        id: "a",
+        text: "POST /api/orders  Place an order",
+        guard: { text: "guard: requireCustomer", empty: false },
+        tags,
+      },
+    ]);
+    const [p] = plain.boxes;
+    const [f] = full.boxes;
+    expect((f?.height ?? 0) > (p?.height ?? 0)).toBe(true);
+    expect(f?.parts?.guard?.text).toBe("guard: requireCustomer");
+    expect(f?.parts?.tags.map((t) => t.text)).toEqual(tags.map((t) => t.text));
+    // Every part sits inside the row, below its first line.
+    for (const part of [f?.parts?.guard, ...(f?.parts?.tags ?? [])]) {
+      if (!part || !f) throw new Error("missing part");
+      expect(part.y).toBeGreaterThanOrEqual(f.textY + f.textHeight);
+      expect(part.x + part.width).toBeLessThanOrEqual(f.x + f.width);
+      expect(part.y + part.height).toBeLessThanOrEqual(f.y + f.height);
+    }
+    const many = layoutCard([
+      {
+        id: "a",
+        text: "POST /api/orders",
+        tags: Array.from({ length: 8 }, (_, i) => ({ ...tags[0], edgeId: `t${i}` })) as never,
+      },
+    ]);
+    const ys = new Set(many.boxes[0]?.parts?.tags.map((t) => t.y));
+    expect(ys.size).toBeGreaterThan(1);
+  });
+
+  test("the guard line names the guards, says when none was found, and is absent when unread", () => {
+    expect(endpointGuardText({})).toBeUndefined();
+    expect(endpointGuardText({ guards: [] })).toEqual({ text: "no guard found", empty: true });
+    expect(
+      endpointGuardText({
+        guards: [
+          { name: "requireCustomer", sourceIds: [] },
+          { name: "role: admin", sourceIds: [] },
+        ],
+      }),
+    ).toEqual({ text: "guard: requireCustomer · role: admin", empty: false });
+  });
+
+  test("reads, writes and enqueues out of an endpoint are tags in its row, with no chip or marker", async () => {
+    const board = load("api--orders");
+    const laidOut = await layoutBoard(board);
+    expect(laidOut.nodes.filter((n) => n.shape === "chip")).toEqual([]);
+    for (const id of ["create-writes", "create-writes-lines", "create-enqueues", "get-reads"]) {
+      const edge = laidOut.edges.find((e) => e.id === id);
+      expect(edge?.marker, id).toBeUndefined();
+      expect(edge?.points, id).toEqual([]);
+      expect(edge?.inRow?.rowId).toBe(edge?.from);
+    }
+    const create = laidOut.nodes.find((n) => n.id === "create-order");
+    expect(create?.rowParts?.tags.map((t) => [t.text, t.edgeId])).toEqual([
+      ["writes orders", "create-writes"],
+      ["writes order-items", "create-writes-lines"],
+      ["enqueues send-receipt", "create-enqueues"],
+    ]);
+    const resource = laidOut.nodes.find((n) => n.id === "orders");
+    for (const tag of create?.rowParts?.tags ?? []) {
+      expect(tag.x).toBeGreaterThanOrEqual(create?.x ?? 0);
+      expect(tag.y + tag.height).toBeLessThanOrEqual((resource?.y ?? 0) + (resource?.height ?? 0));
+    }
+  });
+
+  test("tags move with their card, and an overlay offset for a chip that is gone is ignored", async () => {
+    const board = load("api--orders");
+    const laidOut = await layoutBoard(board);
+    const { laidOut: moved, warnings } = applyOverlay(laidOut, board, {
+      version: 1,
+      nodes: { orders: { dx: 100, dy: 50 }, "@ref:db:orders": { dx: 10, dy: 10 } },
+      notes: [],
+    } as never);
+    const before = laidOut.nodes.find((n) => n.id === "create-order")?.rowParts?.tags[0];
+    const after = moved.nodes.find((n) => n.id === "create-order")?.rowParts?.tags[0];
+    expect(after?.x).toBe((before?.x ?? 0) + 100);
+    expect(after?.y).toBe((before?.y ?? 0) + 50);
+    expect(warnings.join(" ")).toContain("`@ref:db:orders` is not on the board");
   });
 
   test("a calls edge to an endpoint on another board is drawn as a marker beside its screen", async () => {

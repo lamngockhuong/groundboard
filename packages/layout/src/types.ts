@@ -1,4 +1,12 @@
-import type { EdgeKind, ElementRole, NodeKind, OverlayNote } from "@groundboard/schema";
+import type {
+  EdgeKind,
+  ElementRole,
+  FragmentKind,
+  MessageType,
+  NodeKind,
+  OverlayNote,
+  ParticipantCategory,
+} from "@groundboard/schema";
 
 /** A note of a layout overlay at the position it is drawn at: its anchor's, or its own. */
 export interface PlacedNote extends OverlayNote {
@@ -54,6 +62,26 @@ export interface LaidOutNode {
   /** Absolute top-left of the text, for wire shapes, which place their own text. Other shapes centre bound text. */
   textX?: number;
   textY?: number;
+  /** An endpoint's row with its guard line and its tags, at absolute positions. */
+  rowParts?: LaidOutRowParts;
+  /** participant: what it is, and that word drawn small under its label. */
+  category?: ParticipantCategory;
+  caption?: LaidOutText;
+}
+
+/** A tag in an endpoint's row: one read, write or enqueue edge, drawn instead of an arrow. */
+export interface LaidOutRowTag extends LaidOutText {
+  edgeId: string;
+  ref: string;
+  kind: "reads" | "writes" | "enqueues";
+  textWidth: number;
+  textHeight: number;
+}
+
+export interface LaidOutRowParts {
+  /** The guard line; `empty` when the handler was read and attaches no guard. */
+  guard?: LaidOutText & { empty: boolean };
+  tags: LaidOutRowTag[];
 }
 
 export interface LaidOutGroup {
@@ -117,6 +145,11 @@ export interface LaidOutEdge {
   points: Point[];
   /** Set instead of an arrow route and a label: the edge's tag and list line. */
   marker?: LaidOutRefMarker;
+  /** Set instead of an arrow route: the edge is a tag in the row of `rowId` (`from`). */
+  inRow?: { rowId: string };
+  /** message: how it is sent, and its 1-based place in message order. */
+  messageType?: MessageType;
+  number?: number;
   label?: LaidOutEdgeLabel;
 }
 
@@ -126,6 +159,32 @@ export interface LaidOutReference {
   image: { x: number; y: number; width: number; height: number };
   border: { x: number; y: number; width: number; height: number };
   caption: LaidOutText;
+}
+
+/** A combined fragment of a sequence board: its frame, its header and its operands. */
+export interface LaidOutSequenceFragment {
+  id: string;
+  kind: FragmentKind;
+  /** 1 for a fragment at the top level. */
+  depth: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** The kind, in a small box at the frame's top-left corner. */
+  tag: LaidOutText;
+  label?: LaidOutText;
+  /**
+   * Each operand from its top: the first at the frame's top, with its guard beside the tag; the
+   * others at the divider drawn above them, their guard under it.
+   */
+  operands: Array<{ id: string; y: number; guard?: LaidOutText }>;
+}
+
+/** What a sequence board draws besides its participants and messages. */
+export interface LaidOutSequence {
+  lifelines: Array<{ participantId: string; x: number; y1: number; y2: number }>;
+  fragments: LaidOutSequenceFragment[];
 }
 
 /** Everything a renderer needs; renderers never see the layout engine. */
@@ -138,4 +197,6 @@ export interface LaidOutBoard {
   edges: LaidOutEdge[];
   /** Only when a reference was asked for a frame with a wireframe. */
   references?: LaidOutReference[];
+  /** Only on a sequence board: its lifelines and its fragments. */
+  sequence?: LaidOutSequence;
 }

@@ -130,3 +130,28 @@ export function isNewTabEnter(
 export function newTabEnterLabel(platform: string = navigator.platform): string {
   return isApple(platform) ? "⌘Enter" : "Ctrl+Enter";
 }
+
+/**
+ * Alt ↑ and Alt ↓ move the selected message of a sequence board, Alt ← and Alt → the selected
+ * participant (⌥ on macOS). Read in the edit panel, where the history keys do not apply; not in
+ * a field, and not with Ctrl, Cmd or Shift held.
+ */
+export function isSequenceMoveKey(event: KeyboardEvent): "up" | "down" | "left" | "right" | null {
+  if (
+    !event.altKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    event.defaultPrevented ||
+    isTypingTarget(event.target)
+  ) {
+    return null;
+  }
+  const keys: Record<string, "up" | "down" | "left" | "right"> = {
+    ArrowUp: "up",
+    ArrowDown: "down",
+    ArrowLeft: "left",
+    ArrowRight: "right",
+  };
+  return keys[event.key] ?? null;
+}

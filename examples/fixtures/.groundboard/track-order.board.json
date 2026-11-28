@@ -91,13 +91,13 @@
     {
       "id": "route",
       "path": "server/orders-routes.ts",
-      "line": 14,
+      "line": 23,
       "quote": "router.get(\"/orders/:id\", async (req, res) => {"
     },
     {
       "id": "find",
       "path": "server/orders-routes.ts",
-      "line": 15,
+      "line": 24,
       "quote": "const order = await db.findOne(\"orders\", { id: req.params.id });"
     },
     {

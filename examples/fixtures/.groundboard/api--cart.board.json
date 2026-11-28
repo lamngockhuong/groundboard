@@ -13,7 +13,8 @@
       "method": "POST",
       "path": "/api/cart/lines",
       "ref": "api:cart/post-lines",
-      "sourceIds": ["route-post"]
+      "sourceIds": ["route-post"],
+      "guards": []
     }
   ],
   "edges": [

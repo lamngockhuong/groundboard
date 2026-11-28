@@ -1,4 +1,5 @@
 import { type Board, type BoardEdge, screenFamilies, takesRef } from "@groundboard/schema";
+import { isRowTagEdge } from "./card.ts";
 import { measureText } from "./measure.ts";
 import { edgeLabelText, SMALL_FONT_SIZE } from "./text.ts";
 import type { LaidOutText } from "./types.ts";
@@ -56,9 +57,12 @@ function isMarkerEdge(
   edge: BoardEdge,
   screens: ReadonlyMap<string, ScreenLayout>,
   screenOf: ReadonlyMap<string, string>,
+  kindOf: ReadonlyMap<string, string>,
 ): boolean {
-  // Any edge that may point across boards, out of a card with rows: a screen, a resource.
+  // Any edge that may point across boards, out of a card with rows: a screen, a resource. A
+  // read, write or enqueue out of an endpoint is a tag in its row instead.
   if (edge.toRef === undefined || !takesRef(edge.kind)) return false;
+  if (isRowTagEdge(edge, kindOf)) return false;
   if (screenOf.has(edge.from)) return true;
   return (screens.get(edge.from)?.boxes.length ?? 0) > 0;
 }
@@ -100,8 +104,9 @@ export function layoutRefMarkers(
 ): Map<string, FrameMarkers> {
   const frameOf = (nodeId: string) => screenOf.get(nodeId) ?? nodeId;
   const byFrame = new Map<string, BoardEdge[]>();
+  const kindOf = new Map(board.nodes.map((n) => [n.id, n.kind]));
   for (const edge of board.edges) {
-    if (!isMarkerEdge(edge, screens, screenOf)) continue;
+    if (!isMarkerEdge(edge, screens, screenOf, kindOf)) continue;
     const frame = frameOf(edge.from);
     byFrame.set(frame, [...(byFrame.get(frame) ?? []), edge]);
   }

@@ -16,26 +16,30 @@ const webRoot = path.join(packageDir, "dist", "web");
 const fixtures = realpathSync(path.resolve(packageDir, "../../examples/fixtures"));
 const atlasDir = path.join(fixtures, ".groundboard");
 
-/** Each hop: the board on screen, the tag of the link on it, and where the link leads. */
+/**
+ * Each hop: the board on screen, the scene element of the link's tag on it (a numbered tag on a
+ * screen, a tag in an endpoint's row), and where the link leads.
+ */
 const CHAIN = [
   {
     from: "web--checkout",
     node: "pay",
-    tag: "pay-orders",
+    tag: "ref-tag/pay-orders",
     to: "api--orders",
     target: "create-order",
   },
   {
     from: "api--orders",
     node: "create-order",
-    tag: "create-writes",
+    tag: "row-tag/create-writes",
     to: "overview-db",
     target: "orders",
+    quote: 'const order = await db.insert("orders"',
   },
   {
     from: "api--orders",
     node: "create-order",
-    tag: "create-enqueues",
+    tag: "row-tag/create-enqueues",
     to: "overview-batch",
     target: "send-receipt",
   },
@@ -87,6 +91,17 @@ async function followChain(page: Page, origin: string): Promise<void> {
     // canvas first, then double-click the tag.
     const canvas = await page.locator(".canvas").boundingBox();
     if (canvas) await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height - 60);
+    if ("quote" in hop) {
+      // Selecting the tag shows the query it cites.
+      await page.mouse.click(box.x, box.y);
+      await page
+        .locator(".node-sources .quote")
+        .filter({ hasText: hop.quote })
+        .first()
+        .waitFor({ timeout: 15_000 });
+      if (canvas)
+        await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height - 60);
+    }
     await page.mouse.dblclick(box.x, box.y);
     await page.waitForURL(new RegExp(`#/board/${hop.to}`), { timeout: 15_000 });
     await waitForBoard(page);
@@ -122,7 +137,7 @@ async function tagBox(
   page: Page,
   slug: string,
   nodeId: string,
-  edgeId: string,
+  tagId: string,
 ): Promise<{ x: number; y: number }> {
   const elements = await sceneOf(slug);
   const find = (id: string) => {
@@ -132,7 +147,7 @@ async function tagBox(
   };
   const centre = (e: SceneElement) => [e.x + e.width / 2, e.y + e.height / 2] as const;
   const [nx, ny] = centre(find(`node/${nodeId}`));
-  const [tx, ty] = centre(find(`ref-tag/${edgeId}`));
+  const [tx, ty] = centre(find(tagId));
   const zoomText = await page.locator(".canvas .reset-zoom-button").first().textContent();
   const zoom = Number.parseInt(zoomText ?? "100", 10) / 100;
   const canvas = await page.locator(".canvas").boundingBox();
@@ -142,6 +157,63 @@ async function tagBox(
     y: canvas.y + canvas.height / 2 + (ty - ny) * zoom,
   };
 }
+
+/**
+ * From the Pay button to the endpoint, whose row shows its guard and what it writes, then through
+ * the boards that link to the endpoint to the sequence of its handler, and from the message that
+ * writes the orders table to that table.
+ */
+async function followSequence(page: Page, origin: string): Promise<void> {
+  await page.goto(`${origin}/#/`);
+  await page.locator(".atlas-home").waitFor({ timeout: 30_000 });
+  await page.goto(`${origin}/#/board/web--checkout?node=pay`);
+  await waitForBoard(page);
+  const canvas = await page.locator(".canvas").boundingBox();
+  const blank = async () => {
+    if (canvas) await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height - 60);
+  };
+  await blank();
+  const call = await tagBox(page, "web--checkout", "pay", "ref-tag/pay-orders");
+  await page.mouse.dblclick(call.x, call.y);
+  await page.waitForURL(/#\/board\/api--orders/, { timeout: 15_000 });
+  await waitForBoard(page);
+  const panel = page.locator(".source-panel");
+  await panel.locator(".guard-name").getByText("requireCustomer").waitFor({ timeout: 15_000 });
+  await panel.locator(".data-edge .target-ref").getByText("db:orders").first().waitFor();
+
+  // The boards that link here list the handler's sequence; it opens on its participant.
+  await panel.locator(".appearances > summary").click();
+  await panel
+    .getByRole("button", { name: /Placing an order \(handler\)/ })
+    .first()
+    .click();
+  await page.waitForURL(/#\/board\/place-order-handler/, { timeout: 15_000 });
+  await waitForBoard(page);
+  await panel.locator(".node-head .kind").getByText("Our system").waitFor({ timeout: 15_000 });
+
+  // A double click on the message that inserts the order opens the orders table.
+  await blank();
+  const insert = await tagBox(page, "place-order-handler", "api", "edge-label/insert");
+  await page.mouse.dblclick(insert.x, insert.y);
+  await page.waitForURL(/#\/board\/overview-db/, { timeout: 15_000 });
+  await waitForBoard(page);
+  await panel.locator(".node-id").getByText("orders", { exact: true }).waitFor({ timeout: 15_000 });
+}
+
+describe("from the Pay button through the endpoint's sequence to the table it writes", () => {
+  test("on a served atlas", async () => {
+    const server = await start({ atlas: { dir: atlasDir, root: fixtures } });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await context.newPage();
+      await page.addInitScript(() => localStorage.setItem("groundboard.locale", "en"));
+      await followSequence(page, server.origin);
+    } finally {
+      await context.close();
+      await server.close();
+    }
+  });
+});
 
 describe("from the Pay button to the job it starts", () => {
   test("on a served atlas", async () => {

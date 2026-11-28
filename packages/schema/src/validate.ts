@@ -14,6 +14,7 @@ import { endpointSlug } from "./endpoint.ts";
 import { isBehaviourSource, isInteractiveElement, navigatesFromIds } from "./grounding.ts";
 import { LIMITS, SCHEMA_VERSION } from "./limits.ts";
 import { parseRef } from "./ref.ts";
+import { checkSequence } from "./sequence.ts";
 import { familyOf, inheritStateFields, isCompactScreen, stateRoots } from "./states.ts";
 import { columnSlug, findColumn } from "./table.ts";
 import {
@@ -117,6 +118,8 @@ const NODE_FIELD_KINDS: ReadonlyArray<[keyof BoardNode, ReadonlyArray<string>]> 
   ["parentId", ["element", "endpoint"]],
   ["method", ["endpoint"]],
   ["path", ["endpoint"]],
+  ["guards", ["endpoint"]],
+  ["handler", ["endpoint"]],
   ["pathPrefix", ["resource"]],
   ["columns", ["table"]],
   ["trigger", ["job"]],
@@ -132,6 +135,7 @@ const NODE_FIELD_KINDS: ReadonlyArray<[keyof BoardNode, ReadonlyArray<string>]> 
   ["layout", ["screen"]],
   ["layouts", ["screen"]],
   ["width", ["screen", "element"]],
+  ["category", ["participant"]],
 ];
 
 /**
@@ -282,7 +286,7 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
    */
   const checkPriorSources = (
     item: { id: string; manual?: true; priorSourceIds?: string[] },
-    at: [string, number],
+    at: Array<string | number>,
   ) => {
     if (item.priorSourceIds === undefined) return;
     if (!item.manual) {
@@ -991,6 +995,40 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
         routes.set(key, node.id);
       }
     }
+    if (node.handler !== undefined) {
+      const at = ["nodes", i, "handler"];
+      node.handler.sourceIds.forEach((sourceId, k) => {
+        if (!sources.has(sourceId)) {
+          add(
+            [...at, "sourceIds", k],
+            `handler of endpoint \`${node.id}\` cites source \`${sourceId}\`, which is not a source id`,
+          );
+        }
+      });
+      if (!node.manual && !backsBehaviour(node.handler.sourceIds)) {
+        add(
+          [...at, "sourceIds"],
+          `handler of endpoint \`${node.id}\` cites no source that can back its logic; cite the line that branches, changes state or calls out, or ${BEHAVIOUR_SOURCES}`,
+        );
+      }
+    }
+    node.guards?.forEach((guard, j) => {
+      const at = ["nodes", i, "guards", j];
+      guard.sourceIds.forEach((sourceId, k) => {
+        if (!sources.has(sourceId)) {
+          add(
+            [...at, "sourceIds", k],
+            `guard \`${guard.name}\` of endpoint \`${node.id}\` cites source \`${sourceId}\`, which is not a source id`,
+          );
+        }
+      });
+      if (!node.manual && !backsBehaviour(guard.sourceIds)) {
+        add(
+          [...at, "sourceIds"],
+          `guard \`${guard.name}\` of endpoint \`${node.id}\` cites no source that can back it; cite the line that attaches it to the route, or ${BEHAVIOUR_SOURCES}`,
+        );
+      }
+    });
     if (node.ref === undefined) {
       add(["nodes", i, "ref"], `endpoint \`${node.id}\` needs a ref such as \`api:orders/get-id\``);
       return;
@@ -1031,7 +1069,9 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
       add(
         ["edges", i, "to"],
         edge.to === undefined
-          ? `edge \`${edge.id}\` needs \`to\` (a node id) or, for navigates, \`toRef\` (a screen ref)`
+          ? edge.kind === "message"
+            ? `message \`${edge.id}\` needs \`to\`, the participant it goes to; a message has no toRef, and names what it reaches on another board with \`ref\``
+            : `edge \`${edge.id}\` needs \`to\` (a node id) or, for navigates, \`toRef\` (a screen ref)`
           : `edge \`${edge.id}\` has both \`to\` and \`toRef\`; keep one`,
       );
     }
@@ -1040,6 +1080,14 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
         add(
           ["edges", i, field],
           `${field} is only allowed on references edges, not on \`${edge.kind}\` edge \`${edge.id}\``,
+        );
+      }
+    }
+    for (const field of ["messageType", "operandId", "ref"] as const) {
+      if (edge[field] !== undefined && edge.kind !== "message") {
+        add(
+          ["edges", i, field],
+          `${field} is only allowed on message edges, not on \`${edge.kind}\` edge \`${edge.id}\``,
         );
       }
     }
@@ -1102,6 +1150,14 @@ function checkReferences(board: Board, ctx: z.RefinementCtx): void {
         `navigates edge \`${edge.id}\` cites no source that can back a navigation; cite the line that navigates, or ${BEHAVIOUR_SOURCES}`,
       );
     }
+  });
+
+  checkSequence({
+    board,
+    add,
+    backsBehaviour,
+    hasSource: (sourceId) => sources.has(sourceId),
+    checkPriorSources,
   });
 
   // Sources: endLine not before line.

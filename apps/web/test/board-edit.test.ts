@@ -10,6 +10,7 @@ import {
   removeEdge,
   removeNode,
   setEdgeLabel,
+  setEndpointGuards,
   setNodeText,
 } from "../src/board-edit.ts";
 import { EditHistory } from "../src/edit-history.ts";
@@ -150,6 +151,76 @@ describe("removeNode, removeEdge", () => {
         manual: true,
       });
     }
+  });
+});
+
+describe("setEndpointGuards", () => {
+  const api = () => read("fixtures/.groundboard/api--orders.board.json");
+
+  it("adds guards, one per line, making the endpoint manual with its sources kept as prior", () => {
+    const board = api();
+    const before = node(board, "create-order") as Record<string, unknown>;
+    const result = setEndpointGuards(board, "create-order", "requireCustomer\n role: admin \n");
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    const after = node(result.board, "create-order") as Record<string, unknown>;
+    expect(after).toMatchObject({
+      manual: true,
+      guards: [{ name: "requireCustomer" }, { name: "role: admin" }],
+      priorSourceIds: before.sourceIds,
+    });
+    expect(node(result.board, "get-order")).toEqual(node(board, "get-order"));
+  });
+
+  it("keeps a renamed list's surviving guard with its sources, and clears to an empty list", () => {
+    const board = api();
+    (node(board, "create-order") as Record<string, unknown>).guards = [
+      { name: "requireCustomer", sourceIds: ["route-post"] },
+      { name: "rateLimit", sourceIds: ["route-post"] },
+    ];
+    const edited = setEndpointGuards(board, "create-order", "requireCustomer\nadminOnly");
+    expect(edited.ok && node(edited.board, "create-order")?.guards).toEqual([
+      { name: "requireCustomer", sourceIds: ["route-post"] },
+      { name: "adminOnly" },
+    ]);
+    const cleared = setEndpointGuards(board, "create-order", "  \n");
+    expect(cleared.ok && node(cleared.board, "create-order")?.guards).toEqual([]);
+  });
+
+  it("changes nothing when the list is the same, and records no guard on an unread handler", () => {
+    const board = api();
+    delete (node(board, "create-order") as Record<string, unknown>).guards;
+    const read = setEndpointGuards(board, "create-order", "");
+    expect(read.ok && node(read.board, "create-order")?.guards).toEqual([]);
+    (node(board, "create-order") as Record<string, unknown>).guards = [
+      { name: "requireCustomer", sourceIds: ["route-post"] },
+    ];
+    const same = setEndpointGuards(board, "create-order", " requireCustomer ");
+    expect(same.ok && same.board).toBe(board);
+  });
+
+  it("keeps two guards of one name apart, each with its own sources", () => {
+    const board = api();
+    (node(board, "create-order") as Record<string, unknown>).guards = [
+      { name: "auth", sourceIds: ["route-post"] },
+      { name: "auth", sourceIds: ["insert-order"] },
+    ];
+    const result = setEndpointGuards(board, "create-order", "auth\nauth\nrateLimit");
+    expect(result.ok && node(result.board, "create-order")?.guards).toEqual([
+      { name: "auth", sourceIds: ["route-post"] },
+      { name: "auth", sourceIds: ["insert-order"] },
+      { name: "rateLimit" },
+    ]);
+  });
+
+  it("refuses a node that is not an endpoint, and undoes with the shared history", () => {
+    const board = api();
+    expect(setEndpointGuards(board, "orders", "auth").ok).toBe(false);
+    const history = new EditHistory<RawBoard>(board);
+    const result = setEndpointGuards(board, "create-order", "requireCustomer");
+    if (!result.ok) throw new Error("refused");
+    history.push(result.board);
+    expect(history.undo()).toBe(board);
   });
 });
 

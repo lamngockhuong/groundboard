@@ -120,18 +120,29 @@ export function isInteractiveElement(node: BoardNode, navigatesFrom: ReadonlySet
 }
 
 /**
- * Whether a node states a claim: a screen, an interactive element, or a node of a grounded
- * kind. Questions, notes and non-interactive elements are not claims.
+ * Whether a node states a claim: a screen, an interactive element, a participant that is not a
+ * person, or a node of a grounded kind. Questions, notes and non-interactive elements are not
+ * claims.
  */
 export function isClaimNode(node: BoardNode, navigatesFrom: ReadonlySet<string>): boolean {
-  return groundedKinds.has(node.kind) || isInteractiveElement(node, navigatesFrom);
+  return (
+    groundedKinds.has(node.kind) ||
+    isInteractiveElement(node, navigatesFrom) ||
+    (node.kind === "participant" && node.category !== undefined && node.category !== "person")
+  );
 }
 
 export interface Claim {
-  /** JSON path of the node or edge, e.g. `nodes[3]`. */
+  /** JSON path of the node, edge or operand, e.g. `nodes[3]`, `fragments[0].operands[1]`. */
   path: string;
   id: string;
-  on: "node" | "edge";
+  /**
+   * `operand`: the guard of a fragment's operand on a sequence board. `guard` and `handler`: a
+   * guard of an endpoint (`id` the endpoint's, `index` the guard's) and its handler's logic.
+   */
+  on: "node" | "edge" | "operand" | "guard" | "handler";
+  /** For a guard: its place in the endpoint's `guards`. */
+  index?: number;
   grounding: Grounding;
   /** Added or reworded by a person in the viewer, so not checked: always `none`. */
   manual?: true;
@@ -144,8 +155,13 @@ export interface Claim {
  */
 export const isScreenEdgeClaim = isClaimEdge;
 
-/** Every claim of a board with its grounding, nodes first, in board order. */
-export function boardClaims(board: Pick<Board, "nodes" | "edges" | "sources">): Claim[] {
+/**
+ * Every claim of a board with its grounding, nodes first, then the guards and handlers of
+ * endpoints, then edges, then the guards of fragment operands, in board order.
+ */
+export function boardClaims(
+  board: Pick<Board, "nodes" | "edges" | "sources"> & Partial<Pick<Board, "fragments">>,
+): Claim[] {
   const sources = new Map(board.sources.map((s) => [s.id, s]));
   const navigatesFrom = navigatesFromIds(board.edges);
   const claims: Claim[] = [];
@@ -159,6 +175,30 @@ export function boardClaims(board: Pick<Board, "nodes" | "edges" | "sources">): 
       ...(node.manual ? { manual: true as const } : {}),
     });
   });
+  // An endpoint's guards and its handler cite sources of their own, so each is a claim.
+  board.nodes.forEach((node, i) => {
+    if (node.kind !== "endpoint") return;
+    const manual = node.manual ? { manual: true as const } : {};
+    node.guards?.forEach((guard, j) => {
+      claims.push({
+        path: `nodes[${i}].guards[${j}]`,
+        id: node.id,
+        on: "guard",
+        index: j,
+        grounding: node.manual ? "none" : groundingOf(guard.sourceIds, sources),
+        ...manual,
+      });
+    });
+    if (node.handler !== undefined) {
+      claims.push({
+        path: `nodes[${i}].handler`,
+        id: node.id,
+        on: "handler",
+        grounding: node.manual ? "none" : groundingOf(node.handler.sourceIds, sources),
+        ...manual,
+      });
+    }
+  });
   const screens = new Set(board.nodes.filter((n) => n.kind === "screen").map((n) => n.id));
   board.edges.forEach((edge, i) => {
     if (!isScreenEdgeClaim(edge, screens)) return;
@@ -168,6 +208,19 @@ export function boardClaims(board: Pick<Board, "nodes" | "edges" | "sources">): 
       on: "edge",
       grounding: edge.manual ? "none" : groundingOf(edge.sourceIds, sources),
       ...(edge.manual ? { manual: true as const } : {}),
+    });
+  });
+  (board.fragments ?? []).forEach((fragment, f) => {
+    fragment.operands.forEach((operand, o) => {
+      if (operand.guard === undefined) return;
+      const manual = operand.manual === true || fragment.manual === true;
+      claims.push({
+        path: `fragments[${f}].operands[${o}]`,
+        id: operand.id,
+        on: "operand",
+        grounding: manual ? "none" : groundingOf(operand.sourceIds, sources),
+        ...(manual ? { manual: true as const } : {}),
+      });
     });
   });
   return claims;

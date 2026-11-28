@@ -264,3 +264,104 @@ describe("missingFlowPlaces", () => {
     expect(missingFlowPlaces({ ...index, refs: [index.refs[1]] } as AtlasIndex)).toEqual([]);
   });
 });
+
+describe("endpoints whose handler has logic", () => {
+  const index = {
+    boards: [board("web--cart", "screen"), board("api--orders", "api"), board("a-flow", "flow")],
+    refs: [
+      { ref: "api:orders", definedIn: [{ slug: "api--orders", nodeId: "orders" }], usedIn: [] },
+      {
+        ref: "api:orders/post",
+        definedIn: [{ slug: "api--orders", nodeId: "post", label: "Place an order" }],
+        usedIn: [{ slug: "web--cart", nodeId: "pay", edgeId: "call" }],
+        needsFlow: true,
+        flowShape: "sequence",
+      },
+    ],
+    problems: [],
+  } as unknown as AtlasIndex;
+
+  it("lists the endpoint under its API board, with the shape its handler needs", () => {
+    expect([...missingFlowSet(index)]).toEqual(["api:orders/post"]);
+    expect(missingFlowPlaces(index)).toEqual([
+      {
+        slug: "api--orders",
+        title: "api--orders",
+        items: [
+          {
+            ref: "api:orders/post",
+            nodeId: "post",
+            shortRef: "post",
+            label: "Place an order",
+            endpoint: { shape: "sequence" },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("a node carrying its ref on a flow board covers it", () => {
+    const covered = structuredClone(index);
+    (covered.refs[1] as { usedIn: unknown[] }).usedIn.push({ slug: "a-flow", nodeId: "in" });
+    expect(missingFlowSet(covered).size).toBe(0);
+    expect(missingFlowPlaces(covered)).toEqual([]);
+  });
+
+  it("marks the endpoint's row on the canvas", () => {
+    const boxes = flowHintBoxes(
+      [
+        {
+          id: "node/post",
+          x: 10,
+          y: 20,
+          width: 300,
+          height: 40,
+          customData: { groundboard: { nodeId: "post", kind: "endpoint", ref: "api:orders/post" } },
+        },
+        {
+          id: "node/post/text",
+          x: 18,
+          y: 26,
+          width: 200,
+          height: 20,
+          customData: { groundboard: { nodeId: "post", kind: "endpoint", ref: "api:orders/post" } },
+        },
+      ],
+      new Set(["api:orders/post"]),
+    );
+    expect(boxes).toEqual([
+      { nodeId: "post", ref: "api:orders/post", x: 10, y: 20, width: 300, height: 40 },
+    ]);
+  });
+
+  it("asks for the board the handler needs, naming the route, on one line in every language", () => {
+    for (const shape of ["flow", "state", "sequence"] as const) {
+      const prompt = flowPrompt({
+        ref: "api:orders/post",
+        label: "Place\n an order",
+        endpoint: { shape, method: "POST", path: "/api/orders" },
+      });
+      expect(prompt).not.toContain("\n");
+      expect(prompt).toContain("POST /api/orders (Place an order)");
+      expect(prompt).toContain("`api:orders/post`");
+    }
+    expect(
+      flowPrompt({
+        ref: "api:orders/post",
+        label: "Place an order",
+        endpoint: { shape: "sequence", method: "POST", path: "/api/orders" },
+      }),
+    ).toBe(
+      "/groundboard:board Draw a sequence diagram of what POST /api/orders (Place an order) does in its handler, the participant for the handler carrying ref `api:orders/post`, and cite the handler",
+    );
+    for (const locale of ["vi", "ja"] as const) {
+      setLocale(locale);
+      const prompt = flowPrompt({
+        ref: "api:orders/post",
+        endpoint: { shape: "sequence", method: "POST", path: "/api/orders" },
+      });
+      expect(prompt).toContain("POST /api/orders");
+      expect(prompt).not.toContain("\n");
+    }
+  });
+});

@@ -103,6 +103,102 @@ describe("API resources and endpoints", () => {
   });
 });
 
+describe("endpoint guards", () => {
+  const guarded = (guards: unknown, extra: Record<string, unknown> = {}) =>
+    apiBoard([{ method: "POST", path: "/v1/orders", ref: "api:orders/post", guards, ...extra }]);
+
+  test("each guard and the handler is a claim of its own, grounded by what it cites", () => {
+    const board = guarded(
+      [
+        { name: "requireCustomer", sourceIds: ["r"] },
+        { name: "role: admin", sourceIds: ["spec"] },
+      ],
+      { handler: { shape: "flow", sourceIds: ["r"] } },
+    );
+    board.sources.push({
+      id: "spec",
+      kind: "doc",
+      path: "docs/api.md",
+      line: 3,
+      quote: "Admins only",
+    } as never);
+    const parsed = parseBoard(board);
+    expect(parsed.ok, JSON.stringify(parsed)).toBe(true);
+    if (!parsed.ok) return;
+    const claims = boardClaims(parsed.value).filter((c) => c.on === "guard" || c.on === "handler");
+    expect(claims).toEqual([
+      { path: "nodes[1].guards[0]", id: "e0", on: "guard", index: 0, grounding: "code" },
+      { path: "nodes[1].guards[1]", id: "e0", on: "guard", index: 1, grounding: "spec" },
+      { path: "nodes[1].handler", id: "e0", on: "handler", grounding: "code" },
+    ]);
+    const manual = parseBoard(guarded([{ name: "auth" }], { manual: true }));
+    if (!manual.ok) throw new Error("manual endpoint refused");
+    expect(boardClaims(manual.value).find((c) => c.on === "guard")).toMatchObject({
+      grounding: "none",
+      manual: true,
+    });
+  });
+
+  test("an empty list says the handler was read and has no guard", () => {
+    const parsed = parseBoard(guarded([]));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) expect(parsed.value.nodes[1]?.guards).toEqual([]);
+  });
+
+  test("a guard needs a source that can back it, unless the endpoint is manual", () => {
+    const unquoted = guarded([{ name: "requireCustomer", sourceIds: ["bare"] }]);
+    unquoted.sources.push({ id: "bare", path: "server/auth.ts", line: 3 } as never);
+    expect(messages(unquoted)).toContain(
+      "nodes[1].guards[0].sourceIds: guard `requireCustomer` of endpoint `e0` cites no source that can back it; cite the line that attaches it to the route, or a quoted code source, a doc source, a figma source, a mockup with a path, or a link with a quote",
+    );
+    expect(messages(guarded([{ name: "auth", sourceIds: ["nope"] }]))).toContain(
+      "nodes[1].guards[0].sourceIds[0]: guard `auth` of endpoint `e0` cites source `nope`, which is not a source id",
+    );
+    expect(messages(guarded([{ name: "auth" }], { manual: true }))).toEqual([]);
+  });
+
+  test("at most eight guards, and only on endpoints", () => {
+    const many = Array.from({ length: 9 }, (_, i) => ({ name: `g${i}`, sourceIds: ["r"] }));
+    expect(messages(guarded(many))).toContain(
+      "nodes[1].guards: nodes[1].guards has more than 8 items",
+    );
+    const board = apiBoard([]);
+    (board.nodes[0] as Record<string, unknown>).guards = [];
+    expect(messages(board).join(" ")).toContain("guards is only allowed on `endpoint` nodes");
+  });
+
+  test("a guard name that looks like an email is a warning", () => {
+    const parsed = parseBoard(guarded([{ name: "allow ana@example.com", sourceIds: ["r"] }]));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok)
+      expect(lintBoardText(parsed.value).join(" ")).toContain("nodes[1].guards[0].name");
+  });
+});
+
+describe("endpoint handlers", () => {
+  const withHandler = (handler: unknown, extra: Record<string, unknown> = {}) =>
+    apiBoard([{ method: "POST", path: "/v1/orders", ref: "api:orders/post", handler, ...extra }]);
+
+  test("a handler names the board that explains it and cites the line that makes it so", () => {
+    for (const shape of ["flow", "state", "sequence"]) {
+      expect(messages(withHandler({ shape, sourceIds: ["r"] }))).toEqual([]);
+    }
+    expect(messages(withHandler({ shape: "chart", sourceIds: ["r"] })).join(" ")).toContain(
+      "nodes[1].handler.shape",
+    );
+  });
+
+  test("a handler needs a source that can back it unless the endpoint is manual, and only on endpoints", () => {
+    expect(messages(withHandler({ shape: "flow" }))).toContain(
+      "nodes[1].handler.sourceIds: handler of endpoint `e0` cites no source that can back its logic; cite the line that branches, changes state or calls out, or a quoted code source, a doc source, a figma source, a mockup with a path, or a link with a quote",
+    );
+    expect(messages(withHandler({ shape: "flow" }, { manual: true }))).toEqual([]);
+    const board = apiBoard([]);
+    (board.nodes[0] as Record<string, unknown>).handler = { shape: "flow", sourceIds: ["r"] };
+    expect(messages(board).join(" ")).toContain("handler is only allowed on `endpoint` nodes");
+  });
+});
+
 describe("calls edges", () => {
   const screen = (edge: Record<string, unknown>) => ({
     schemaVersion: 1,

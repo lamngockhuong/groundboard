@@ -17,6 +17,7 @@ export const CLAIM_EDGE_KINDS: readonly EdgeKind[] = [
   "reads",
   "writes",
   "enqueues",
+  "message",
 ];
 
 /**

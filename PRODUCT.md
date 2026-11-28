@@ -76,15 +76,27 @@ authoritative. groundboard itself never calls an LLM and needs no API key.
 - Static export: the same viewer with the atlas as JSON files, no server; it hides what needs
   one (opening a local board file, the token prompt), and a `#<board-name>` link opens a board.
 - The page makes no third-party request: fonts and assets are served locally, no CDN.
-- API: one board per resource, a card of its endpoints, each citing its route; a control on a
-  screen links to the endpoint it calls (`calls`), and a double click follows it.
+- API: one board per resource, a card of its endpoints, each citing its route; each endpoint's
+  row shows the guards its route runs (or "no guard found" once its handler was read) and the
+  tables and jobs it reads, writes and enqueues as tags, each tag citing its query; a control on
+  a screen links to the endpoint it calls (`calls`), and a double click follows it. An endpoint
+  whose handler branches, changes state or calls out says which board explains it (flow, state
+  machine or sequence); until a node on a non-screen board carries its ref, `atlas check` warns
+  and the viewer marks it "No flow yet", as for an element.
+- Sequence diagrams: a board of participants (person, our system, an outside service, a
+  database, a queue) and numbered messages (a call that waits, a reply, an async message), with
+  nested fragments (`alt`, `opt`, `loop`, `par`, `break`) whose guards cite their condition;
+  laid out without the graph engine, drawn, exported and presented message by message like any
+  board, and edited in the panel (no dragging): participants reordered as presentation only,
+  messages moved in and out of fragments, fragments wrapped, split, changed and removed.
 - Database: tables as cards of columns with foreign keys, from migrations and models only;
   endpoints and steps link to the tables they read and write.
 - Background jobs: each job with what starts it (cron, queue, event, manual) and its retries;
   what enqueues it and the tables it touches link to it.
 - Terminology: board, board IR, node, edge, ref, citation, grounding (code / spec / none),
-  stale, screen atlas, overview, screen, flow, API (resource, endpoint, calls), table, column, job, trigger, manual (edited by
-  hand), layout overlay, draft.
+  stale, screen atlas, overview, screen, flow, API (resource, endpoint, calls, guard, handler),
+  sequence diagram (participant, message, fragment, operand, guard), table, column, job,
+  trigger, manual (edited by hand), layout overlay, draft.
 
 ## Brand Commitments
 

@@ -19,6 +19,7 @@ which only by the specification.
 | `nodes` | yes | `{ id, kind, label, detail?, groupId?, sourceIds, ref? }`, plus the screen fields below. At most 500. |
 | `edges` | no | `{ id, from, to, kind, label?, sourceIds? }`. `from` and `to` are node ids; a `navigates` edge may use `toRef` instead of `to`. |
 | `sources` | no | One of five kinds; see "Sources". A source without `kind` is a code source. |
+| `fragments` | no | A sequence board's combined fragments (`alt`, `opt`, `loop`, `par`, `break`); see "Sequence diagrams". |
 
 Ids use letters, digits, `_`, `.`, `:` and `-`, at most 64 characters, unique within their list.
 
@@ -40,6 +41,7 @@ Ids use letters, digits, `_`, `.`, `:` and `-`, at most 64 characters, unique wi
 | `endpoint` | One endpoint of a resource: a method and a path. See "API endpoints". | yes |
 | `table` | A database table with its columns, drawn as a card of column rows. See "Database tables". | yes |
 | `job` | A background job: a cron schedule, a queue worker, an event handler. See "Background jobs". | yes |
+| `participant` | One column of a sequence diagram: a person, our system, an outside service, a database or a queue. See "Sequence diagrams". | yes, unless a person |
 
 Keep labels short (one line of about 40 characters is ideal); put the rest in `detail`.
 groundboard draws only the label on a node; the viewer's Sources panel lists each cited
@@ -59,6 +61,7 @@ groundboard draws only the label on a node; the viewer's Sources panel lists eac
 | `references` | A foreign key from one table to another: `fromColumn`, `toColumn`, `cardinality`. Must cite the line that declares it. |
 | `reads`, `writes` | An endpoint, a step or an element reads or writes a table (or one column, by `toRef: "db:<table>/<column>"`). Must cite the query. |
 | `enqueues` | An element, a step, an endpoint or a job puts a job on its queue or starts it: `to` a job, or `toRef: "batch:<job>"`. Must cite the line that enqueues it or emits its event. |
+| `message` | On a sequence board, one participant calls, answers or notifies another, in the order of `edges`. Must cite the line that makes the call. See "Sequence diagrams". |
 
 ## Sources
 
@@ -155,7 +158,9 @@ not read code.
   or requirement states. When a named step has no receiver and you must add one, say so in your
   report as an assumption; when the gap matters, it is a `question`.
 - **Drop replies that carry nothing.** An edge back that only repeats what the branch label
-  already says (an "OK", a "returns result") adds a line and no fact; leave it out.
+  already says (an "OK", a "returns result") adds a line and no fact; leave it out. On a sequence
+  board the same holds for a `reply` message: keep it when it carries a value the reader needs
+  (`402 payment declined`, `an authorization id`), drop it when it only says "returns".
 - **A flag is not a state.** A boolean or a marker such as `cancel_at_period_end` belongs on the
   label of the `transition` it changes, or in the `detail` of the state that carries it, not as
   a state node of its own. A state is something the entity is in; a flag is something it has.
@@ -178,6 +183,9 @@ not read code.
   gateway), show the normal case before the failure branch.
 - **Terms the reader may not know** are explained in the node's `detail`, replaced with an
   everyday word, or left as they are only when the reader surely knows them.
+- **A guard says the condition as the code does.** The guard of a fragment's operand repeats
+  the condition the cited line tests (`authorized`, `each line of the cart`), not a summary of
+  what follows ("success path").
 
 ## Screens and elements
 
@@ -350,6 +358,35 @@ On a screen board, a control that calls an endpoint gets a `calls` edge with
 `toRef: "api:orders/post"`, citing the line that calls it; it is drawn as a numbered tag, like
 a navigation to another screen.
 
+An endpoint whose handler was read lists its `guards`: what the route runs before the handler
+(a middleware, a decorator such as `@UseGuards`, a role or policy check), each
+`{ "name": "requireCustomer", "sourceIds": ["auth-line"] }` citing the line that attaches it,
+at most 8. A guard applied to every route is listed on each endpoint, citing that one line.
+`"guards": []` says the handler was read and attaches none, drawn as "no guard found"; it does
+not say the endpoint is public, since a gateway may still guard it. Leave `guards` out when the
+handler was not read. The guard line is drawn under the endpoint's route in its row.
+
+A `reads`, `writes` or `enqueues` edge with `toRef` out of an endpoint is drawn as a small tag
+inside the endpoint's row (`writes orders`, `enqueues send-receipt`), not as an arrow; the
+reader selects the tag to see the query it cites and double-clicks it to open the table's or the
+job's board.
+
+An endpoint whose handler has logic worth a board of its own says so with `handler`:
+`{ "shape": "sequence", "sourceIds": ["authorize-line"] }`, citing the very line that makes it
+so. Pick the shape from what the handler does: `flow` when it branches (`if`, `switch`, an error
+thrown on a condition), `state` when it changes the state of a record (`status = ...`),
+`sequence` when it calls out (an identity provider, a bank's API, a queue, a batch); when
+several hold, `sequence` before `state` before `flow`. A handler that only reads or writes one
+table with no branch gets no `handler`. `atlas check` lists an endpoint with `handler` that
+nothing explains yet, and the viewer marks it "No flow yet".
+
+What explains an endpoint is exactly what explains an element: a node on a board that is not a
+screen board carries the endpoint's ref. So the first node of the flow, state machine or
+sequence that explains a handler carries the endpoint's ref (on a sequence board, the
+participant that stands for the handler), while a step on the client's side that calls the
+endpoint only links to it with a `calls` edge whose `toRef` is the ref, and never carries the
+ref itself, or the hint would go quiet with nothing explaining the handler.
+
 ## Database tables
 
 A `table` node defines `db:<table>`, the slug its name lowercased with `_` as `-`
@@ -383,6 +420,137 @@ its schedule or its consumer. A trigger declared outside the repository (a cloud
 What puts a job on its queue (an endpoint, a step, an element, another job) gets an `enqueues`
 edge to it, citing the line; a job that reads or writes a table gets `reads` or `writes`. The
 detailed flow of a complex job is a flow board of its own whose nodes point at the job by `ref`.
+
+## Sequence diagrams
+
+Draw a sequence diagram when several parties take turns: a handler that calls an outside
+service, writes the database and puts a job on a queue, a sign-in that goes through an identity
+provider. A board that holds `participant` nodes is a sequence board. It holds only
+`participant`, `question` and `note` nodes and `message` edges, and no `groups`; a board without
+participants holds neither messages nor fragments.
+
+- **Participants** are the columns, in the order of `nodes`. Each has a `category`: `person`,
+  `system` (ours), `external` (an outside service), `database` or `queue`. Anything but a
+  person cites a source that locates it: the line that creates its client, imports its SDK or
+  opens its connection. `person` is only for a real human (a customer, an admin, an operator),
+  never for an outside system written as a person to skip its citation. A participant may carry
+  a `ref` it points at (`api:`, `db:`, `batch:`,
+  `web:`, `mobile:`); it never defines one.
+- **Messages** are the rows, in the order of `edges`, numbered by the viewer. `from` and `to` are
+  participants (the same one for a call to itself). `messageType` is `sync` (a call that waits,
+  the default), `reply` or `async`. Each cites the line that makes the call (for a reply, the
+  line that returns or receives the result). A message may carry a `ref` to what it reaches
+  (`db:orders`, or a screen such as `web:checkout`, never an element), and has no `toRef`.
+- **Fragments** are in the top-level `fragments`: `{ id, kind, label?, parentOperandId?,
+  operands: [{ id, guard?, sourceIds }] }`. `alt` (one branch of several) and `par` (at the same
+  time) take two operands or more; `opt` (only if), `loop` (repeated) and `break` (leave the
+  enclosing fragment, often an early error) take exactly one. A message joins an operand with
+  `operandId`; a fragment inside another names the operand it sits in with `parentOperandId`, at
+  most four levels deep. The ids of fragments and operands share the board's ids with nodes and
+  edges.
+- **Runs**: the messages of an operand, its inner fragments' included, follow each other in
+  message order, and the operands of a fragment follow each other in the order they are listed.
+  An operand with no message is an error, and so is a message that sits between the messages of
+  an operand it is not in.
+- **Guards** are claims: an operand with a `guard` cites the line of the condition (the `if`,
+  the `for`, the `catch`). A `par` needs no guard.
+- **Explaining an endpoint**: the participant that stands for the handler carries the
+  endpoint's ref; the first message may carry it too. Only the participant counts as the
+  explanation, since a message's ref, like a `toRef`, only points.
+- **Rewriting a sequence board**: keep the participants in the order the board already lists
+  them in `nodes`. The column order is the reader's own choice, made in the viewer's edit mode;
+  it states nothing about the code, so it is never marked `manual`. Add a new participant at the
+  end; keep a participant the code no longer has, and add a `question`, as with a `manual` node.
+
+```json
+{
+  "schemaVersion": 1,
+  "title": "Placing an order (handler)",
+  "question": "What does POST /api/orders do once it is called?",
+  "nodes": [
+    { "id": "customer", "kind": "participant", "category": "person", "label": "Customer" },
+    {
+      "id": "api",
+      "kind": "participant",
+      "category": "system",
+      "label": "Orders API",
+      "ref": "api:orders/post",
+      "sourceIds": ["route"]
+    },
+    {
+      "id": "bank",
+      "kind": "participant",
+      "category": "external",
+      "label": "Payment gateway",
+      "sourceIds": ["client"]
+    },
+    {
+      "id": "db",
+      "kind": "participant",
+      "category": "database",
+      "label": "Database",
+      "sourceIds": ["route"]
+    }
+  ],
+  "edges": [
+    {
+      "id": "m1",
+      "kind": "message",
+      "from": "customer",
+      "to": "api",
+      "label": "POST /api/orders",
+      "ref": "api:orders/post",
+      "sourceIds": ["route"]
+    },
+    {
+      "id": "m2",
+      "kind": "message",
+      "from": "api",
+      "to": "bank",
+      "label": "authorize the total",
+      "sourceIds": ["authorize"]
+    },
+    {
+      "id": "m3",
+      "kind": "message",
+      "from": "api",
+      "to": "db",
+      "label": "insert the order",
+      "ref": "db:orders",
+      "operandId": "ok",
+      "sourceIds": ["insert"]
+    },
+    {
+      "id": "m4",
+      "kind": "message",
+      "messageType": "reply",
+      "from": "api",
+      "to": "customer",
+      "label": "402 payment declined",
+      "operandId": "declined",
+      "sourceIds": ["decline"]
+    }
+  ],
+  "fragments": [
+    {
+      "id": "pay",
+      "kind": "alt",
+      "operands": [
+        { "id": "ok", "guard": "authorized", "sourceIds": ["check"] },
+        { "id": "declined", "guard": "not authorized", "sourceIds": ["check"] }
+      ]
+    }
+  ],
+  "sources": [
+    { "id": "client", "path": "server/payment-gateway.ts", "line": 5, "quote": "new BankClient(" },
+    { "id": "route", "path": "server/orders-routes.ts", "line": 10, "quote": "router.post(\"/orders\"" },
+    { "id": "authorize", "path": "server/orders-routes.ts", "line": 11, "quote": "gateway.authorize(" },
+    { "id": "check", "path": "server/orders-routes.ts", "line": 12, "quote": "if (!authorized)" },
+    { "id": "decline", "path": "server/orders-routes.ts", "line": 13, "quote": "res.status(402)" },
+    { "id": "insert", "path": "server/orders-routes.ts", "line": 15, "quote": "db.insert(\"orders\"" }
+  ]
+}
+```
 
 ## From specification to code
 

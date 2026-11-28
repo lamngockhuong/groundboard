@@ -9,6 +9,7 @@ export * from "./limits.ts";
 export * from "./lint-text.ts";
 export * from "./overlay.ts";
 export * from "./ref.ts";
+export * from "./sequence.ts";
 export * from "./states.ts";
 export * from "./table.ts";
 export * from "./validate.ts";

@@ -170,7 +170,8 @@ A worked example is in [examples/fixtures/.groundboard](examples/fixtures/.groun
 It is the shop app the hosted editor shows, and it uses every kind of board: web and mobile
 overviews, screens drawn from code and from Figma, a screen with loading, error and loaded
 states, three API resources, four tables, jobs started by a schedule, a queue, an event and by
-hand, flows from a button to its endpoint, table and job, the order state machine, a cause and
+hand, flows from a button to its endpoint, table and job, the sequence of the order endpoint's
+handler (a payment gateway, an alt with a loop inside), the order state machine, a cause and
 decision board, and an account screen that is not built yet (cited from the requirements, a
 mockup and a wiki link, with an unresolved button and a link added by hand). Every board has
 tags, and the web overview has a layout overlay with a moved box and a note.

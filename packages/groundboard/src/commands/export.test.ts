@@ -123,9 +123,9 @@ describe("groundboard export", () => {
     const out = path.join(base, "fixtures-out");
     const dir = path.join(fixtures, ".groundboard");
     const summary = await exportAtlas({ dir, root: fixtures, out, webRoot }, () => {});
-    expect(summary.boards).toBe(17);
+    expect(summary.boards).toBe(18);
     const slugs = await compareWithServer(dir, fixtures, out);
-    expect(slugs).toHaveLength(17);
+    expect(slugs).toHaveLength(18);
     // The viewer reads which elements need a flow from the exported index.
     const refs: Array<{ ref: string; needsFlow?: boolean }> = readJson(
       path.join(out, "data", "atlas.json"),
@@ -137,11 +137,11 @@ describe("groundboard export", () => {
     expect(html).toContain(`<head>\n    ${STATIC_MODE_META}`);
     expect(existsSync(path.join(out, "assets", "index.js"))).toBe(true);
     expect(existsSync(path.join(out, "fonts", "Xiaolai", "a.woff2"))).toBe(true);
-    // index.html, the script, two fonts, atlas.json, seventeen boards and the manifest: the board
+    // index.html, the script, two fonts, atlas.json, eighteen boards and the manifest: the board
     // files ride inside the board JSON, so the count is one per board.
-    expect(summary.files).toBe(23);
+    expect(summary.files).toBe(24);
     const manifest = readFileSync(path.join(out, "manifest.txt"), "utf8").trim().split("\n");
-    expect(manifest).toHaveLength(22);
+    expect(manifest).toHaveLength(23);
     expect(manifest).toContain("fonts/Xiaolai/a.woff2");
     expect(manifest).toContain("data/boards/web--checkout.json");
     expect(manifest).not.toContain("manifest.txt");

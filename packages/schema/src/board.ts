@@ -18,6 +18,7 @@ export const NODE_KINDS = [
   "endpoint",
   "table",
   "job",
+  "participant",
 ] as const;
 
 /** Node kinds that state a claim about the code, so they must cite at least one quoted source. */
@@ -46,7 +47,32 @@ export const EDGE_KINDS = [
   "reads",
   "writes",
   "enqueues",
+  "message",
 ] as const;
+
+/**
+ * What a participant of a sequence diagram is: a person, a system of ours, an outside service,
+ * a database or a queue. Anything but a person is a claim about the code and cites a source.
+ */
+export const PARTICIPANT_CATEGORIES = [
+  "person",
+  "system",
+  "external",
+  "database",
+  "queue",
+] as const;
+export type ParticipantCategory = (typeof PARTICIPANT_CATEGORIES)[number];
+
+/** How a message is sent: a call that waits (`sync`), the answer to one (`reply`), or `async`. */
+export const MESSAGE_TYPES = ["sync", "reply", "async"] as const;
+export type MessageType = (typeof MESSAGE_TYPES)[number];
+
+/**
+ * The combined fragments of a sequence diagram: `alt` (one branch of several), `opt` (maybe),
+ * `loop` (repeated), `par` (at the same time) and `break` (leave the enclosing fragment).
+ */
+export const FRAGMENT_KINDS = ["alt", "opt", "loop", "par", "break"] as const;
+export type FragmentKind = (typeof FRAGMENT_KINDS)[number];
 
 /** What starts a background job. */
 export const TRIGGER_TYPES = ["cron", "queue", "event", "manual"] as const;
@@ -307,6 +333,30 @@ export const RetrySchema = z.object({
   backoff: z.string().min(1).max(60).optional(),
 });
 
+/**
+ * A check an endpoint's route runs before its handler: a middleware, a decorator such as
+ * `@UseGuards`, a role or policy check. `name` is how the code names it; `sourceIds` cite the
+ * line that attaches it to the route.
+ */
+export const GuardSchema = z.object({
+  name: z.string().min(1).max(120),
+  sourceIds: z.array(id).max(LIMITS.sourceIdsPerNode).default([]),
+});
+
+/** How the logic of an endpoint's handler is explained: a flow, a state machine or a sequence. */
+export const HANDLER_SHAPES = ["flow", "state", "sequence"] as const;
+export type HandlerShape = (typeof HANDLER_SHAPES)[number];
+
+/**
+ * An endpoint whose handler has logic worth a board of its own: it branches, changes the state
+ * of something, or calls out. `shape` is the board that explains it; `sourceIds` cite the lines
+ * that make it so (the branch, the state change, the outside call).
+ */
+export const HandlerSchema = z.object({
+  shape: z.enum(HANDLER_SHAPES),
+  sourceIds: z.array(id).max(LIMITS.sourceIdsPerNode).default([]),
+});
+
 export const NodeSchema = z.object({
   id,
   kind: z.enum(NODE_KINDS),
@@ -361,6 +411,16 @@ export const NodeSchema = z.object({
   method: z.enum(HTTP_METHODS).optional(),
   /** `endpoint` only, required: its path as the route declares it, starting with `/`. */
   path: z.string().min(1).max(LIMITS.shortText).optional(),
+  /**
+   * `endpoint` only: the checks its route runs before the handler. Omitted: the handler was not
+   * read. Empty: it was read and attaches no guard, which is not a claim that it is public.
+   */
+  guards: z.array(GuardSchema).max(LIMITS.guardsPerEndpoint).optional(),
+  /**
+   * `endpoint` only: its handler has logic, so a flow, a state machine or a sequence should
+   * explain it, its first node carrying the endpoint's ref.
+   */
+  handler: HandlerSchema.optional(),
   /** `resource` only: a prefix every endpoint path of the resource starts with, e.g. `/v1`. */
   pathPrefix: z.string().min(1).max(LIMITS.shortText).optional(),
   /** `table` only: its columns in declaration order. Each defines `db:<table>/<column-slug>`. */
@@ -371,6 +431,8 @@ export const NodeSchema = z.object({
   retry: RetrySchema.optional(),
   /** `job` only: how long a run may take, as declared (`30s`, `5m`). */
   timeout: z.string().min(1).max(60).optional(),
+  /** `participant` only, required: what the participant is. */
+  category: z.enum(PARTICIPANT_CATEGORIES).optional(),
   /**
    * Added or worded by a person in the viewer, not checked against sources: always counted as
    * unresolved, and drawn so. A claim that is `manual` may cite nothing.
@@ -401,10 +463,41 @@ export const EdgeSchema = z.object({
   toColumn: z.string().min(1).max(64).optional(),
   /** `references` only: how many rows on each side. */
   cardinality: z.enum(CARDINALITIES).optional(),
+  /** `message` only: how it is sent; `sync` when omitted. */
+  messageType: z.enum(MESSAGE_TYPES).optional(),
+  /** `message` only: the operand of a fragment it belongs to. */
+  operandId: id.optional(),
+  /** `message` only: the endpoint, table, job or screen it reaches, defined on another board. */
+  ref: atlasRef.optional(),
   /** Added or labelled by a person in the viewer; see the node's `manual`. */
   manual: z.literal(true).optional(),
   /** The sources the edge cited before a person changed it; only on a `manual` edge. */
   priorSourceIds: z.array(id).max(LIMITS.sourceIdsPerNode).optional(),
+});
+
+/** One operand of a fragment: a branch of an `alt`, the body of a `loop`... */
+export const OperandSchema = z.object({
+  id,
+  /** The condition, as the code words it (`authorized`, `each cart line`). A claim. */
+  guard: longText.min(1).optional(),
+  sourceIds: z.array(id).max(LIMITS.sourceIdsPerNode).default([]),
+  /** Added or worded by a person in the viewer; see the node's `manual`. */
+  manual: z.literal(true).optional(),
+  priorSourceIds: z.array(id).max(LIMITS.sourceIdsPerNode).optional(),
+});
+
+/**
+ * A combined fragment of a sequence board: a frame around the messages of its operands, which
+ * follow each other in message order. A fragment inside another names the operand it sits in.
+ */
+export const FragmentSchema = z.object({
+  id,
+  kind: z.enum(FRAGMENT_KINDS),
+  label: shortText.min(1).optional(),
+  parentOperandId: id.optional(),
+  operands: z.array(OperandSchema).min(1).max(LIMITS.operandsPerFragment),
+  /** Added or reworded by a person in the viewer. */
+  manual: z.literal(true).optional(),
 });
 
 export const RepoSchema = z.object({
@@ -447,6 +540,8 @@ export const BoardShape = z.object({
   nodes: z.array(NodeSchema).min(1).max(LIMITS.nodes),
   edges: z.array(EdgeSchema).max(LIMITS.edges).default([]),
   sources: z.array(SourceSchema).max(LIMITS.sources).default([]),
+  /** A sequence board's combined fragments; see `participant` and `message`. */
+  fragments: z.array(FragmentSchema).max(LIMITS.fragments).optional(),
 });
 
 export type Board = z.output<typeof BoardShape>;
@@ -455,6 +550,9 @@ export type BoardNode = Board["nodes"][number];
 export type BoardEdge = Board["edges"][number];
 export type BoardGroup = Board["groups"][number];
 export type BoardSource = Board["sources"][number];
+export type EndpointGuard = NonNullable<BoardNode["guards"]>[number];
+export type BoardFragment = NonNullable<Board["fragments"]>[number];
+export type FragmentOperand = BoardFragment["operands"][number];
 export type CodeSource = Extract<BoardSource, { kind: "code" }>;
 export type FigmaSource = Extract<BoardSource, { kind: "figma" }>;
 export type DocSource = Extract<BoardSource, { kind: "doc" }>;

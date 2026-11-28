@@ -1,6 +1,7 @@
 import type { Worker } from "node:worker_threads";
 import { expect, test } from "vitest";
-import { loadExample } from "../test/boards.ts";
+import { sequenceBoard } from "../../schema/test/sequence-board.ts";
+import { loadExample, parse } from "../test/boards.ts";
 import { layoutBoard } from "./layout.ts";
 import { LayoutTimeoutError, layoutInWorker } from "./worker.ts";
 
@@ -10,6 +11,16 @@ test("layoutInWorker returns the same result as layoutBoard", async () => {
     layoutBoard(board, { direction: "down" }),
     layoutInWorker(board, { direction: "down", timeoutMs: 20_000 }),
   ]);
+  expect(viaWorker).toEqual(direct);
+}, 30_000);
+
+test("a sequence board lays out the same in a worker", async () => {
+  const board = parse(sequenceBoard());
+  const [direct, viaWorker] = await Promise.all([
+    layoutBoard(board),
+    layoutInWorker(board, { timeoutMs: 20_000 }),
+  ]);
+  expect(viaWorker.sequence?.fragments.map((f) => f.id)).toEqual(["pay", "lines"]);
   expect(viaWorker).toEqual(direct);
 }, 30_000);
 

@@ -1,4 +1,8 @@
 {
+  "sequences": {
+    "place-order-handler": "api:orders/post"
+  },
+  "chain": ["web:checkout/pay-button", "api:orders/post", "place-order-handler", "db:orders"],
   "apis": {
     "api--orders": ["api:orders/get-id", "api:orders/post"],
     "api--cart": ["api:cart/post-lines"],

@@ -187,6 +187,7 @@ describe("selectedBoardItems and arrowsTouching", () => {
     expect(selectedBoardItems(elements, { "node/a/action": true, "edge/bc": true })).toEqual({
       nodes: ["a"],
       edges: ["bc"],
+      operands: [],
     });
   });
 
@@ -390,5 +391,55 @@ describe("a presentation over hidden layers", () => {
     const last = sceneAtStep(start, hiddenAtStep(graph, steps, steps.length - 1));
     expect(last).toEqual(start);
     for (const [i, element] of last.entries()) expect(element).toBe(start[i]);
+  });
+});
+
+describe("a presentation of a sequence board", () => {
+  it("shows every participant, then one message per step, each fragment with its first message", async () => {
+    const { sequenceBoard } = await import("../../../packages/schema/test/sequence-board.ts");
+    const { renderBoardLocally } = await import("../src/local-render.ts");
+    const { stepTargets } = await import("../src/motion-graph.ts");
+    const result = await renderBoardLocally(sequenceBoard());
+    if (result.status !== "ok") throw new Error(JSON.stringify(result));
+    const elements = (result.scene as { elements: El[] }).elements;
+    const graph = readMotionGraph(elements);
+    expect(graph.sequence).toBe(true);
+    expect(graph.arrows.map((a) => [a.id, a.from, a.to, a.number])).toEqual([
+      ["m1", "user", "api", 1],
+      ["m2", "api", "bank", 2],
+      ["m3", "bank", "api", 3],
+      ["m4", "api", "db", 4],
+      ["m5", "api", "db", 5],
+      ["m6", "api", "q", 6],
+      ["m7", "api", "user", 7],
+    ]);
+    const steps = presentationSteps(graph);
+    expect(steps).toHaveLength(8);
+    expect(steps[0]).toEqual({ nodes: ["user", "api", "bank", "db", "q"], arrows: [] });
+    expect(steps.slice(1).map((s) => s.arrows)).toEqual([
+      ["m1"],
+      ["m2"],
+      ["m3"],
+      ["m4"],
+      ["m5"],
+      ["m6"],
+      ["m7"],
+    ]);
+    // Before message 4 the alt is hidden; its declined branch waits for message 7.
+    const atThree = hiddenAtStep(graph, steps, 3);
+    for (const id of ["fragment/pay", "fragment-tag/pay", "operand-guard/ok", "edge/m4"]) {
+      expect(atThree.has(id), id).toBe(true);
+    }
+    expect(atThree.has("lifeline/api")).toBe(false);
+    const atFour = hiddenAtStep(graph, steps, 4);
+    expect(atFour.has("fragment/pay")).toBe(false);
+    expect(atFour.has("fragment/lines")).toBe(true);
+    expect(atFour.has("operand-line/declined")).toBe(true);
+    expect(hiddenAtStep(graph, steps, 7).size).toBe(0);
+    // The camera frames the message each step adds.
+    expect(stepTargets(graph, steps[2])).toEqual(["edge/m2"]);
+    expect(stepTargets(graph, steps[0]).sort()).toEqual(
+      ["node/api", "node/bank", "node/db", "node/q", "node/user"].sort(),
+    );
   });
 });

@@ -25,6 +25,17 @@ function pixel(image: ReturnType<typeof decodePng>, x: number, y: number): numbe
 }
 
 describe("renderPng", () => {
+  test("draws the scene of a sequence board", async () => {
+    const { sequenceBoard } = await import("../../schema/test/sequence-board.ts");
+    const { renderBoard } = await import("../../groundboard/src/pipeline.ts");
+    const rendered = await renderBoard(sequenceBoard());
+    if (!rendered.scene) throw new Error(JSON.stringify(rendered.issues));
+    const result = await png.renderPng(rendered.scene as never, { maxEdge: 1568, minText: 8 });
+    const image = decodePng(result.tiles[0]?.png ?? new Uint8Array());
+    expect(image.width).toBeGreaterThan(0);
+    expect(image.height).toBeGreaterThan(0);
+  });
+
   test("draws a small board as one PNG of the planned size, long edge at the cap", async () => {
     const result = await png.renderPng(scene, { maxEdge: 1568, minText: 8 });
     expect(result.tiles).toHaveLength(1);

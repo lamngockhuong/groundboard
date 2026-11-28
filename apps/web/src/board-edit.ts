@@ -27,7 +27,7 @@ export function checked(board: RawBoard): EditResult {
 }
 
 /** An item marked as changed by a person, its sources moved to `priorSourceIds`. */
-function asManual(item: Item): Item {
+export function asManual(item: Item): Item {
   const cited = strings(item.sourceIds);
   const out: Item = { ...item, manual: true };
   if (cited.length > 0) {
@@ -39,7 +39,14 @@ function asManual(item: Item): Item {
 
 /** A fresh id `m-` and six characters, unused on the board. */
 export function newId(board: RawBoard, random: () => number = Math.random): string {
-  const taken = new Set([...ids(items(board, "nodes")), ...ids(items(board, "edges"))]);
+  // Fragments and their operands share the board's ids with nodes and edges.
+  const fragments = Array.isArray(board.fragments) ? (board.fragments as Item[]) : [];
+  const taken = new Set([
+    ...ids(items(board, "nodes")),
+    ...ids(items(board, "edges")),
+    ...ids(fragments),
+    ...ids(operandsOf(board)),
+  ]);
   const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
   for (;;) {
     let id = "m-";
@@ -110,6 +117,8 @@ export interface NewNode {
   pathPrefix?: string;
   /** job: what starts it. */
   trigger?: { type: string; schedule?: string; queue?: string; event?: string };
+  /** participant: what it is. */
+  category?: string;
 }
 
 /** Adds a node a person describes, marked manual and citing nothing. */
@@ -130,6 +139,7 @@ export function addNode(
     "method",
     "path",
     "pathPrefix",
+    "category",
   ] as const) {
     const value = spec[key]?.trim();
     if (value) node[key] = value;
@@ -164,12 +174,37 @@ function withDependants(board: RawBoard, nodeId: string): Set<string> {
   return gone;
 }
 
+/** The sources an item cites, those of its parts included: guards, handler, columns. */
+function citesOf(item: Item): string[] {
+  const parts = [
+    ...(Array.isArray(item.guards) ? (item.guards as Item[]) : []),
+    ...(Array.isArray(item.columns) ? (item.columns as Item[]) : []),
+    ...(typeof item.handler === "object" && item.handler !== null ? [item.handler as Item] : []),
+  ];
+  return [item, ...parts].flatMap((i) => [...strings(i.sourceIds), ...strings(i.priorSourceIds)]);
+}
+
+/** The operands of a sequence board's fragments: they cite sources as nodes and edges do. */
+export function operandsOf(board: RawBoard): Item[] {
+  const fragments = Array.isArray(board.fragments) ? (board.fragments as Item[]) : [];
+  return fragments.flatMap((f) => (Array.isArray(f.operands) ? (f.operands as Item[]) : []));
+}
+
+/** Every source id the board cites: nodes and their parts, edges, and fragment operands. */
+export function citedSources(board: RawBoard): Set<string> {
+  return new Set(
+    [...items(board, "nodes"), ...items(board, "edges"), ...operandsOf(board)].flatMap(citesOf),
+  );
+}
+
 /** Sources the removed items cited that nothing left on the board cites. */
-function orphanedSources(board: RawBoard, removed: (item: Item) => boolean): string[] {
+export function orphanedSources(board: RawBoard, removed: (item: Item) => boolean): string[] {
   const all = [...items(board, "nodes"), ...items(board, "edges")];
-  const cites = (item: Item) => [...strings(item.sourceIds), ...strings(item.priorSourceIds)];
-  const kept = new Set(all.filter((i) => !removed(i)).flatMap(cites));
-  return [...new Set(all.filter(removed).flatMap(cites))].filter((id) => !kept.has(id));
+  const kept = new Set([
+    ...all.filter((i) => !removed(i)).flatMap(citesOf),
+    ...operandsOf(board).flatMap(citesOf),
+  ]);
+  return [...new Set(all.filter(removed).flatMap(citesOf))].filter((id) => !kept.has(id));
 }
 
 /** What removing a node takes with it, to say before asking. */
@@ -297,6 +332,54 @@ export function setTableColumns(board: RawBoard, tableId: string, text: string):
   if (columnsText(table.columns) === columnsText(columns)) return { ok: true, board };
   const next = asManual(table);
   next.columns = columns;
+  const out = [...nodes];
+  out[at] = next;
+  return checked({ ...board, nodes: out });
+}
+
+interface Guard {
+  name: string;
+  sourceIds?: string[];
+}
+
+/** An endpoint's guards as the panel shows them: one name per line. */
+export function guardsText(guards: unknown): string {
+  if (!Array.isArray(guards)) return "";
+  return (guards as Guard[])
+    .map((g) => (typeof g.name === "string" ? g.name : ""))
+    .filter((name) => name !== "")
+    .join("\n");
+}
+
+/**
+ * Replaces an endpoint's guards with the ones written in the panel, one per line. Each line keeps
+ * the sources of the first guard of that name not taken by an earlier line, so two guards of one
+ * name stay two. No line leaves an empty list, which says the handler was read and has no guard,
+ * also on an endpoint whose handler was not read before. The endpoint becomes manual, its
+ * sources moved to `priorSourceIds`.
+ */
+export function setEndpointGuards(board: RawBoard, endpointId: string, text: string): EditResult {
+  const nodes = items(board, "nodes");
+  const at = nodes.findIndex((n) => n.id === endpointId);
+  const endpoint = nodes[at];
+  if (endpoint?.kind !== "endpoint") {
+    return { ok: false, issues: [{ path: "", message: `no endpoint \`${endpointId}\`` }] };
+  }
+  const before = Array.isArray(endpoint.guards) ? (endpoint.guards as Guard[]) : undefined;
+  const names = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (before !== undefined && guardsText(before) === names.join("\n")) return { ok: true, board };
+  const taken = new Set<number>();
+  const guards = names.map((name) => {
+    const index = (before ?? []).findIndex((g, i) => g.name === name && !taken.has(i));
+    if (index < 0) return { name };
+    taken.add(index);
+    return { ...(before?.[index] as Guard), name };
+  });
+  const next = asManual(endpoint);
+  next.guards = guards;
   const out = [...nodes];
   out[at] = next;
   return checked({ ...board, nodes: out });

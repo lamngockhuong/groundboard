@@ -171,3 +171,63 @@ describe("missingFlowRefs", () => {
     expect(missingFlowRefs(refs, kindOf)).toEqual(["web:cart/a", "web:cart/d"]);
   });
 });
+
+describe("endpoints whose handler has logic", () => {
+  const api = board(
+    [
+      { id: "orders", kind: "resource", ref: "api:orders" },
+      {
+        id: "post",
+        kind: "endpoint",
+        ref: "api:orders/post",
+        handler: { shape: "sequence", sourceIds: ["s"] },
+      },
+      { id: "get", kind: "endpoint", ref: "api:orders/get-id" },
+    ],
+    [],
+  );
+  const kinds: Record<string, AtlasBoardKind> = {
+    "api--orders": "api",
+    "web--cart": "screen",
+    "a-flow": "flow",
+  };
+  const kindOf = (slug: string) => kinds[slug];
+
+  test("an endpoint with a handler needs a flow of its shape; one without does not", () => {
+    const { defined } = refsOf(api);
+    expect(defined.find((d) => d.ref === "api:orders/post")).toMatchObject({
+      needsFlow: true,
+      flowShape: "sequence",
+    });
+    const plain = defined.find((d) => d.ref === "api:orders/get-id");
+    expect(plain?.needsFlow).toBeUndefined();
+    expect(plain?.flowShape).toBeUndefined();
+  });
+
+  const entry = (usedIn: RefUse["usedIn"]): RefUse => ({
+    ref: "api:orders/post",
+    definedIn: [{ slug: "api--orders", nodeId: "post", kind: "endpoint" }],
+    usedIn,
+    needsFlow: true,
+    flowShape: "sequence",
+  });
+
+  test("a call to it from a screen or a flow, by toRef, leaves it missing", () => {
+    expect(
+      missingFlowRefs([entry([{ slug: "web--cart", nodeId: "pay", edgeId: "e" }])], kindOf),
+    ).toEqual(["api:orders/post"]);
+    expect(
+      missingFlowRefs([entry([{ slug: "a-flow", nodeId: "s", edgeId: "e" }])], kindOf),
+    ).toEqual(["api:orders/post"]);
+  });
+
+  test("a step carrying its ref on a flow covers it; on a screen or an invalid board it does not", () => {
+    expect(missingFlowRefs([entry([{ slug: "a-flow", nodeId: "s" }])], kindOf)).toEqual([]);
+    expect(missingFlowRefs([entry([{ slug: "web--cart", nodeId: "n" }])], kindOf)).toEqual([
+      "api:orders/post",
+    ]);
+    expect(missingFlowRefs([entry([{ slug: "broken", nodeId: "n" }])], kindOf)).toEqual([
+      "api:orders/post",
+    ]);
+  });
+});

@@ -26,6 +26,8 @@ export function isOverlayNote(element: Element): boolean {
 /** The ids of the units a board can move: top-level nodes and roots of screens with states. */
 export function movableUnits(board: Record<string, unknown>): Set<string> {
   const nodes = Array.isArray(board.nodes) ? (board.nodes as never[]) : [];
+  // A sequence board's order is its layout: nothing is dragged; its order is edited in the panel.
+  if ((nodes as Array<{ kind?: unknown }>).some((n) => n.kind === "participant")) return new Set();
   const units = placedUnits({ nodes });
   return new Set([...units].filter(([id, unit]) => id === unit).map(([id]) => id));
 }

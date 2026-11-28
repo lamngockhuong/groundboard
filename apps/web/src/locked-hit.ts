@@ -26,15 +26,24 @@ const dataOf = (el: ElementLike): Record<string, unknown> | null => {
   return typeof data === "object" && data !== null ? (data as Record<string, unknown>) : null;
 };
 
-/** Whether an element stands for a node or an edge of the board, rather than a note or chrome. */
+/**
+ * Whether an element stands for a node, an edge or a fragment operand of the board, rather than
+ * a note or chrome.
+ */
 const isBoardItem = (el: ElementLike): boolean => {
   const data = dataOf(el);
   return (
     data !== null &&
     data.overlay !== true &&
-    (typeof data.nodeId === "string" || typeof data.edgeId === "string")
+    (typeof data.nodeId === "string" ||
+      typeof data.edgeId === "string" ||
+      typeof data.operandId === "string")
   );
 };
+
+/** A fragment's frame on a sequence board: hit on its outline only, so its inside stays free. */
+const isFragmentFrame = (el: ElementLike): boolean =>
+  el.type === "rectangle" && typeof el.id === "string" && el.id.startsWith("fragment/");
 
 function distanceToSegment(
   p: { x: number; y: number },
@@ -71,6 +80,10 @@ function hitScore(el: ElementLike, p: { x: number; y: number }, tolerance: numbe
   const width = Math.abs(num(el.width));
   const height = Math.abs(num(el.height));
   const inside = p.x >= left && p.x <= left + width && p.y >= top && p.y <= top + height;
+  if (inside && isFragmentFrame(el)) {
+    const edge = Math.min(p.x - left, left + width - p.x, p.y - top, top + height - p.y);
+    return edge <= tolerance ? 0 : null;
+  }
   return inside ? width * height : null;
 }
 
@@ -90,6 +103,9 @@ export function lockedItemAt(
   let best: { el: ElementLike; score: number } | null = null;
   // Later elements are drawn on top, so on a tie the later one wins.
   for (const el of live) {
+    // A locked element that stands for nothing (a lifeline, the legend) never hides what is
+    // under it.
+    if (el.locked === true && dataOf(el) === null && typeof el.containerId !== "string") continue;
     const score = hitScore(el, point, tolerance);
     if (score === null) continue;
     if (best === null || score <= best.score) best = { el, score };

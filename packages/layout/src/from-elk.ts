@@ -153,6 +153,15 @@ export function fromElk(
       if (node.parentId !== undefined) out.parentId = node.parentId;
       if (node.role !== undefined) out.role = node.role;
       if (node.ref !== undefined) out.ref = node.ref;
+      if (box.parts !== undefined) {
+        const at = <T extends { x: number; y: number }>(part: T): T => ({
+          ...part,
+          x: round(frame.x + part.x),
+          y: round(frame.y + part.y),
+        });
+        out.rowParts = { tags: box.parts.tags.map(at) };
+        if (box.parts.guard !== undefined) out.rowParts.guard = at(box.parts.guard);
+      }
       push(out);
       continue;
     }
@@ -269,6 +278,10 @@ export function fromElk(
     const marker = markerOf.get(edge.id);
     if (marker !== undefined) {
       out.marker = marker;
+      return out;
+    }
+    if (input.rowTagEdges.has(edge.id)) {
+      out.inRow = { rowId: edge.from };
       return out;
     }
     const text = input.edgeLabels.get(edge.id);

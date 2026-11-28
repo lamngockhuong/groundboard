@@ -20,7 +20,13 @@ import {
   type Grounding,
   isCheckable,
   type LayoutOrigin,
+  MESSAGE_TYPES,
+  type MessageType,
+  messageOrder,
   type NodeKind,
+  operandRuns,
+  PARTICIPANT_CATEGORIES,
+  type ParticipantCategory,
 } from "@groundboard/schema";
 import {
   type ArrowElement,
@@ -37,6 +43,13 @@ import {
 import { renderNotes } from "./notes.ts";
 import { REFERENCE_PREFIX, type ReferenceImage, renderReferences } from "./references.ts";
 import {
+  renderFragment,
+  renderLifelines,
+  renderMessage,
+  renderParticipant,
+  sequenceBackdrops,
+} from "./sequence.ts";
+import {
   ACCENT,
   CHECKED_TEXT,
   COLUMN_STYLE,
@@ -46,10 +59,13 @@ import {
   INK,
   KIND_LABELS,
   LINK_COLOR,
+  MESSAGE_STYLES,
   MUTED,
   MUTED_TEXT,
   NODE_STYLES,
   type NodeStyle,
+  PARTICIPANT_STYLES,
+  PERSON_COLOR,
   ROLE_STYLES,
   SPEC_COLOR,
   SPEC_STROKE,
@@ -93,6 +109,8 @@ export const groupElementId = (id: string) => `group/${id}`;
 export const groupLabelElementId = (id: string) => `group-label/${id}`;
 export const refTagElementId = (id: string) => `ref-tag/${id}`;
 export const refLineElementId = (id: string) => `ref-line/${id}`;
+/** A read, write or enqueue drawn as a tag in its endpoint's row. */
+export const rowTagElementId = (id: string) => `row-tag/${id}`;
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
@@ -305,10 +323,22 @@ export function renderExcalidraw(
   const claims = boardClaims(board);
   const nodeGrounding = new Map<string, Grounding>();
   const edgeGrounding = new Map<string, Grounding>();
+  const operandGrounding = new Map<string, Grounding>();
+  /** Each endpoint guard's grounding, by `<endpoint id>#<index>`. */
+  const guardGrounding = new Map<string, Grounding>();
   for (const claim of claims) {
-    (claim.on === "node" ? nodeGrounding : edgeGrounding).set(claim.id, claim.grounding);
+    if (claim.on === "operand") operandGrounding.set(claim.id, claim.grounding);
+    else if (claim.on === "guard")
+      guardGrounding.set(`${claim.id}#${claim.index}`, claim.grounding);
+    else if (claim.on === "handler") continue;
+    else (claim.on === "node" ? nodeGrounding : edgeGrounding).set(claim.id, claim.grounding);
   }
   const manualIds = new Set(claims.filter((c) => c.manual).map((c) => `${c.on}:${c.id}`));
+  /** Whether an endpoint's guards rest on a specification only: no guard cites quoted code. */
+  const guardSpecOnly = (node: BoardNode): boolean => {
+    const groundings = (node.guards ?? []).map((_, j) => guardGrounding.get(`${node.id}#${j}`));
+    return groundings.length > 0 && !groundings.includes("code") && groundings.includes("spec");
+  };
   /**
    * What the viewer reads about a claim: its grounding, every time, so it never has to guess one;
    * and for a claim a person changed, that it is manual and which sources it cited before.
@@ -376,7 +406,45 @@ export function renderExcalidraw(
 
   // Edges first, so every node knows which arrows bind to it.
   const arrows: { el: ArrowElement; label?: TextElement; tag?: TextElement }[] = [];
+  /** Each row tag's scene data, by edge id; the tag is drawn with its endpoint's row. */
+  const rowTagData = new Map<string, { customData: Record<string, unknown>; dotted: boolean }>();
+  const messageData = new Map<string, Record<string, unknown>>();
+  /** A tag for a claim of a sequence board, beside what it marks. */
+  const sequenceTag = (
+    id: string,
+    x: number,
+    y: number,
+    customData: Record<string, unknown>,
+    label?: string,
+  ) => specTag(id, x, y, { customData, ...(label ? { label } : {}) });
   for (const edge of laidOut.edges) {
+    if (laidOut.sequence !== undefined) {
+      // A message: its number, how it is sent, its two participants and the ref it reaches.
+      const boardEdge = boardEdges.get(edge.id);
+      const data = {
+        groundboard: {
+          ...edgeData(edge.id, edge.kind, undefined),
+          from: edge.from,
+          to: edge.to,
+          ...(edge.number !== undefined ? { number: edge.number } : {}),
+          messageType: edge.messageType ?? "sync",
+          ...(boardEdge?.ref !== undefined ? { ref: boardEdge.ref } : {}),
+        },
+      };
+      messageData.set(edge.id, data);
+      edgeElements.push(...renderMessage(edge, data, markOf("edge", edge.id), sequenceTag));
+      continue;
+    }
+    if (edge.inRow !== undefined) {
+      rowTagData.set(edge.id, {
+        // The endpoint it starts from, so the viewer can list it under the endpoint.
+        customData: {
+          groundboard: { ...edgeData(edge.id, edge.kind, edge.toRef), from: edge.from },
+        },
+        dotted: markOf("edge", edge.id).dotted,
+      });
+      continue;
+    }
     if (edge.marker !== undefined) {
       edgeElements.push(
         ...renderRefMarker(edge, edge.marker, {
@@ -511,6 +579,20 @@ export function renderExcalidraw(
       ...(source.unresolved !== undefined ? { unresolved: source.unresolved } : {}),
       ...(source.layoutFrom !== undefined ? { layoutFrom: source.layoutFrom } : {}),
       ...(source.platform !== undefined ? { platform: source.platform } : {}),
+      ...(source.method !== undefined ? { method: source.method } : {}),
+      ...(source.path !== undefined ? { path: source.path } : {}),
+      ...(source.guards !== undefined
+        ? {
+            guards: source.guards.map((guard, j) => {
+              const grounding = guardGrounding.get(`${source.id}#${j}`);
+              return {
+                name: guard.name,
+                sources: cite(guard.sourceIds).map(toData),
+                ...(grounding !== undefined ? { grounding } : {}),
+              };
+            }),
+          }
+        : {}),
       sources: cite(source.sourceIds).map(toData),
       ...groundingField("node", source.id, source.priorSourceIds),
     },
@@ -520,7 +602,68 @@ export function renderExcalidraw(
 
   // Nodes: a shape and its label, or a free text element for notes; screens become frames,
   // elements wireframe parts inside them, and chips small dashed boxes.
+  if (laidOut.sequence !== undefined) {
+    background.push(...renderLifelines(laidOut.sequence));
+    const fragmentOf = new Map(
+      (board.fragments ?? []).flatMap((f, i) => f.operands.map((o) => [o.id, { f, i }] as const)),
+    );
+    // The first message of each operand: the presentation shows an operand's part with it.
+    const runs = operandRuns(board.edges, board.fragments ?? []);
+    const messages = messageOrder(board.edges);
+    const operandData = (operandId: string): Record<string, unknown> => {
+      const found = fragmentOf.get(operandId);
+      const first = runs.get(operandId)?.[0];
+      const firstMessage = first === undefined ? undefined : messages[first]?.id;
+      if (found === undefined) return {};
+      const operand = found.f.operands.find((o) => o.id === operandId);
+      const manual = operand?.manual === true || found.f.manual === true;
+      const grounding = operandGrounding.get(operandId);
+      const prior = manual ? cite([...(operand?.priorSourceIds ?? [])]) : [];
+      return {
+        groundboard: {
+          kind: "operand",
+          fragmentId: found.f.id,
+          operandId,
+          fragmentKind: found.f.kind,
+          ...(firstMessage !== undefined ? { firstMessage } : {}),
+          ...(found.f.label !== undefined ? { label: found.f.label } : {}),
+          ...(operand?.guard !== undefined ? { guard: operand.guard } : {}),
+          sources: cite(operand?.sourceIds ?? []).map(toData),
+          ...(grounding !== undefined ? { grounding } : {}),
+          ...(manual ? { manual: true } : {}),
+          ...(prior.length > 0 ? { priorSources: prior.map(toData) } : {}),
+        },
+      };
+    };
+    background.push(
+      ...sequenceBackdrops(
+        laidOut.edges,
+        laidOut.sequence.fragments,
+        (edgeId) => messageData.get(edgeId) ?? {},
+        operandData,
+      ),
+    );
+    // Outer frames first, so an inner frame is drawn over the one around it.
+    const ordered = [...laidOut.sequence.fragments].sort((a, b) => a.depth - b.depth);
+    for (const fragment of ordered) background.push(...renderFragment(fragment, operandData));
+  }
+
   for (const node of laidOut.nodes) {
+    if (node.kind === "participant") {
+      const source = boardNodes.get(node.id);
+      if (!source) throw new Error(`laid-out node ${node.id} is not on the board`);
+      const data = nodeData(source);
+      const customData = {
+        groundboard: {
+          ...data.groundboard,
+          ...(source.category ? { category: source.category } : {}),
+        },
+      };
+      nodeElements.push(
+        ...renderParticipant(node, customData, markOf("node", node.id), sequenceTag),
+      );
+      continue;
+    }
     if (node.shape === "chip") {
       nodeElements.push(...renderChip(node, boundArrowRefs(node.id)));
       continue;
@@ -605,6 +748,7 @@ export function renderExcalidraw(
           dotted: specOnly,
           ...(mark.tag ? { tag: mark.tag } : {}),
         }),
+        ...renderRowParts(node, customData, rowTagData, guardSpecOnly(source)),
       );
       continue;
     }
@@ -822,6 +966,90 @@ function renderRow(
         frameId,
         customData: options.customData,
         label,
+      }),
+    );
+  }
+  return out;
+}
+
+/**
+ * The guard line and the tags of an endpoint's row, inside its card's frame. The guard line
+ * carries the endpoint's data, so a click on it selects the endpoint; each tag carries its
+ * edge's data, so a click on it selects the read, write or enqueue it stands for.
+ */
+function renderRowParts(
+  node: LaidOutNode,
+  customData: Record<string, unknown>,
+  tagData: ReadonlyMap<string, { customData: Record<string, unknown>; dotted: boolean }>,
+  guardSpec = false,
+): ExcalidrawElement[] {
+  const parts = node.rowParts;
+  if (parts === undefined) return [];
+  const frameId = nodeElementId(node.screenId as string);
+  const out: ExcalidrawElement[] = [];
+  if (parts.guard !== undefined) {
+    out.push(
+      text({
+        id: `${nodeElementId(node.id)}/guard`,
+        x: parts.guard.x,
+        y: parts.guard.y,
+        width: parts.guard.width,
+        height: parts.guard.height,
+        text: parts.guard.text,
+        fontSize: parts.guard.fontSize,
+        textAlign: "left",
+        verticalAlign: "top",
+        strokeColor: parts.guard.empty ? MUTED_TEXT : INK,
+        frameId,
+        customData,
+      }),
+    );
+    if (guardSpec) {
+      // Backed by a specification only, like any spec claim: tagged so.
+      out.push(
+        specTag(
+          `${nodeElementId(node.id)}/guard/spec`,
+          parts.guard.x + parts.guard.width + 4,
+          parts.guard.y + 2,
+          {
+            frameId,
+            customData,
+          },
+        ),
+      );
+    }
+  }
+  for (const tag of parts.tags) {
+    const data = tagData.get(tag.edgeId);
+    if (data === undefined) continue;
+    const style = EDGE_STYLES[tag.kind];
+    const id = rowTagElementId(tag.edgeId);
+    const common = { frameId, customData: data.customData, groupIds: [id] };
+    out.push(
+      shape("rectangle", {
+        id,
+        x: tag.x,
+        y: tag.y,
+        width: tag.width,
+        height: tag.height,
+        strokeColor: style.strokeColor,
+        backgroundColor: "#ffffff",
+        strokeStyle: data.dotted ? SPEC_STROKE : style.strokeStyle,
+        roundness: { type: 3 },
+        ...common,
+      }),
+      text({
+        id: `${id}/text`,
+        x: round(tag.x + (tag.width - tag.textWidth) / 2),
+        y: round(tag.y + (tag.height - tag.textHeight) / 2),
+        width: tag.textWidth,
+        height: tag.textHeight,
+        text: tag.text,
+        fontSize: tag.fontSize,
+        textAlign: "left",
+        verticalAlign: "top",
+        strokeColor: INK,
+        ...common,
       }),
     );
   }
@@ -1125,6 +1353,20 @@ function renderChip(
   ];
 }
 
+/** How each participant category and message type reads in the legend. */
+const PARTICIPANT_LABELS: Record<ParticipantCategory, string> = {
+  person: "person",
+  system: "system (ours)",
+  external: "external service",
+  database: "database",
+  queue: "queue",
+};
+const MESSAGE_LABELS: Record<MessageType, string> = {
+  sync: "call, waits for the answer",
+  reply: "reply",
+  async: "message, does not wait (async)",
+};
+
 type LegendRow = {
   key: string;
   label: string;
@@ -1146,7 +1388,65 @@ function renderLegend(
   const rowHeight = 40;
   const rows: LegendRow[] = [];
   const kinds = new Set(board.nodes.map((n) => n.kind));
-  if (board.nodes.some((n) => n.kind !== "screen" && n.kind !== "element")) {
+  if (laidOut.sequence !== undefined) {
+    // A sequence board: what each participant and each message looks like, nothing of flows.
+    for (const category of PARTICIPANT_CATEGORIES) {
+      const style = PARTICIPANT_STYLES[category];
+      rows.push({
+        key: `participant-${category}`,
+        label: PARTICIPANT_LABELS[category],
+        swatch: (id, sx, sy) =>
+          category === "person"
+            ? shape("ellipse", {
+                id,
+                x: sx + 16,
+                y: sy + 4,
+                width: 12,
+                height: 12,
+                strokeColor: PERSON_COLOR,
+                frameId: "legend",
+              })
+            : shape("rectangle", {
+                id,
+                x: sx,
+                y: sy,
+                width: 44,
+                height: 28,
+                strokeColor: style.strokeColor,
+                backgroundColor: style.backgroundColor,
+                strokeStyle: style.strokeStyle,
+                roundness: { type: 3 },
+                frameId: "legend",
+              }),
+      });
+    }
+    for (const type of MESSAGE_TYPES) {
+      const style = MESSAGE_STYLES[type];
+      rows.push({
+        key: `message-${type}`,
+        label: MESSAGE_LABELS[type],
+        swatch: (id, sx, sy) =>
+          arrow({
+            id,
+            x: sx,
+            y: sy + 14,
+            width: 44,
+            height: 0,
+            points: [
+              [0, 0],
+              [44, 0],
+            ],
+            startBinding: null,
+            endBinding: null,
+            startArrowhead: null,
+            endArrowhead: style.endArrowhead,
+            strokeColor: style.strokeColor,
+            strokeStyle: style.strokeStyle,
+            frameId: "legend",
+          }),
+      });
+    }
+  } else if (board.nodes.some((n) => n.kind !== "screen" && n.kind !== "element")) {
     for (const kind of FLOW_KINDS) {
       const style = NODE_STYLES[kind];
       rows.push({
@@ -1247,6 +1547,24 @@ function renderLegend(
           height: 16,
           strokeColor: ACCENT,
           strokeStyle: "dashed",
+          roundness: { type: 3 },
+          frameId: "legend",
+        }),
+    });
+  }
+  if (laidOut.edges.some((e) => e.inRow !== undefined)) {
+    rows.push({
+      key: "row-tag",
+      label: "reads / writes / enqueues: a table or job on another board",
+      swatch: (id, sx, sy) =>
+        shape("rectangle", {
+          id,
+          x: sx,
+          y: sy + 6,
+          width: 44,
+          height: 16,
+          strokeColor: EDGE_STYLES.writes.strokeColor,
+          backgroundColor: "#ffffff",
           roundness: { type: 3 },
           frameId: "legend",
         }),

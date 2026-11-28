@@ -11,6 +11,7 @@ import {
 } from "@groundboard/schema";
 import { measureText, wrapText } from "./measure.ts";
 import { FONT_SIZE, SMALL_FONT_SIZE } from "./text.ts";
+import type { LaidOutText } from "./types.ts";
 
 /** Default content width of a screen frame by platform; `screen.width` overrides it. */
 export { SCREEN_WIDTH };
@@ -61,6 +62,22 @@ export interface WireBox {
   textY: number;
   textWidth: number;
   textHeight: number;
+  /** A card row with more than its text: an endpoint's guard line and its tags. */
+  parts?: WireRowParts;
+}
+
+/** A tag in a card row, relative to the frame like its row: one read, write or enqueue. */
+export interface WireRowTag extends LaidOutText {
+  edgeId: string;
+  ref: string;
+  kind: "reads" | "writes" | "enqueues";
+  textWidth: number;
+  textHeight: number;
+}
+
+export interface WireRowParts {
+  guard?: LaidOutText & { empty: boolean };
+  tags: WireRowTag[];
 }
 
 export interface ScreenLayout {

@@ -16,9 +16,13 @@ export const KIND_GROUPS = [
   { id: "api", kinds: ["resource", "endpoint"] },
   { id: "db", kinds: ["table"] },
   { id: "batch", kinds: ["job"] },
+  { id: "sequence", kinds: ["participant"] },
 ] as const satisfies ReadonlyArray<{ id: string; kinds: readonly NodeKind[] }>;
 
-export type KindGroup = (typeof KIND_GROUPS)[number];
+export type KindGroup = { id: (typeof KIND_GROUPS)[number]["id"]; kinds: readonly NodeKind[] };
+
+/** What a sequence board holds besides its participants: the flow group's questions and notes. */
+const SEQUENCE_NOTES: KindGroup = { id: "flow", kinds: ["question", "note"] };
 
 /** An overview maps screens, so its nodes come from the screen group. */
 const GROUP_OF_BOARD: Record<AtlasBoardKind, KindGroup["id"]> = {
@@ -37,8 +41,15 @@ const GROUP_OF_BOARD: Record<AtlasBoardKind, KindGroup["id"]> = {
 export function kindGroupsFor(nodes: ReadonlyArray<Record<string, unknown>>): KindGroup[] {
   // `boardKindOf` reads only each node's kind, which an unvalidated board may lack.
   const kinded = nodes.filter((n) => typeof n.kind === "string") as unknown as Board["nodes"];
+  // A participant belongs on a sequence board only, and a sequence board holds nothing else but
+  // questions and notes.
+  if (kinded.some((n) => n.kind === "participant")) {
+    return [KIND_GROUPS.find((g) => g.id === "sequence") as KindGroup, SEQUENCE_NOTES];
+  }
   const first = GROUP_OF_BOARD[boardKindOf({ nodes: kinded })];
-  return [...KIND_GROUPS].sort((a, b) => Number(b.id === first) - Number(a.id === first));
+  return KIND_GROUPS.filter((g) => g.id !== "sequence").sort(
+    (a, b) => Number(b.id === first) - Number(a.id === first),
+  );
 }
 
 /** The namespace of the ref each kind defines, for the kinds whose ref is `<namespace>:<slug>`. */

@@ -1,7 +1,7 @@
-import { type Board, type BoardNode, columnSlug } from "@groundboard/schema";
+import { type Board, type BoardEdge, type BoardNode, columnSlug } from "@groundboard/schema";
 import { measureText, wrapText } from "./measure.ts";
-import { FONT_SIZE } from "./text.ts";
-import type { ScreenLayout, WireBox } from "./wireframe.ts";
+import { FONT_SIZE, SMALL_FONT_SIZE } from "./text.ts";
+import type { ScreenLayout, WireBox, WireRowParts, WireRowTag } from "./wireframe.ts";
 
 /**
  * A card: a box with a title and one row per item, laid out here and placed by ELK as one
@@ -15,10 +15,33 @@ const PADDING = 10;
 const ROW_GAP = 4;
 const ROW_PAD_X = 8;
 const ROW_PAD_Y = 6;
+/** Space between the parts of an endpoint's row: its route, its guard line, its tags. */
+const PART_GAP = 4;
+const TAG_PAD_X = 6;
+const TAG_PAD_Y = 2;
+const TAG_GAP = 6;
+
+/** The kinds of edge drawn as a tag inside the row of the endpoint they start at. */
+export const ROW_TAG_KINDS = ["reads", "writes", "enqueues"] as const;
+export type RowTagKind = (typeof ROW_TAG_KINDS)[number];
+
+export interface CardRowTag {
+  edgeId: string;
+  ref: string;
+  kind: RowTagKind;
+  text: string;
+}
 
 export interface CardRow {
   id: string;
   text: string;
+  /**
+   * An endpoint's guard line: the names of its guards, or "no guard found" (`empty`) when the
+   * handler was read and attaches none. Absent when the handler was not read.
+   */
+  guard?: { text: string; empty: boolean };
+  /** An endpoint's reads, writes and enqueues of other boards' tables and jobs. */
+  tags?: CardRowTag[];
 }
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -28,11 +51,61 @@ export function layoutCard(rows: readonly CardRow[], width = CARD_WIDTH): Screen
   const inner = width - 2 * PADDING;
   const boxes: WireBox[] = [];
   let y = PADDING;
+  const textWidth = Math.max(60, inner - 2 * ROW_PAD_X);
   for (const row of rows) {
-    const text = wrapText(row.text, Math.max(60, inner - 2 * ROW_PAD_X), FONT_SIZE);
+    const text = wrapText(row.text, textWidth, FONT_SIZE);
     const size = measureText(text, FONT_SIZE);
-    const height = round(size.height + 2 * ROW_PAD_Y);
-    boxes.push({
+    const left = PADDING + ROW_PAD_X;
+    let bottom = y + ROW_PAD_Y + size.height;
+    const parts: WireRowParts = { tags: [] };
+    if (row.guard !== undefined) {
+      const guardText = wrapText(row.guard.text, textWidth, SMALL_FONT_SIZE);
+      const guardSize = measureText(guardText, SMALL_FONT_SIZE);
+      parts.guard = {
+        text: guardText,
+        fontSize: SMALL_FONT_SIZE,
+        x: left,
+        y: round(bottom + PART_GAP),
+        width: guardSize.width,
+        height: guardSize.height,
+        empty: row.guard.empty,
+      };
+      bottom += PART_GAP + guardSize.height;
+    }
+    if (row.tags !== undefined && row.tags.length > 0) {
+      // Tags flow left to right in edge order and wrap to the next line at the row's edge.
+      let x = left;
+      let lineTop = bottom + PART_GAP;
+      let lineHeight = 0;
+      for (const tag of row.tags) {
+        const tagText = measureText(tag.text, SMALL_FONT_SIZE);
+        const width = Math.min(textWidth, tagText.width + 2 * TAG_PAD_X);
+        const height = tagText.height + 2 * TAG_PAD_Y;
+        if (x > left && x + width > left + textWidth) {
+          x = left;
+          lineTop += lineHeight + TAG_GAP / 2;
+          lineHeight = 0;
+        }
+        parts.tags.push({
+          edgeId: tag.edgeId,
+          ref: tag.ref,
+          kind: tag.kind,
+          text: tag.text,
+          fontSize: SMALL_FONT_SIZE,
+          x: round(x),
+          y: round(lineTop),
+          width: round(width),
+          height,
+          textWidth: tagText.width,
+          textHeight: tagText.height,
+        } satisfies WireRowTag);
+        x += width + TAG_GAP;
+        lineHeight = Math.max(lineHeight, height);
+      }
+      bottom = lineTop + lineHeight;
+    }
+    const height = round(bottom + ROW_PAD_Y - y);
+    const box: WireBox = {
       id: row.id,
       x: PADDING,
       y: round(y),
@@ -40,11 +113,13 @@ export function layoutCard(rows: readonly CardRow[], width = CARD_WIDTH): Screen
       height,
       text,
       fontSize: FONT_SIZE,
-      textX: PADDING + ROW_PAD_X,
+      textX: left,
       textY: round(y + ROW_PAD_Y),
       textWidth: size.width,
       textHeight: size.height,
-    });
+    };
+    if (parts.guard !== undefined || parts.tags.length > 0) box.parts = parts;
+    boxes.push(box);
     y += height + ROW_GAP;
   }
   const height = rows.length === 0 ? 2 * PADDING + 20 : round(y - ROW_GAP + PADDING);
@@ -55,6 +130,35 @@ export function layoutCard(rows: readonly CardRow[], width = CARD_WIDTH): Screen
 export function endpointRowText(node: Pick<BoardNode, "method" | "path" | "label">): string {
   const route = [node.method, node.path].filter(Boolean).join(" ");
   return route === "" ? node.label : `${route}  ${node.label}`;
+}
+
+/** The guard line of an endpoint's row, or undefined when its handler was not read. */
+export function endpointGuardText(
+  node: Pick<BoardNode, "guards">,
+): { text: string; empty: boolean } | undefined {
+  if (node.guards === undefined) return undefined;
+  if (node.guards.length === 0) return { text: "no guard found", empty: true };
+  return { text: `guard: ${node.guards.map((g) => g.name).join(" · ")}`, empty: false };
+}
+
+/**
+ * Whether an edge is drawn as a tag in the row of the endpoint it starts at: a read, a write or
+ * an enqueue of a table or a job on another board. Such an edge has no arrow, chip or marker.
+ */
+export function isRowTagEdge(
+  edge: Pick<BoardEdge, "kind" | "toRef" | "from">,
+  kindOf: ReadonlyMap<string, string>,
+): edge is Pick<BoardEdge, "kind" | "from"> & { kind: RowTagKind; toRef: string } {
+  return (
+    edge.toRef !== undefined &&
+    (ROW_TAG_KINDS as readonly string[]).includes(edge.kind) &&
+    kindOf.get(edge.from) === "endpoint"
+  );
+}
+
+/** The text of a row tag: the edge kind and the ref without its namespace, `writes orders`. */
+export function rowTagText(kind: RowTagKind, ref: string): string {
+  return `${kind} ${ref.slice(ref.indexOf(":") + 1)}`;
 }
 
 /**
@@ -119,9 +223,26 @@ export function cardRows(board: Pick<Board, "nodes" | "edges">): Map<string, Car
   for (const node of board.nodes) {
     if (node.kind in CARD_KINDS) cards.set(node.id, []);
   }
+  const kindOf = new Map(board.nodes.map((n) => [n.id, n.kind]));
+  const tagsOf = new Map<string, CardRowTag[]>();
+  for (const edge of board.edges) {
+    if (!isRowTagEdge(edge, kindOf)) continue;
+    const tag = {
+      edgeId: edge.id,
+      ref: edge.toRef,
+      kind: edge.kind,
+      text: rowTagText(edge.kind, edge.toRef),
+    };
+    tagsOf.set(edge.from, [...(tagsOf.get(edge.from) ?? []), tag]);
+  }
   for (const node of board.nodes) {
     if (node.kind !== "endpoint" || node.parentId === undefined) continue;
-    cards.get(node.parentId)?.push({ id: node.id, text: endpointRowText(node) });
+    const row: CardRow = { id: node.id, text: endpointRowText(node) };
+    const guard = endpointGuardText(node);
+    if (guard !== undefined) row.guard = guard;
+    const tags = tagsOf.get(node.id);
+    if (tags !== undefined) row.tags = tags;
+    cards.get(node.parentId)?.push(row);
   }
   // A column that holds a foreign key reads FK.
   const keys = new Set(

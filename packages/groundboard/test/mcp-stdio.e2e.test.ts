@@ -94,6 +94,45 @@ describe("groundboard mcp over stdio", () => {
     expectRendered(await request(2, "tools/call", renderArgs));
   }, 30_000);
 
+  test("validates and renders a sequence board", async () => {
+    const { request } = startServer();
+    const sequence = JSON.parse(
+      readFileSync(
+        path.join(repoRoot, "examples/fixtures/.groundboard/place-order-handler.board.json"),
+        "utf8",
+      ),
+    );
+    const meta = {
+      _meta: {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientInfo": { name: "e2e", version: "0" },
+        "io.modelcontextprotocol/clientCapabilities": {},
+      },
+    };
+    const validated = await request(1, "tools/call", {
+      name: "validate_board",
+      arguments: { board: sequence, checkSourcesRoot: "examples/fixtures" },
+      ...meta,
+    });
+    const valid = validated.result as { isError?: boolean; structuredContent?: { ok?: boolean } };
+    expect(valid.isError, JSON.stringify(valid)).toBeFalsy();
+    expect(valid.structuredContent?.ok).toBe(true);
+    const rendered = await request(2, "tools/call", {
+      name: "render_board",
+      arguments: {
+        board: sequence,
+        checkSourcesRoot: "examples/fixtures",
+        outputPath: ".groundboard/stdio-e2e.excalidraw",
+      },
+      ...meta,
+    });
+    expectRendered(rendered);
+    const scene = JSON.parse(
+      readFileSync(path.join(repoRoot, ".groundboard", "stdio-e2e.excalidraw"), "utf8"),
+    );
+    expect(scene.elements.some((e: { id: string }) => e.id === "fragment/lines")).toBe(true);
+  }, 30_000);
+
   test("checks an atlas directory inside the root", async () => {
     const { request } = startServer();
     const response = await request(1, "tools/call", {

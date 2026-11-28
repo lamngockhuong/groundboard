@@ -411,9 +411,59 @@ the selection through the panel, after asking. While a node or an arrow is selec
 Excalidraw's style panel is hidden: the board never keeps those styles. It stays for notes,
 whose style the layout keeps.
 
+On a sequence board nothing is dragged: its order is its layout, edited in the panel. The kind
+picker offers participants (with their category) and questions and notes. A selected participant
+gets its label, its category, "Move left" and "Move right" (`Alt+←`, `Alt+→`), forms to add a
+message from it or a participant after it, and "Remove participant", whose confirmation counts
+the messages that go with it. A selected message gets its label, type, sender and receiver,
+"Move up" and "Move down" (`Alt+↑`, `Alt+↓`), a muted line that says before it happens when the
+next move takes it out of or into a fragment ("Moving it down puts it in alt [authorized]"), or
+removes a frame it would leave empty ("Moving it up removes the frame alt [declined]; the
+messages it held become manual"), a
+form to add a message after it, "Wrap in a fragment…", "Split the branch here" and "Remove
+message", which asks first when it would remove a frame. A message moved out of a frame that is
+removed or unwrapped becomes manual. Several messages picked with Shift can be wrapped together. A selected guard, tag,
+frame or divider gets its operand's condition, the fragment's kind, "Start a new branch at" and
+"Remove the frame, keep its messages". Each edit is one step of the same undo history; moving a
+column changes no claim, so nothing becomes manual, while moving a message, rewording a guard or
+wrapping marks what changed as manual. Each button names its key in its tooltip and in
+`aria-keyshortcuts`.
+
 Outside edit mode the canvas still takes drags and drawings, which nothing saves. After the
 first such change, a note at the bottom of the canvas says so, with "Edit" (moved boxes and
 drawn notes carry over) and "Discard changes".
+
+### Sequence boards
+A board with participants is drawn as a sequence diagram, not by the graph layout. Participants
+stand in a row in the order the board lists them, each a box with its label and, under it in the
+small size, its category; a dashed neutral lifeline (`MUTED`) runs down from each, locked and
+carrying no data, so a click beside a message never lands on it. The categories are told apart
+by shape as well as colour, and the category is written in the box, so a grey print still reads:
+a person has no box, only a small figure at its top left; our own system is a solid indigo box
+(`#364fc7` on `#edf2ff`); an outside service a dashed violet box (`#862e9c` on `#f8f0fc`); a
+database a green box (`#2b8a3e` on `#ebfbee`) with a cylinder's arcs top and bottom; a queue an
+orange box (`#c2410c` on `#fff4e6`) with three bars down its right edge. No category is red: red
+means something is wrong.
+
+Messages go one per row, numbered in the order the board lists them (`2. authorize(amount)`),
+the label above the line on a canvas-coloured backdrop that hides the lifelines behind it. A
+call that waits is a solid ink line with a filled head, a reply a dashed line with an open head,
+an async message a solid line with an open head and "(async)" after its label, so the kind never
+rests on the arrowhead alone. A fragment is a thin `MUTED` frame round the rows of its messages,
+its kind in a small tag at the top-left corner (`alt`, `loop`), its first guard beside the tag
+in brackets, and a dashed divider above each later operand with that operand's guard under it.
+Every header and divider takes a band of its own, so no text overlaps. Text is ink (4.5:1 and
+more in both themes), strokes at least 3:1, as the legibility test checks.
+
+The Sources panel names a participant by its category, a message by its number and label with
+"From A to B", its type and what it cites, and an operand by its fragment's kind, its condition
+and one sentence saying what the kind means ("Only one of these branches happens..."). A
+message's panel has "Previous message" and "Next message", the keyboard's way through the
+diagram; the command palette lists participants and messages too. A double click on a message
+or a participant that carries a ref opens the board that defines it. The sidebar files a
+sequence board under Flows with a small two-lifeline icon after its title, named "Sequence
+diagram" for screen readers. Presenting shows the participants first, then one message per
+step, each fragment with the first message of its operand.
 
 ### Command palette
 Ctrl K (Cmd K on macOS) opens it from anywhere, the canvas included, where it takes the key
@@ -434,6 +484,19 @@ found changed gets an amber border with a 3px amber left edge and the line "This
 changed since the board was made; the quote may no longer match." with a warning icon, never
 the colour alone. "Appears in" offers "Open defining board" when another board defines the
 ref, then lists the other boards with the same ref as link buttons.
+
+An endpoint whose handler was read adds a "Guards" section: each guard's name in mono with its
+citations below it, or the muted line "No guard found in the handler. This does not say the
+endpoint is public." for an empty list; never the word "public" alone. Below it, "Tables and
+jobs" lists the endpoint's reads, writes and enqueues, one row each: the verb, the target ref in
+mono and an "Open" button to the board that defines it, then the query it cites. The canvas
+cannot focus a single tag, so this list is the keyboard's way to every tag of the row.
+
+On the canvas, an endpoint's row keeps its route on the first line; under it, the guard line in
+the small size (ink, or `muted` text for "no guard found"), then the tags: small rounded boxes
+on a white fill whose outline is the edge's colour (`writes` solid, `reads` and `enqueues`
+dashed) and whose text is ink, so the verb is read, not only the colour. A tag selects as its
+edge and a double click opens its target, as a numbered tag does on a screen.
 
 ### Navigation
 With an atlas, the sidebar is the navigation: board links, "Atlas home", the filter and the

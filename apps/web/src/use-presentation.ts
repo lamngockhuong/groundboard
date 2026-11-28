@@ -11,7 +11,7 @@ import {
   presentationSteps,
   readMotionGraph,
   sceneAtStep,
-  stepFocus,
+  stepTargets,
 } from "./motion-graph.ts";
 import { PRESENT_DELAY_KEY, readNumber, saveValue } from "./prefs.ts";
 
@@ -72,7 +72,7 @@ export function usePresentation(api: ExcalidrawImperativeAPI | null) {
   };
 
   const frameStep = (r: Run, index: number, animate: boolean) => {
-    const ids = new Set(stepFocus(r.graph, r.steps[index]).map((n) => n.elementId));
+    const ids = new Set(stepTargets(r.graph, r.steps[index]));
     // Nodes a hidden layer keeps out of view are not framed: the camera would show nothing.
     const targets = r.start.filter((el) => ids.has(el.id) && !el.isDeleted);
     if (!api || targets.length === 0) return;

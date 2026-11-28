@@ -25,9 +25,11 @@ The board format, including the API rules and how to name an endpoint's ref, is 
 
 ### 0. Check the MCP server
 
-Call `get_board_schema`. If its schema has no `endpoint` node kind, the plugin's MCP server is
-older than this skill: stop, and tell the user to update the groundboard plugin. Do not write a
-board an older server would refuse.
+Call `get_board_schema`. If its schema has no `endpoint` node kind, or its `endpoint` has no
+`guards` field, the plugin's MCP server is older than this skill: stop, and tell the user to
+update the groundboard plugin. An older server drops a field it does not know without a word, so
+the guards you read would vanish from the board. Do not write a board an older server would
+refuse or strip.
 
 ### 1. Pick the resources and the mode
 
@@ -86,6 +88,52 @@ in the routes beside its `doc` source. An endpoint the specification listed and 
 not declare stays, and gets a `question`; an endpoint the routes declare that the board lacks is
 added.
 
+### 2H. Read each handler (always)
+
+For every route, from code or after an update, follow the declaration to the handler that runs
+and read it to its end:
+
+- **Guards**: what the route runs before the handler: a middleware passed to the route
+  (`router.post("/orders", requireCustomer, ...)`), a decorator (`@UseGuards(AuthGuard)`,
+  `@PreAuthorize`), a role or policy check (`requireRole("admin")`, `authorize(...)`). Record each
+  with the line that attaches it. A guard applied to every route (`app.use(auth)`,
+  `router.use(...)`) is recorded on each endpoint it covers, citing that one line: one source may
+  be cited by many nodes. When the handler attaches none, record an empty list; never write
+  "public", since a gateway or a proxy may still guard it.
+- **Data**: every query the handler runs is a `reads` or `writes` edge to the table, citing the
+  line of the query; this needs the schema board (`/groundboard:db`). Every job it puts on a
+  queue or starts is an `enqueues` edge, citing that line; this needs the jobs board
+  (`/groundboard:batch`). When the board a ref belongs to does not exist yet, write no edge and
+  list what you saw in the report: never invent a `db:` or `batch:` ref.
+
+From the specification (2S) there is no handler to read: write no `guards`, unless the
+document states the security requirement of the operation (OpenAPI `security`), which you cite
+as a `doc` source.
+
+### 2P. Pick the board each handler needs
+
+Decide from the handler you read in step 2H whether its logic needs a board of its own, and
+which one:
+
+| What the handler does (read in the code) | `handler.shape` | Board |
+|---|---|---|
+| reads or writes one table, with no branch | no `handler` | the card is enough |
+| branches inside (`if`, `switch`, an error thrown on a condition) | `flow` | a flow board |
+| changes the state of a record (`status = ...`) | `state` | a state machine |
+| calls out (an identity provider such as Cognito, a bank's API, a queue, a batch) | `sequence` | a sequence board |
+
+When several hold, prefer `sequence`, then `state`, then `flow`. Cite in `handler.sourceIds`
+the very line that makes it so: the outside call, the state change, the branch. An endpoint
+with `handler` and nothing that explains it is listed by `check_atlas` and marked "No flow
+yet" in the viewer.
+
+What explains an endpoint is a board drawn with `/groundboard:board` whose first node carries
+the endpoint's ref (on a sequence board, the participant that stands for the handler). A step
+on the client's side that calls the endpoint only links to it with a `calls` edge whose `toRef`
+is the endpoint's ref, and never carries that ref itself; otherwise the hint goes quiet while
+nothing explains the handler. When you find such a client step carrying an endpoint's ref on a
+flow board, turn it into a `calls` edge and say so in the report.
+
 ### 3. Write the board
 
 - One `resource` node: `label` the resource as people say it, `ref: "api:<resource>"`,
@@ -94,8 +142,16 @@ added.
   `label` what it does in a few words, `ref: "api:<resource>/<slug>"` with the slug named as the
   IR guide says (`POST /orders` is `post`, `GET /orders/:id` is `get-id`). When two endpoints
   give one slug, the second takes `-2`.
+- `guards` on each endpoint whose handler you read (step 2H): `[{ "name": "requireCustomer",
+  "sourceIds": ["<line that attaches it>"] }]`, or `[]` when it has none. Leave the field out only
+  when you did not read the handler.
+- The `reads`, `writes` and `enqueues` edges of step 2H, from the endpoint, with `toRef`. They are
+  drawn as tags inside the endpoint's row, not as arrows.
+- `handler: { "shape": "<flow|state|sequence>", "sourceIds": [...] }` on each endpoint step 2P
+  picked a board for.
 - A resource with more than 40 endpoints is too tall to read: split it by sub-resource
-  (`api:orders-admin`).
+  (`api:orders-admin`). Each guard line and row of tags makes a row taller, so split sooner
+  (around 25 endpoints) when most endpoints have both.
 - Never copy a credential, a token or a real host with a password into a path or a label.
 
 Write `.groundboard/api--<resource>.board.json` with
@@ -108,10 +164,15 @@ handler calls an endpoint (a `fetch`, an API client method, a mutation), follow 
 method and path, and add a `calls` edge from the element with `toRef` the endpoint's ref, citing
 the line that makes the call. Keep every other id of the screen board as it is.
 
-When `.groundboard/` has a schema board (`/groundboard:db`), add a `reads` or `writes` edge
-from each endpoint to the table its handler queries, `toRef: "db:<table>"`, citing the line of
-the query. When it has a jobs board (`/groundboard:batch`), add an `enqueues` edge from each
-endpoint whose handler puts a job on its queue, `toRef: "batch:<job>"`, citing that line.
+### 4E. Explain the endpoints asked about (optional)
+
+When the person asked how an endpoint works, or asked for the explanation of the endpoints
+`handler` marks, draw each with `/groundboard:board` ([../board/SKILL.md](../board/SKILL.md)) in
+the shape step 2P picked: its first node carries the endpoint's ref (on a sequence board, the
+participant that stands for the handler), and a step on the client's side only links to it with a
+`calls` edge. When a sequence board for the endpoint exists already, read it first and keep its
+participants in the order `nodes` lists them; add a new participant at the end. Only a real human
+(a customer, an admin) is a `person`; an outside service is `external` and cites its client.
 
 ### 5. Check and repair
 
@@ -129,6 +190,12 @@ Without the MCP tools, run `npx groundboard validate <file> --check-sources .` a
 - the resources and how many endpoints each has, from which framework and files;
 - routes skipped and why (health checks, static files, catch-alls);
 - the `calls` edges added, per screen board, and calls you could not follow to a route;
+- the endpoints by the board step 2P picked for them (none, flow, state, sequence), those you
+  explained in step 4E, and those still without an explanation; client steps you turned into
+  `calls` edges;
+- how many endpoints have a guard and how many have none found, and the `reads`, `writes` and
+  `enqueues` edges by target board; queries and jobs left without an edge because their board
+  does not exist yet;
 - the mode, and the grounding `check_atlas` prints for each board;
 - the reader level and the "surely knows" list, saying whether the person who gave the task
   picked the level or you inferred it, and the terms you explained in a `detail`.

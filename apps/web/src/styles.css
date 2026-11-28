@@ -1591,6 +1591,32 @@ body.resizing .split-handle {
   font-weight: 600;
 }
 
+/* A sequence board's panel: forms folded under their summary, move buttons side by side. */
+.edit-subsection {
+  display: grid;
+  gap: 0.6rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.edit-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sequence-edit {
+  display: grid;
+  gap: 1rem;
+}
+
 .edit-panel > .muted {
   margin: 0;
   font-size: 0.85rem;
@@ -2109,6 +2135,49 @@ details.edit-section > :not(summary) + * {
 
 .target-card > button {
   flex: none;
+}
+
+/* An endpoint's guards and the tables and jobs it touches, each with what it cites. */
+.guard-list,
+.data-edge-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guard-name {
+  font-weight: 600;
+}
+
+.data-edge-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.data-edge-kind {
+  font-weight: 600;
+}
+
+.data-edge-head > button {
+  margin-left: auto;
+}
+
+/* A flow board drawn as a sequence diagram, beside its title in the sidebar. */
+.nav-sequence {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted);
+}
+
+/* Stepping through the messages of a sequence board without the mouse. */
+.message-steps {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
 }
 
 /* An element that calls an API or changes state with no flow drawn for it yet. */

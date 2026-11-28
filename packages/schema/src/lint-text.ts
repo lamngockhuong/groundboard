@@ -191,6 +191,9 @@ export function lintBoardText(board: Board): string[] {
     check(`nodes[${i}].action`, node.action);
     check(`nodes[${i}].unresolved`, node.unresolved);
     check(`nodes[${i}].path`, node.path, [...CREDENTIAL_PATTERNS, ...URL_PATTERNS]);
+    node.guards?.forEach((guard, j) => {
+      check(`nodes[${i}].guards[${j}].name`, guard.name);
+    });
     check(`nodes[${i}].trigger.schedule`, node.trigger?.schedule);
     check(`nodes[${i}].trigger.queue`, node.trigger?.queue);
     check(`nodes[${i}].trigger.event`, node.trigger?.event);
@@ -200,6 +203,12 @@ export function lintBoardText(board: Board): string[] {
       check(`${at}.type`, column.type);
       check(`${at}.default`, column.default);
       check(`${at}.note`, column.note);
+    });
+  });
+  board.fragments?.forEach((fragment, i) => {
+    check(`fragments[${i}].label`, fragment.label);
+    fragment.operands.forEach((operand, j) => {
+      check(`fragments[${i}].operands[${j}].guard`, operand.guard);
     });
   });
   warnings.push(...lintEndpointRefs(board));

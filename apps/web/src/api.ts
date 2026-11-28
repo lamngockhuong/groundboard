@@ -3,8 +3,14 @@ import {
   type AtlasBoardKind,
   ELEMENT_ROLES,
   type ElementRole,
+  HANDLER_SHAPES,
+  type HandlerShape,
 } from "@groundboard/schema";
 import { t } from "./i18n.ts";
+
+const isHandlerShape = (value: unknown): value is HandlerShape =>
+  (HANDLER_SHAPES as readonly unknown[]).includes(value);
+
 import { type Scene, toScene } from "./input.ts";
 import { isStaticMode } from "./mode.ts";
 import { SLUG_PATTERN } from "./route.ts";
@@ -109,6 +115,8 @@ export interface AtlasBoard {
   layoutFrom: string[];
   /** Labels that group the board with others in the sidebar; empty when it has none. */
   tags: string[];
+  /** A flow board drawn as a sequence diagram. */
+  sequence?: true;
   /** Sources that cannot be checked offline: Figma, links, mockups without a file. */
   uncheckedSources: number;
   /** Claims by grounding: backed by code, by the specification only, or unresolved. */
@@ -138,8 +146,13 @@ export interface AtlasRef {
   ref: string;
   definedIn: AtlasPlace[];
   usedIn: AtlasPlace[];
-  /** An element that calls an API or changes state, so a flow should cover it. */
+  /**
+   * An element that calls an API or changes state, or an endpoint whose handler has logic, so a
+   * flow should cover it.
+   */
   needsFlow?: true;
+  /** An endpoint whose handler has logic: the board that should explain it. */
+  flowShape?: HandlerShape;
 }
 
 /** When an exported atlas checked its sources, and against which commit. */
@@ -255,6 +268,7 @@ export function toAtlas(value: unknown): AtlasIndex | null {
           ? (b.status as AtlasBoardStatus)
           : "invalid",
       layoutFrom: strings(b.layoutFrom),
+      ...(b.sequence === true ? { sequence: true as const } : {}),
       tags: [...new Set(strings(b.tags))],
       uncheckedSources: count(b.uncheckedSources),
       grounding: toGrounding(b.grounding),
@@ -274,6 +288,7 @@ export function toAtlas(value: unknown): AtlasIndex | null {
       definedIn: toPlaces(r.definedIn),
       usedIn: toPlaces(r.usedIn),
       ...(r.needsFlow === true ? { needsFlow: true as const } : {}),
+      ...(isHandlerShape(r.flowShape) ? { flowShape: r.flowShape } : {}),
     }));
   const exported = toStamp(value.exported);
   const atlasId =

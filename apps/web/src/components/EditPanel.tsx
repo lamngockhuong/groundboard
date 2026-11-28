@@ -5,6 +5,7 @@ import {
   HTTP_METHODS,
   LAYOUT_ORIGINS,
   type NodeKind,
+  PARTICIPANT_CATEGORIES,
   PLATFORMS,
   TRIGGER_TYPES,
 } from "@groundboard/schema";
@@ -22,6 +23,7 @@ import {
   addNode,
   columnsText,
   type EditResult,
+  guardsText,
   NODE_TEXT_FIELDS,
   type NodeTextField,
   type RawBoard,
@@ -29,19 +31,21 @@ import {
   removeEdge,
   removeNode,
   setEdgeLabel,
+  setEndpointGuards,
   setNodeText,
   setTableColumns,
 } from "../board-edit.ts";
 import { t } from "../i18n.ts";
 import { type KindGroup, kindGroupsFor, suggestedRef } from "../node-kinds.ts";
 import { Icon } from "./Icon.tsx";
+import { SequenceEditPanel } from "./SequenceEditPanel.tsx";
 
 type Item = Record<string, unknown>;
 
 interface EditPanelProps {
   board: RawBoard;
-  /** Board ids selected on the canvas. */
-  selection: { nodes: string[]; edges: string[] };
+  /** Board ids selected on the canvas; the operands of a sequence board's fragments too. */
+  selection: { nodes: string[]; edges: string[]; operands?: string[] };
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -270,16 +274,23 @@ export const EditPanel = forwardRef<EditPanelHandle, EditPanelProps>(function Ed
     return failed;
   };
 
-  const node =
+  // A sequence board edits its participants, messages and fragments in a panel of its own; a
+  // question or a note on it is edited here as anywhere.
+  const sequence = nodesOf(board).some((n) => n.kind === "participant");
+  const selectedNode =
     selection.nodes.length === 1 && selection.edges.length === 0
       ? nodesOf(board).find((n) => n.id === selection.nodes[0])
       : undefined;
+  const node = sequence && selectedNode?.kind === "participant" ? undefined : selectedNode;
   const edge =
-    selection.edges.length === 1 && selection.nodes.length === 0
+    !sequence && selection.edges.length === 1 && selection.nodes.length === 0
       ? edgesOf(board).find((e) => e.id === selection.edges[0])
       : undefined;
   const pair =
-    selection.nodes.length === 2 && selection.edges.length === 0 ? selection.nodes : null;
+    !sequence && selection.nodes.length === 2 && selection.edges.length === 0
+      ? selection.nodes
+      : null;
+  const [category, setCategory] = useState<string>("system");
 
   /** The pair whose direction was swapped; another pair starts unswapped. */
   const [swappedPair, setSwappedPair] = useState<string | null>(null);
@@ -393,6 +404,25 @@ export const EditPanel = forwardRef<EditPanelHandle, EditPanelProps>(function Ed
               onCommit={(value) => void apply((b) => setTableColumns(b, str(node.id), value))}
             />
           ) : null}
+          {node.kind === "endpoint" ? (
+            <CommitField
+              key={`${str(node.id)}:guards`}
+              label={t("editPanel.guards")}
+              value={guardsText(node.guards)}
+              multiline
+              onCommit={(value) => void apply((b) => setEndpointGuards(b, str(node.id), value))}
+            />
+          ) : null}
+          {node.kind === "endpoint" && !Array.isArray(node.guards) ? (
+            // An unread handler shows an empty field, which clearing cannot change.
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void apply((b) => setEndpointGuards(b, str(node.id), ""))}
+            >
+              {t("editPanel.noGuard")}
+            </button>
+          ) : null}
           <p className="muted edit-note">{t("editPanel.manualNote")}</p>
           <button type="button" className="danger" onClick={() => remove("node", str(node.id))}>
             {t("editPanel.removeNode")}
@@ -465,7 +495,17 @@ export const EditPanel = forwardRef<EditPanelHandle, EditPanelProps>(function Ed
         </section>
       ) : null}
 
-      {!node && !edge && !pair ? <p className="muted">{t("editPanel.selectHint")}</p> : null}
+      {sequence ? (
+        <SequenceEditPanel
+          board={board}
+          selection={{ ...selection, operands: selection.operands ?? [] }}
+          apply={apply}
+        />
+      ) : null}
+
+      {!sequence && !node && !edge && !pair ? (
+        <p className="muted">{t("editPanel.selectHint")}</p>
+      ) : null}
 
       <details className="edit-section">
         <summary>{t("editPanel.addNode")}</summary>
@@ -565,6 +605,14 @@ export const EditPanel = forwardRef<EditPanelHandle, EditPanelProps>(function Ed
         {kind === "table" ? (
           <RefField value={ref_} suggested={autoRef} example="db:orders" onChange={setRef} />
         ) : null}
+        {kind === "participant" ? (
+          <Select
+            label={t("sequenceEdit.category")}
+            value={category}
+            options={PARTICIPANT_CATEGORIES}
+            onChange={setCategory}
+          />
+        ) : null}
         {kind === "resource" ? (
           <>
             <RefField value={ref_} suggested={autoRef} example="api:orders" onChange={setRef} />
@@ -613,6 +661,7 @@ export const EditPanel = forwardRef<EditPanelHandle, EditPanelProps>(function Ed
                 ...(kind === "endpoint" ? { parentId: resource, method, path, ref: ref_ } : {}),
                 ...(kind === "resource" ? { ref: refOrSuggested, pathPrefix } : {}),
                 ...(kind === "table" ? { ref: refOrSuggested } : {}),
+                ...(kind === "participant" ? { category } : {}),
                 ...(kind === "job"
                   ? {
                       ref: refOrSuggested,
