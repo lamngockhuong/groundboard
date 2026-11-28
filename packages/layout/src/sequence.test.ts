@@ -153,6 +153,35 @@ describe("layoutSequence", () => {
     for (const id of ["m1", "m2", "m3"]) expect(row(id)).toBeLessThan(alt.y);
   });
 
+  test("widens a frame to hold an inner frame that a long guard made wider", () => {
+    // An opt over two columns holding a loop whose guard is longer than the opt is wide.
+    const raw = sequenceBoard();
+    for (const edge of raw.edges) delete (edge as Record<string, unknown>).operandId;
+    (raw.edges[1] as Record<string, unknown>).operandId = "f";
+    (raw.edges[2] as Record<string, unknown>).operandId = "g";
+    raw.fragments = [
+      { id: "opt", kind: "opt", operands: [{ id: "f" }] },
+      {
+        id: "loop",
+        kind: "loop",
+        parentOperandId: "f",
+        operands: [
+          {
+            id: "g",
+            guard: "each line of the cart that is still in stock and was not removed while paying",
+            sourceIds: ["for"],
+          },
+        ],
+      },
+    ];
+    const out = layoutSequence(parse(raw));
+    const outer = out.sequence?.fragments.find((f) => f.id === "opt") as Box;
+    const inner = out.sequence?.fragments.find((f) => f.id === "loop") as Box;
+    expect(inner.x + inner.width + 10).toBeLessThanOrEqual(outer.x + outer.width);
+    expect(inside(inner, outer)).toBe(true);
+    expectNoOverlap(out);
+  });
+
   test("draws no two boxes of text over each other", () => {
     expectNoOverlap(laidOut);
   });

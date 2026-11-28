@@ -340,7 +340,12 @@ export function layoutSequence(board: Board): LaidOutBoard {
     }
     return depth;
   };
-  for (const fragment of fragments) {
+  // Inner frames first: a frame reaches past the right edge of every frame inside it, which a long
+  // header or guard may have widened.
+  const rightOf = new Map<string, number>();
+  const laidById = new Map<string, LaidOutSequenceFragment>();
+  const innerFirst = [...fragments].sort((a, b) => depthOf(b) - depthOf(a));
+  for (const fragment of innerFirst) {
     const frame = frames.get(fragment.id);
     const header = headerOf.get(fragment.id);
     if (!frame || !header || !Number.isFinite(frame.minX)) continue;
@@ -379,8 +384,16 @@ export function layoutSequence(board: Board): LaidOutBoard {
       label ? label.x + label.width : 0,
       ...operands.map((o) => (o.guard ? o.guard.x + o.guard.width : 0)),
     );
-    const width = Math.max(frame.maxX + inset, headerRight + HEADER_GAP) - x;
-    laidFragments.push({
+    const own = new Set(fragment.operands.map((o) => o.id));
+    const childRight = Math.max(
+      Number.NEGATIVE_INFINITY,
+      ...fragments
+        .filter((c) => c.parentOperandId !== undefined && own.has(c.parentOperandId))
+        .map((c) => (rightOf.get(c.id) ?? Number.NEGATIVE_INFINITY) + NEST_INSET),
+    );
+    const width = Math.max(frame.maxX + inset, headerRight + HEADER_GAP, childRight) - x;
+    rightOf.set(fragment.id, x + width);
+    laidById.set(fragment.id, {
       id: fragment.id,
       kind: fragment.kind,
       depth: depthOf(fragment),
@@ -392,6 +405,10 @@ export function layoutSequence(board: Board): LaidOutBoard {
       ...(label ? { label } : {}),
       operands,
     });
+  }
+  for (const fragment of fragments) {
+    const laid = laidById.get(fragment.id);
+    if (laid) laidFragments.push(laid);
   }
 
   // Shift right so nothing reaches left of the padding: a frame round the first column does.
