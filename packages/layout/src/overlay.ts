@@ -91,7 +91,12 @@ export function applyOverlay(laidOut: LaidOutBoard, board: Board, overlay: Overl
   const laidIds = new Set(laidOut.nodes.map((n) => n.id));
 
   const moved = new Map<string, Delta>();
-  for (const [id, delta] of Object.entries(overlay.nodes)) {
+  // A sequence board's order is its layout: participants, messages and fragments stay put.
+  const entries = laidOut.sequence === undefined ? Object.entries(overlay.nodes) : [];
+  if (laidOut.sequence !== undefined && Object.keys(overlay.nodes).length > 0) {
+    warnings.push("overlay: boxes do not move on a sequence board; their offsets are ignored");
+  }
+  for (const [id, delta] of entries) {
     const isUnit = laidIds.has(id) && unitOf(id) === id;
     if (!isUnit) {
       warnings.push(

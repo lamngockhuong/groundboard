@@ -1,8 +1,9 @@
-import type { Board } from "@groundboard/schema";
+import { type Board, isSequenceBoard } from "@groundboard/schema";
 import ElkBundled from "elkjs/lib/elk.bundled.js";
 import type { ELK } from "elkjs/lib/elk-api.js";
 import { fromElk } from "./from-elk.ts";
 import type { ReferenceSize } from "./references.ts";
+import { layoutSequence } from "./sequence.ts";
 import { toElk } from "./to-elk.ts";
 import type { Direction, LaidOutBoard } from "./types.ts";
 
@@ -43,6 +44,8 @@ export async function layoutBoard(
 ): Promise<LaidOutBoard> {
   const direction = options.direction ?? "right";
   options.signal?.throwIfAborted();
+  // A sequence board places its columns and rows itself; ELK is never started for it.
+  if (isSequenceBoard(board)) return layoutSequence(board);
   const input = toElk(board, direction, options.references);
   elk ??= createElk();
   const result = await elk.layout(input.graph);
