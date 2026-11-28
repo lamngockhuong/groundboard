@@ -172,6 +172,9 @@ Run `git remote get-url origin` and `git rev-parse HEAD`.
 
 ### 5. Render with the source check
 
+Before the first render in a session, read
+[references/lessons-from-runs.md](references/lessons-from-runs.md): the rules earlier runs taught.
+
 If the board sets any `ref`, also call `check_atlas` and fix a ref that no board defines.
 
 
