@@ -121,9 +121,14 @@ describe("messages", () => {
     expect(addMessage(board(), { from: "api", to: "nobody", label: "x" }).ok).toBe(false);
   });
 
-  it("removes a message and the fragments it leaves empty", () => {
+  it("removes a message and the fragments it leaves empty, with the sources only their guards cited", () => {
     const result = ok(removeMessage(board(), "m5"));
     expect(fragments(result.board).map((f) => f.id)).toEqual(["pay"]);
+    const ids = (result.board.sources as Item[]).map((s) => s.id);
+    // The loop's guard cited the for line; nothing else does now. Its own query goes too.
+    expect(ids).not.toContain("for");
+    expect(ids).not.toContain("line");
+    expect(ids).toContain("if-ok");
     expect(removeMessage(board(), "nope").ok).toBe(true);
   });
 

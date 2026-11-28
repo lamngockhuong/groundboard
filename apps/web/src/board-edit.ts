@@ -190,6 +190,13 @@ export function operandsOf(board: RawBoard): Item[] {
   return fragments.flatMap((f) => (Array.isArray(f.operands) ? (f.operands as Item[]) : []));
 }
 
+/** Every source id the board cites: nodes and their parts, edges, and fragment operands. */
+export function citedSources(board: RawBoard): Set<string> {
+  return new Set(
+    [...items(board, "nodes"), ...items(board, "edges"), ...operandsOf(board)].flatMap(citesOf),
+  );
+}
+
 /** Sources the removed items cited that nothing left on the board cites. */
 export function orphanedSources(board: RawBoard, removed: (item: Item) => boolean): string[] {
   const all = [...items(board, "nodes"), ...items(board, "edges")];

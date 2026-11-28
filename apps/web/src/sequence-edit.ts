@@ -7,8 +7,10 @@ import {
 import {
   asManual,
   checked,
+  citedSources,
   type EditResult,
   newId,
+  operandsOf,
   orphanedSources,
   type RawBoard,
 } from "./board-edit.ts";
@@ -85,8 +87,35 @@ function finish(board: RawBoard, edges: Item[], fragments?: Item[]): EditResult 
     if (fragments.length > 0) next.fragments = fragments;
     else delete next.fragments;
   }
-  return checked(pruneFragments(next));
+  return checked(tidy(next));
 }
+
+/**
+ * Tidies the fragments after an edit (`pruneFragments`), then drops the sources only the guards
+ * of the operands it removed cited.
+ */
+function tidy(board: RawBoard): RawBoard {
+  const pruned = pruneFragments(board);
+  if (pruned === board || !Array.isArray(board.sources)) return pruned;
+  const before = operandsOf(board);
+  const kept = new Set(operandsOf(pruned).map((o) => o.id));
+  const fromGone = new Set(
+    before
+      .filter((o) => !kept.has(o.id))
+      .flatMap((o) => [...strs(o.sourceIds), ...strs(o.priorSourceIds)]),
+  );
+  if (fromGone.size === 0) return pruned;
+  const cited = citedSources(pruned);
+  const orphans = new Set([...fromGone].filter((id) => !cited.has(id)));
+  if (orphans.size === 0) return pruned;
+  return {
+    ...pruned,
+    sources: (board.sources as Item[]).filter((s) => !orphans.has(String(s.id))),
+  };
+}
+
+const strs = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 
 // ---------------------------------------------------------------------------------------------
 // Participants
@@ -150,7 +179,7 @@ export function removeParticipant(board: RawBoard, nodeId: string): EditResult {
   if (Array.isArray(board.sources)) {
     next.sources = (board.sources as Item[]).filter((s) => !goneSources.has(String(s.id)));
   }
-  return checked(pruneFragments(next));
+  return checked(tidy(next));
 }
 
 /**
@@ -237,7 +266,7 @@ export function removeMessage(board: RawBoard, edgeId: string): EditResult {
   if (Array.isArray(board.sources)) {
     next.sources = (board.sources as Item[]).filter((s) => !goneSources.has(String(s.id)));
   }
-  return checked(pruneFragments(next));
+  return checked(tidy(next));
 }
 
 /** What moving a message one step would do: swap it, or take it out of or into a fragment. */
