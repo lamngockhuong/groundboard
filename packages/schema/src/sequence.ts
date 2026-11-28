@@ -1,5 +1,9 @@
 import type { Board, BoardEdge, BoardFragment, BoardNode, FragmentKind } from "./board.ts";
 import { LIMITS } from "./limits.ts";
+import { parseRef, type RefNamespace } from "./ref.ts";
+
+/** The namespaces a message's `ref` may name besides a screen: an endpoint, a table, a job. */
+const MESSAGE_REF_NAMESPACES: readonly RefNamespace[] = ["api", "db", "batch"];
 
 /**
  * Sequence boards: a board that holds `participant` nodes is a sequence diagram. Its messages
@@ -248,6 +252,26 @@ export function checkSequence({
         add(
           ["edges", i, end],
           `message \`${edge.id}\` ${end === "from" ? "starts" : "ends"} at \`${node.kind}\` node \`${node.id}\`; a message goes between participants`,
+        );
+      }
+    }
+    if (edge.ref !== undefined) {
+      // What a message reaches: an endpoint, a table (or a column) or a job, or a whole screen;
+      // never an element of a screen.
+      const parsed = parseRef(edge.ref);
+      if (parsed !== null && "platform" in parsed && parsed.element !== undefined) {
+        add(
+          ["edges", i, "ref"],
+          `message \`${edge.id}\` ref \`${edge.ref}\` names an element; a message reaches an endpoint, a table, a job or a screen`,
+        );
+      } else if (
+        parsed !== null &&
+        !("platform" in parsed) &&
+        !MESSAGE_REF_NAMESPACES.includes(parsed.namespace)
+      ) {
+        add(
+          ["edges", i, "ref"],
+          `message \`${edge.id}\` ref \`${edge.ref}\` is in namespace ${parsed.namespace}; a message reaches an api, db or batch ref, or a screen`,
         );
       }
     }

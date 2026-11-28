@@ -179,6 +179,20 @@ describe("the rules of a sequence board", () => {
     );
   });
 
+  test("a message's ref names an endpoint, a table, a job or a screen, never an element", () => {
+    const element = sequence();
+    (element.edges[0] as Record<string, unknown>).ref = "web:checkout/pay-button";
+    expect(messages(element).join(" ")).toContain(
+      "edges[0].ref: message `m1` ref `web:checkout/pay-button` names an element",
+    );
+    const screen = sequence();
+    (screen.edges[0] as Record<string, unknown>).ref = "web:checkout";
+    expect(messages(screen)).toEqual([]);
+    const column = sequence();
+    (column.edges[3] as Record<string, unknown>).ref = "db:orders/status";
+    expect(messages(column)).toEqual([]);
+  });
+
   test("a message's operandId names an operand", () => {
     const board = sequence();
     (board.edges[3] as Record<string, unknown>).operandId = "nope";
