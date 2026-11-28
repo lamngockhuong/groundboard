@@ -345,9 +345,11 @@ export function guardsText(guards: unknown): string {
 }
 
 /**
- * Replaces an endpoint's guards with the ones written in the panel, one per line. A guard kept
- * under the same name keeps its sources; clearing every line leaves an empty list, which says
- * the handler has no guard. The endpoint becomes manual, its sources moved to `priorSourceIds`.
+ * Replaces an endpoint's guards with the ones written in the panel, one per line. Each line keeps
+ * the sources of the first guard of that name not taken by an earlier line, so two guards of one
+ * name stay two. No line leaves an empty list, which says the handler was read and has no guard,
+ * also on an endpoint whose handler was not read before. The endpoint becomes manual, its
+ * sources moved to `priorSourceIds`.
  */
 export function setEndpointGuards(board: RawBoard, endpointId: string, text: string): EditResult {
   const nodes = items(board, "nodes");
@@ -356,13 +358,21 @@ export function setEndpointGuards(board: RawBoard, endpointId: string, text: str
   if (endpoint?.kind !== "endpoint") {
     return { ok: false, issues: [{ path: "", message: `no endpoint \`${endpointId}\`` }] };
   }
-  const before = new Map(
-    (Array.isArray(endpoint.guards) ? (endpoint.guards as Guard[]) : []).map((g) => [g.name, g]),
-  );
-  const names = [...new Set(text.split("\n").map((line) => line.trim()))].filter(Boolean);
-  if (guardsText(endpoint.guards) === names.join("\n")) return { ok: true, board };
+  const before = Array.isArray(endpoint.guards) ? (endpoint.guards as Guard[]) : undefined;
+  const names = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (before !== undefined && guardsText(before) === names.join("\n")) return { ok: true, board };
+  const taken = new Set<number>();
+  const guards = names.map((name) => {
+    const index = (before ?? []).findIndex((g, i) => g.name === name && !taken.has(i));
+    if (index < 0) return { name };
+    taken.add(index);
+    return { ...(before?.[index] as Guard), name };
+  });
   const next = asManual(endpoint);
-  next.guards = names.map((name) => ({ ...(before.get(name) ?? {}), name }));
+  next.guards = guards;
   const out = [...nodes];
   out[at] = next;
   return checked({ ...board, nodes: out });

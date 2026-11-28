@@ -413,6 +413,16 @@ export const EditPanel = forwardRef<EditPanelHandle, EditPanelProps>(function Ed
               onCommit={(value) => void apply((b) => setEndpointGuards(b, str(node.id), value))}
             />
           ) : null}
+          {node.kind === "endpoint" && !Array.isArray(node.guards) ? (
+            // An unread handler shows an empty field, which clearing cannot change.
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void apply((b) => setEndpointGuards(b, str(node.id), ""))}
+            >
+              {t("editPanel.noGuard")}
+            </button>
+          ) : null}
           <p className="muted edit-note">{t("editPanel.manualNote")}</p>
           <button type="button" className="danger" onClick={() => remove("node", str(node.id))}>
             {t("editPanel.removeNode")}

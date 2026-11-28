@@ -585,4 +585,5 @@ export const vi: Messages = {
   "sequenceEdit.selectedMessages_other": "Đã chọn {count} message",
   "sequenceEdit.around": "Các fragment bao quanh message này",
   "sequenceEdit.editFragment": "Sửa {fragment}",
+  "editPanel.noGuard": "Handler không có guard",
 };

@@ -187,16 +187,30 @@ describe("setEndpointGuards", () => {
     expect(cleared.ok && node(cleared.board, "create-order")?.guards).toEqual([]);
   });
 
-  it("changes nothing when the list is the same, or when an unread handler stays empty", () => {
+  it("changes nothing when the list is the same, and records no guard on an unread handler", () => {
     const board = api();
     delete (node(board, "create-order") as Record<string, unknown>).guards;
-    const unread = setEndpointGuards(board, "create-order", "");
-    expect(unread.ok && unread.board).toBe(board);
+    const read = setEndpointGuards(board, "create-order", "");
+    expect(read.ok && node(read.board, "create-order")?.guards).toEqual([]);
     (node(board, "create-order") as Record<string, unknown>).guards = [
       { name: "requireCustomer", sourceIds: ["route-post"] },
     ];
     const same = setEndpointGuards(board, "create-order", " requireCustomer ");
     expect(same.ok && same.board).toBe(board);
+  });
+
+  it("keeps two guards of one name apart, each with its own sources", () => {
+    const board = api();
+    (node(board, "create-order") as Record<string, unknown>).guards = [
+      { name: "auth", sourceIds: ["route-post"] },
+      { name: "auth", sourceIds: ["insert-order"] },
+    ];
+    const result = setEndpointGuards(board, "create-order", "auth\nauth\nrateLimit");
+    expect(result.ok && node(result.board, "create-order")?.guards).toEqual([
+      { name: "auth", sourceIds: ["route-post"] },
+      { name: "auth", sourceIds: ["insert-order"] },
+      { name: "rateLimit" },
+    ]);
   });
 
   it("refuses a node that is not an endpoint, and undoes with the shared history", () => {

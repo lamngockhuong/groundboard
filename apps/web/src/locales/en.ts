@@ -598,4 +598,5 @@ export const en = {
   "sequenceEdit.selectedMessages_other": "{count} messages selected",
   "sequenceEdit.around": "Fragments around this message",
   "sequenceEdit.editFragment": "Edit {fragment}",
+  "editPanel.noGuard": "The handler has no guard",
 } as const;
