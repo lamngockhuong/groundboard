@@ -231,21 +231,23 @@ export function readMotionGraph(
   return { nodes, arrows, nodeById, owners, sequence };
 }
 
-/** The board nodes and edges among the selected elements, each once. */
+/** The board nodes, edges and fragment operands among the selected elements, each once. */
 export function selectedBoardItems(
   elements: readonly unknown[],
   selected: Readonly<Record<string, boolean>>,
-): { nodes: string[]; edges: string[] } {
+): { nodes: string[]; edges: string[]; operands: string[] } {
   const nodes = new Set<string>();
   const edges = new Set<string>();
+  const operands = new Set<string>();
   for (const element of elements as ElementLike[]) {
     if (typeof element.id !== "string" || !selected[element.id]) continue;
     const data = dataOf(element);
     if (!data || data.overlay === true) continue;
     if (typeof data.nodeId === "string") nodes.add(data.nodeId);
     else if (typeof data.edgeId === "string") edges.add(data.edgeId);
+    else if (typeof data.operandId === "string") operands.add(data.operandId);
   }
-  return { nodes: [...nodes], edges: [...edges] };
+  return { nodes: [...nodes], edges: [...edges], operands: [...operands] };
 }
 
 /**

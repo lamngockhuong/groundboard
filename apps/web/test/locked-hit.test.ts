@@ -79,3 +79,58 @@ describe("lockedItemAt", () => {
     expect(lockedItemAt(gone, { x: 60, y: 85 }, 8)).toBeNull();
   });
 });
+
+describe("on a sequence board", () => {
+  const lifeline = {
+    id: "lifeline/bank",
+    type: "line",
+    x: 100,
+    y: 0,
+    points: [
+      [0, 0],
+      [0, 500],
+    ],
+    locked: true,
+  };
+  const frame = {
+    id: "fragment/pay",
+    type: "rectangle",
+    x: 0,
+    y: 100,
+    width: 400,
+    height: 200,
+    locked: true,
+    customData: { groundboard: { operandId: "ok" } },
+  };
+  const label = {
+    id: "edge-label/m5",
+    type: "text",
+    x: 80,
+    y: 150,
+    width: 60,
+    height: 18,
+    locked: true,
+    customData: { groundboard: { edgeId: "m5", kind: "message" } },
+  };
+  const guard = {
+    id: "operand-guard/declined",
+    type: "text",
+    x: 10,
+    y: 220,
+    width: 70,
+    height: 18,
+    locked: true,
+    customData: { groundboard: { operandId: "declined" } },
+  };
+  const scene = [lifeline, frame, label, guard];
+
+  it("picks a message label a lifeline runs through", () => {
+    expect(lockedItemAt(scene, { x: 101, y: 158 }, 8)).toBe("edge-label/m5");
+  });
+
+  it("picks a guard, and a frame only on its outline", () => {
+    expect(lockedItemAt(scene, { x: 30, y: 228 }, 8)).toBe("operand-guard/declined");
+    expect(lockedItemAt(scene, { x: 2, y: 260 }, 8)).toBe("fragment/pay");
+    expect(lockedItemAt(scene, { x: 300, y: 260 }, 8)).toBeNull();
+  });
+});

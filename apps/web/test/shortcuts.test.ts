@@ -166,3 +166,28 @@ describe("prefs", () => {
     expect(readFlag("k", false)).toBe(false);
   });
 });
+
+describe("isSequenceMoveKey", () => {
+  const key = (k: string, extra: Partial<KeyboardEvent> = {}) =>
+    ({
+      key: k,
+      altKey: true,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      defaultPrevented: false,
+      target: null,
+      ...extra,
+    }) as KeyboardEvent;
+
+  it("reads Alt and an arrow as a move, and nothing else", async () => {
+    const { isSequenceMoveKey } = await import("../src/shortcuts.ts");
+    expect(isSequenceMoveKey(key("ArrowUp"))).toBe("up");
+    expect(isSequenceMoveKey(key("ArrowDown"))).toBe("down");
+    expect(isSequenceMoveKey(key("ArrowLeft"))).toBe("left");
+    expect(isSequenceMoveKey(key("ArrowRight"))).toBe("right");
+    expect(isSequenceMoveKey(key("ArrowUp", { altKey: false }))).toBeNull();
+    expect(isSequenceMoveKey(key("ArrowUp", { shiftKey: true }))).toBeNull();
+    expect(isSequenceMoveKey(key("a"))).toBeNull();
+  });
+});

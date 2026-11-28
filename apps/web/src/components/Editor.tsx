@@ -370,9 +370,14 @@ export default function Editor({
   /** Changes whenever the history moves, so the undo buttons follow. */
   const [, setHistoryTick] = useState(0);
   const tick = useCallback(() => setHistoryTick((n) => n + 1), []);
-  const [selection, setSelection] = useState<{ nodes: string[]; edges: string[] }>({
+  const [selection, setSelection] = useState<{
+    nodes: string[];
+    edges: string[];
+    operands: string[];
+  }>({
     nodes: [],
     edges: [],
+    operands: [],
   });
   /** The selected board items, for the arrows that run around them. */
   const [selected, setSelected] = useState<{ nodes: string[]; edges: string[] }>({

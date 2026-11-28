@@ -27,7 +27,7 @@ export function checked(board: RawBoard): EditResult {
 }
 
 /** An item marked as changed by a person, its sources moved to `priorSourceIds`. */
-function asManual(item: Item): Item {
+export function asManual(item: Item): Item {
   const cited = strings(item.sourceIds);
   const out: Item = { ...item, manual: true };
   if (cited.length > 0) {
@@ -39,7 +39,14 @@ function asManual(item: Item): Item {
 
 /** A fresh id `m-` and six characters, unused on the board. */
 export function newId(board: RawBoard, random: () => number = Math.random): string {
-  const taken = new Set([...ids(items(board, "nodes")), ...ids(items(board, "edges"))]);
+  // Fragments and their operands share the board's ids with nodes and edges.
+  const fragments = Array.isArray(board.fragments) ? (board.fragments as Item[]) : [];
+  const taken = new Set([
+    ...ids(items(board, "nodes")),
+    ...ids(items(board, "edges")),
+    ...ids(fragments),
+    ...ids(operandsOf(board)),
+  ]);
   const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
   for (;;) {
     let id = "m-";
@@ -110,6 +117,8 @@ export interface NewNode {
   pathPrefix?: string;
   /** job: what starts it. */
   trigger?: { type: string; schedule?: string; queue?: string; event?: string };
+  /** participant: what it is. */
+  category?: string;
 }
 
 /** Adds a node a person describes, marked manual and citing nothing. */
@@ -130,6 +139,7 @@ export function addNode(
     "method",
     "path",
     "pathPrefix",
+    "category",
   ] as const) {
     const value = spec[key]?.trim();
     if (value) node[key] = value;
@@ -164,12 +174,30 @@ function withDependants(board: RawBoard, nodeId: string): Set<string> {
   return gone;
 }
 
+/** The sources an item cites, those of its parts included: guards, handler, columns. */
+function citesOf(item: Item): string[] {
+  const parts = [
+    ...(Array.isArray(item.guards) ? (item.guards as Item[]) : []),
+    ...(Array.isArray(item.columns) ? (item.columns as Item[]) : []),
+    ...(typeof item.handler === "object" && item.handler !== null ? [item.handler as Item] : []),
+  ];
+  return [item, ...parts].flatMap((i) => [...strings(i.sourceIds), ...strings(i.priorSourceIds)]);
+}
+
+/** The operands of a sequence board's fragments: they cite sources as nodes and edges do. */
+export function operandsOf(board: RawBoard): Item[] {
+  const fragments = Array.isArray(board.fragments) ? (board.fragments as Item[]) : [];
+  return fragments.flatMap((f) => (Array.isArray(f.operands) ? (f.operands as Item[]) : []));
+}
+
 /** Sources the removed items cited that nothing left on the board cites. */
-function orphanedSources(board: RawBoard, removed: (item: Item) => boolean): string[] {
+export function orphanedSources(board: RawBoard, removed: (item: Item) => boolean): string[] {
   const all = [...items(board, "nodes"), ...items(board, "edges")];
-  const cites = (item: Item) => [...strings(item.sourceIds), ...strings(item.priorSourceIds)];
-  const kept = new Set(all.filter((i) => !removed(i)).flatMap(cites));
-  return [...new Set(all.filter(removed).flatMap(cites))].filter((id) => !kept.has(id));
+  const kept = new Set([
+    ...all.filter((i) => !removed(i)).flatMap(citesOf),
+    ...operandsOf(board).flatMap(citesOf),
+  ]);
+  return [...new Set(all.filter(removed).flatMap(citesOf))].filter((id) => !kept.has(id));
 }
 
 /** What removing a node takes with it, to say before asking. */

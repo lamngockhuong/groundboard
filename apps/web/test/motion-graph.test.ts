@@ -187,6 +187,7 @@ describe("selectedBoardItems and arrowsTouching", () => {
     expect(selectedBoardItems(elements, { "node/a/action": true, "edge/bc": true })).toEqual({
       nodes: ["a"],
       edges: ["bc"],
+      operands: [],
     });
   });
 

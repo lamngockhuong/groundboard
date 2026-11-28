@@ -411,6 +411,21 @@ the selection through the panel, after asking. While a node or an arrow is selec
 Excalidraw's style panel is hidden: the board never keeps those styles. It stays for notes,
 whose style the layout keeps.
 
+On a sequence board nothing is dragged: its order is its layout, edited in the panel. The kind
+picker offers participants (with their category) and questions and notes. A selected participant
+gets its label, its category, "Move left" and "Move right" (`Alt+←`, `Alt+→`), forms to add a
+message from it or a participant after it, and "Remove participant", whose confirmation counts
+the messages that go with it. A selected message gets its label, type, sender and receiver,
+"Move up" and "Move down" (`Alt+↑`, `Alt+↓`), a muted line that says before it happens when the
+next move takes it out of or into a fragment ("Moving it down puts it in alt [authorized]"), a
+form to add a message after it, "Wrap in a fragment…", "Split the branch here" and "Remove
+message". Several messages picked with Shift can be wrapped together. A selected guard, tag,
+frame or divider gets its operand's condition, the fragment's kind, "Start a new branch at" and
+"Remove the frame, keep its messages". Each edit is one step of the same undo history; moving a
+column changes no claim, so nothing becomes manual, while moving a message, rewording a guard or
+wrapping marks what changed as manual. Each button names its key in its tooltip and in
+`aria-keyshortcuts`.
+
 Outside edit mode the canvas still takes drags and drawings, which nothing saves. After the
 first such change, a note at the bottom of the canvas says so, with "Edit" (moved boxes and
 drawn notes carry over) and "Discard changes".
